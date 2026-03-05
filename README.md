@@ -1,156 +1,148 @@
-Commit Message Prefix 규칙
+SolSQLD
 
-이 저장소는 홈서버 Kubernetes에서 운영되는 포트폴리오 프로젝트이며, 변경 범위를 빠르게 추적하기 위해 커밋 메시지에 prefix 규칙을 사용합니다.
+SolSQLD는 SQLD 시험 대비를 위한 SQL 학습 플랫폼입니다.
+사용자는 웹 UI에서 SQL 문제를 풀고 결과를 확인할 수 있으며, 전체 시스템은 Kubernetes 기반 홈서버 환경에서 운영되는 실제 서비스 구조를 목표로 설계되었습니다.
 
-목적
+이 프로젝트는 단순한 웹 애플리케이션이 아니라 다음을 포함한 엔드투엔드 포트폴리오 프로젝트입니다.
 
-변경이 앱 코드인지 / 배포 설정인지 / 인프라인지 / 문서인지 즉시 구분
+React 기반 웹 서비스
 
-나중에 “언제 무엇이 바뀌었는지”를 쉽게 찾기
+FastAPI 백엔드 API
 
-배포 실패/버그 발생 시 원인 커밋을 빠르게 좁히기
+Kubernetes 배포 환경
 
-Prefix 목록
-app:
+Gateway 기반 트래픽 라우팅
 
-애플리케이션 코드 변경 (프론트/백엔드)
+GitOps 기반 배포 관리
 
-포함 예시
+Airflow 기반 데이터 파이프라인
 
-React/Vite/TS(X) 코드 변경 (SolSQLD/src/...)
+프로젝트 목적
 
-FastAPI 코드 변경 (backend/app/...)
+이 프로젝트의 목표는 다음과 같습니다.
 
-API 스펙/요청·응답 변경
+SQLD 시험 대비를 위한 SQL 문제 풀이 플랫폼 구현
 
-프론트/백 코드 리팩토링, 버그 수정
+실제 서비스 구조에 가까운 웹 + API + 인프라 통합 아키텍처 구축
 
-Dockerfile(앱 런타임) 변경(프론트/백 이미지 관련)
+Kubernetes 기반 DevOps / Data Engineering 포트폴리오 구현
 
-예시 커밋
+Airflow를 활용한 데이터 파이프라인 연동
 
-app: add /api/events endpoint
+아키텍처 (Architecture)
+Internet
+   │
+Cloudflare Tunnel
+   │
+Envoy Gateway (Gateway API)
+   │
+ ┌───────────────┐
+ │               │
+Frontend       Backend
+(React + Vite) (FastAPI)
+   │               │
+   │               │
+   └───────API─────┘
+트래픽 흐름
+/      → Frontend (React)
+/api   → Backend (FastAPI)
 
-app: implement SQL execute request from UI
+Cloudflare Tunnel을 통해 외부 트래픽이 클러스터로 전달되며
+Envoy Gateway가 경로 기반 라우팅을 수행합니다.
 
-app: fix auth context token refresh
+기술 스택 (Tech Stack)
+Frontend
 
-app: add frontend nginx Dockerfile
+React
 
-k8s:
+Vite
 
-Kubernetes 배포/라우팅/오토스케일 등 “클러스터에 적용되는 리소스” 변경
+TypeScript
 
-포함 예시
+TailwindCSS
 
-k8s/ 폴더 내 YAML 수정
+Backend
 
-Deployment/Service/ConfigMap/Secret/HPA 변경
+FastAPI
 
-Gateway/HTTPRoute(/, /api 라우팅) 변경
+Gunicorn
 
-resource requests/limits, probes, rolling update 전략 변경
+Uvicorn Worker
 
-namespace, labels/annotations 변경
+Infrastructure
 
-예시 커밋
+Kubernetes
 
-k8s: add backend deployment + service
+Envoy Gateway (Gateway API)
 
-k8s: route /api to backend via HTTPRoute
+Cloudflare Tunnel
 
-k8s: tune backend resources and probes
+ArgoCD (GitOps)
 
-k8s: add backend HPA
+Data Engineering
 
-infra:
+Apache Airflow
 
-앱 자체 기능이나 K8s 매니페스트가 아니라, “운영을 돕는 인프라/자동화/도구” 변경
+저장소 구조 (Repository Structure)
+.
+├─ SolSQLD/      # React + Vite 프론트엔드
+├─ backend/      # FastAPI 백엔드
+├─ k8s/          # Kubernetes 배포 설정
+└─ docs/         # 프로젝트 문서
+로컬 실행 방법 (Local Development)
+Frontend
+cd SolSQLD
+npm install
+npm run dev
 
-포함 예시
+개발 서버 실행 후 아래 주소에서 확인할 수 있습니다.
 
-CI/CD 스크립트, GitHub Actions, 빌드/배포 자동화
+http://localhost:3000
+Backend
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload
 
-로컬 개발/운영 스크립트(scripts/), Makefile
+API 서버
 
-이미지 태그 전략, 릴리즈 방식, 레포 운영 도구
+http://localhost:8000
+배포 (Deployment)
 
-Cloudflared/Tunnel 관련 운영 파일(이 레포에서 관리하는 경우에 한함)
+Docker 이미지를 빌드한 후 Kubernetes에 배포합니다.
 
-환경 변수 템플릿, 공통 설정 파일(빌드/배포 파이프라인용)
+Docker 이미지 빌드
+docker build -t solsqld-backend ./backend
+docker build -t solsqld-frontend ./SolSQLD
+Kubernetes 배포
+kubectl apply -f k8s/
+커밋 메시지 규칙 (Commit Message Convention)
 
-예시 커밋
+이 저장소에서는 변경 범위를 명확히 하기 위해 커밋 메시지 prefix 규칙을 사용합니다.
 
-infra: add build-and-push script
+형식
 
-infra: add github actions for docker build
+<prefix>: 변경 내용 요약
 
-infra: standardize image tagging scheme
+예시
 
-주의: K8s YAML 변경은 k8s:로, 자동화/도구/파이프라인 변경은 infra:로 분류합니다.
+app: SQL 실행 API 추가
+k8s: backend deployment 추가
+infra: docker build workflow 추가
+docs: 배포 방법 문서 업데이트
+Prefix 종류
+Prefix	설명
+app:	애플리케이션 코드 변경 (프론트엔드 / 백엔드)
+k8s:	Kubernetes 매니페스트 및 배포 설정
+infra:	빌드 스크립트, CI/CD, 운영 관련 설정
+docs:	문서 수정
+향후 계획 (Roadmap)
 
-docs:
+SQL 실행 엔진 구현
 
-문서 변경(설명, 사용법, 운영 노트)
+문제 채점 시스템
 
-포함 예시
+사용자 인증 시스템
 
-README.md 업데이트
+SQL 문제 데이터셋 구축
 
-docs/architecture.md, docs/dev.md, docs/deploy.md 등
-
-트러블슈팅 기록, 운영 메모, 결정 이유(ADR)
-
-예시 커밋
-
-docs: add local dev instructions
-
-docs: document gateway routing and tunnel setup
-
-docs: update troubleshooting notes for UI errors
-
-권장 커밋 메시지 형태
-기본 형식
-<prefix>: <짧은 변경 요약>
-좋은 예
-
-app: add healthz endpoint
-
-k8s: add readiness/liveness probes
-
-infra: add make target for deploy
-
-docs: update deployment steps
-
-피해야 할 예
-
-update (무슨 업데이트인지 알 수 없음)
-
-fix (무엇을 고쳤는지 알 수 없음)
-
-work (변경 범위 불명확)
-
-커밋 단위(Granularity) 가이드
-
-서로 다른 성격의 변경을 한 커밋에 섞지 않습니다.
-
-예: API 코드 변경 + K8s 배포 변경을 한 번에 넣지 않기
-
-분리 예:
-
-app: add /api/sql/execute endpoint
-
-k8s: expose backend service and route /api
-
-문서만 바뀌었으면 docs: 단독 커밋으로 분리합니다.
-
-예시 워크플로
-
-백엔드에 엔드포인트 추가
-→ app: add /api/events endpoint
-
-K8s 라우팅을 /api로 연결
-→ k8s: route /api to backend via HTTPRoute
-
-배포 방법을 문서에 기록
-→ docs: document deploy steps
+Airflow 기반 문제 데이터 파이프라인 구축
