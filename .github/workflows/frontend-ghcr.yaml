@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - "frontend/**"
-      - ".github/workflows/frontend-ghcr.yml"
+      - ".github/workflows/frontend-ghcr.yaml"
   workflow_dispatch:
 
 jobs:
