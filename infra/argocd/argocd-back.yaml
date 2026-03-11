@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: back-k8s
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/BeolLe/sqld_project
+    targetRevision: prod
+    path: infra/backend
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+ 
+
