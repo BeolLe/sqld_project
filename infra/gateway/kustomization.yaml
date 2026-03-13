@@ -5,3 +5,5 @@ namespace: app
 
 resources:
   - cloudflared-deployment.yaml
+  - gateway.yaml
+  - httproute-frontend.yaml
