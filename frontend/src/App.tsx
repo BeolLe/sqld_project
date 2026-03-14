@@ -31,6 +31,7 @@ function AppShell() {
       {/* 모의고사 풀이 화면은 헤더 없이 */}
       <Routes>
         <Route path="/exams/:id/taking" element={<ExamTakingPage />} />
+        <Route path="/sql-practice/:id" element={<SQLPracticePage />} />
         <Route
           path="*"
           element={
@@ -44,7 +45,6 @@ function AppShell() {
                   <Route path="/exams/:id" element={<ExamListPage />} />
                   <Route path="/exams/:id/result" element={<ExamResultPage />} />
                   <Route path="/sql-practice" element={<SQLPracticeListPage />} />
-                  <Route path="/sql-practice/:id" element={<SQLPracticePage />} />
                 </Routes>
               </main>
             </>
@@ -72,4 +72,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-// image-updater test

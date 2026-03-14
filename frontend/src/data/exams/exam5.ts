@@ -1,14 +1,9 @@
 import type { Problem } from '../../types';
 
-// SQLD 모의고사 5회 (중급 난이도 - 목표 합격률 ~45%)
+// SQLD 모의고사 5회 (중급 난이도 - 실제 시험의 95% 수준)
 // 1과목: 데이터 모델링의 이해 (10문항, 20점)
-//   - 데이터모델링 5문항 + 정규화 5문항
 // 2과목: SQL 기본 및 활용 (40문항, 80점)
-//   - JOIN 7, 함수 6, DML 5, 서브쿼리 5, 윈도우함수 4, 집합연산 4, DDL 4, TCL 2, DCL 2, 계층형쿼리 1
-// 난이도 배분: easy 12 / medium 23 / hard 15
-// 집중 영역: Oracle vs SQL Server 구문 차이, 복합 GROUP BY, 상관 서브쿼리,
-//           윈도우 함수 프레임 지정, DDL 제약조건 위반, TCL과 DDL 자동커밋,
-//           DECODE vs CASE WHEN, 다중 테이블 JOIN 필터링, NULL 전파
+// 난이도 배분: easy 10 / medium 25 / hard 15
 
 export const EXAM_5_PROBLEMS: Problem[] = [
   // ===== 1과목: 데이터 모델링의 이해 (1~10번) =====
@@ -16,8 +11,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
   {
     id: 'exam5_p1',
     title: '1. 개념적 데이터 모델의 특성',
-    description:
-      '개념적 데이터 모델(Conceptual Data Model)에 대한 설명으로 올바른 것은?',
+    description: '개념적 데이터 모델(Conceptual Data Model)에 대한 설명으로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'easy',
     category: '데이터모델링',
@@ -76,8 +70,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
   {
     id: 'exam5_p4',
     title: '4. 속성의 원자성과 복합 속성',
-    description:
-      '다음 중 속성의 원자성(Atomicity)에 관한 설명으로 올바른 것은?',
+    description: '다음 중 속성의 원자성(Atomicity)에 관한 설명으로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'hard',
     category: '데이터모델링',
@@ -158,8 +151,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
   {
     id: 'exam5_p8',
     title: '8. BCNF와 3NF의 차이',
-    description:
-      '다음 중 BCNF(Boyce-Codd Normal Form)와 3NF의 차이에 대한 설명으로 올바른 것은?',
+    description: '다음 중 BCNF(Boyce-Codd Normal Form)와 3NF의 차이에 대한 설명으로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'hard',
     category: '정규화',
@@ -178,8 +170,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
   {
     id: 'exam5_p9',
     title: '9. 정규화의 장단점',
-    description:
-      '정규화(Normalization)의 장단점에 대한 설명으로 올바른 것은?',
+    description: '정규화(Normalization)의 장단점에 대한 설명으로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'easy',
     category: '정규화',
@@ -242,14 +233,14 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     id: 'exam5_p12',
     title: '12. LEFT OUTER JOIN과 INNER JOIN의 결과 차이',
     description:
-      '다음 두 SQL의 결과 차이에 대한 설명으로 올바른 것은?\n\n```sql\n-- SQL A\nSELECT E.EMPNO, E.ENAME, D.DNAME\nFROM EMP E LEFT OUTER JOIN DEPT D ON E.DEPTNO = D.DEPTNO\nWHERE D.LOC = \'DALLAS\';\n\n-- SQL B\nSELECT E.EMPNO, E.ENAME, D.DNAME\nFROM EMP E LEFT OUTER JOIN DEPT D\n  ON E.DEPTNO = D.DEPTNO AND D.LOC = \'DALLAS\';\n```',
+      "다음 두 SQL의 결과 차이에 대한 설명으로 올바른 것은?\n\n```sql\n-- SQL A\nSELECT E.EMPNO, E.ENAME, D.DNAME\nFROM EMP E LEFT OUTER JOIN DEPT D ON E.DEPTNO = D.DEPTNO\nWHERE D.LOC = 'DALLAS';\n\n-- SQL B\nSELECT E.EMPNO, E.ENAME, D.DNAME\nFROM EMP E LEFT OUTER JOIN DEPT D\n  ON E.DEPTNO = D.DEPTNO AND D.LOC = 'DALLAS';\n```",
     type: 'multiple_choice',
     difficulty: 'hard',
     category: 'JOIN',
     correctRate: 32,
     answer: '4',
     explanation:
-      'LEFT OUTER JOIN에서 WHERE 절과 ON 절의 조건 위치는 결과에 큰 차이를 만듭니다. SQL A는 LEFT OUTER JOIN 후 WHERE D.LOC = \'DALLAS\'를 적용합니다. WHERE 절은 JOIN 결과에 필터를 적용하므로, DEPT에 매칭되지 않아 D 컬럼이 NULL인 행은 D.LOC = \'DALLAS\'를 만족하지 못해 제거됩니다. 결과적으로 INNER JOIN과 동일하게 동작합니다. SQL B는 ON 절에 조건을 포함시켜, DEPT.LOC = \'DALLAS\'인 부서와 매칭을 시도하되 매칭되지 않는 EMP 행도 LEFT 테이블이므로 유지됩니다. 즉 SQL B는 모든 사원을 반환하되 DALLAS 부서 정보만 연결합니다.',
+      "LEFT OUTER JOIN에서 WHERE 절과 ON 절의 조건 위치는 결과에 큰 차이를 만듭니다. SQL A는 LEFT OUTER JOIN 후 WHERE D.LOC = 'DALLAS'를 적용합니다. WHERE 절은 JOIN 결과에 필터를 적용하므로, DEPT에 매칭되지 않아 D 컬럼이 NULL인 행은 D.LOC = 'DALLAS'를 만족하지 못해 제거됩니다. 결과적으로 INNER JOIN과 동일하게 동작합니다. SQL B는 ON 절에 조건을 포함시켜, DEPT.LOC = 'DALLAS'인 부서와 매칭을 시도하되 매칭되지 않는 EMP 행도 LEFT 테이블이므로 유지됩니다. 즉 SQL B는 모든 사원을 반환하되 DALLAS 부서 정보만 연결합니다.",
     options: [
       'SQL A와 SQL B는 항상 동일한 결과를 반환한다.',
       'SQL A는 모든 사원을 반환하고 DALLAS 부서 정보만 연결한다.',
@@ -262,20 +253,15 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     id: 'exam5_p13',
     title: '13. CROSS JOIN의 결과 행 수',
     description:
-      'EMP 테이블에 14건, DEPT 테이블에 4건의 데이터가 있을 때, 다음 SQL의 결과 행 수로 올바른 것은?\n\n```sql\nSELECT E.ENAME, D.DNAME\nFROM EMP E CROSS JOIN DEPT D\nWHERE E.JOB = \'MANAGER\';\n```\n\n(EMP 테이블에서 JOB = \'MANAGER\'인 사원은 3명이다.)',
+      "EMP 테이블에 14건, DEPT 테이블에 4건의 데이터가 있을 때, 다음 SQL의 결과 행 수로 올바른 것은?\n\n```sql\nSELECT E.ENAME, D.DNAME\nFROM EMP E CROSS JOIN DEPT D\nWHERE E.JOB = 'MANAGER';\n```\n\n(EMP 테이블에서 JOB = 'MANAGER'인 사원은 3명이다.)",
     type: 'multiple_choice',
     difficulty: 'easy',
     category: 'JOIN',
     correctRate: 74,
     answer: '3',
     explanation:
-      'CROSS JOIN은 카테시안 곱(Cartesian Product)으로, 두 테이블의 모든 조합을 생성합니다. 조건 없는 CROSS JOIN의 결과는 14 × 4 = 56행입니다. 여기에 WHERE 절로 JOB = \'MANAGER\'인 사원(3명)을 필터링하면, 3 × 4 = 12행이 됩니다. CROSS JOIN 자체에는 JOIN 조건이 없으므로 WHERE 절로 필터링 후 결과가 결정됩니다.',
-    options: [
-      '3행',
-      '14행',
-      '12행',
-      '56행',
-    ],
+      "CROSS JOIN은 카테시안 곱(Cartesian Product)으로, 두 테이블의 모든 조합을 생성합니다. 조건 없는 CROSS JOIN의 결과는 14 × 4 = 56행입니다. 여기에 WHERE 절로 JOB = 'MANAGER'인 사원(3명)을 필터링하면, 3 × 4 = 12행이 됩니다. CROSS JOIN 자체에는 JOIN 조건이 없으므로 WHERE 절로 필터링 후 결과가 결정됩니다.",
+    options: ['3행', '14행', '12행', '56행'],
     points: 10,
   },
   {
@@ -302,7 +288,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     id: 'exam5_p15',
     title: '15. 다중 테이블 JOIN과 필터링 조건',
     description:
-      '다음 SQL의 결과로 올바른 것은? (EMP, DEPT, SALGRADE 테이블 사용)\n\n```sql\nSELECT E.ENAME, D.DNAME, S.GRADE\nFROM EMP E\n  JOIN DEPT D ON E.DEPTNO = D.DEPTNO\n  JOIN SALGRADE S ON E.SAL BETWEEN S.LOSAL AND S.HISAL\nWHERE D.LOC != \'CHICAGO\'\n  AND S.GRADE >= 3;\n```',
+      "다음 SQL의 결과로 올바른 것은? (EMP, DEPT, SALGRADE 테이블 사용)\n\n```sql\nSELECT E.ENAME, D.DNAME, S.GRADE\nFROM EMP E\n  JOIN DEPT D ON E.DEPTNO = D.DEPTNO\n  JOIN SALGRADE S ON E.SAL BETWEEN S.LOSAL AND S.HISAL\nWHERE D.LOC != 'CHICAGO'\n  AND S.GRADE >= 3;\n```",
     type: 'multiple_choice',
     difficulty: 'medium',
     category: 'JOIN',
@@ -322,7 +308,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     id: 'exam5_p16',
     title: '16. FULL OUTER JOIN의 결과',
     description:
-      '테이블 A와 B가 다음과 같을 때 FULL OUTER JOIN의 결과 행 수로 올바른 것은?\n\n테이블 A: (ID=1, NAME=\'Kim\'), (ID=2, NAME=\'Lee\'), (ID=3, NAME=\'Park\')\n테이블 B: (ID=2, SCORE=90), (ID=3, SCORE=85), (ID=4, SCORE=70)\n\n```sql\nSELECT A.ID, A.NAME, B.SCORE\nFROM A FULL OUTER JOIN B ON A.ID = B.ID;\n```',
+      "테이블 A와 B가 다음과 같을 때 FULL OUTER JOIN의 결과 행 수로 올바른 것은?\n\n테이블 A: (ID=1, NAME='Kim'), (ID=2, NAME='Lee'), (ID=3, NAME='Park')\n테이블 B: (ID=2, SCORE=90), (ID=3, SCORE=85), (ID=4, SCORE=70)\n\n```sql\nSELECT A.ID, A.NAME, B.SCORE\nFROM A FULL OUTER JOIN B ON A.ID = B.ID;\n```",
     type: 'multiple_choice',
     difficulty: 'easy',
     category: 'JOIN',
@@ -330,12 +316,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     answer: '4',
     explanation:
       'FULL OUTER JOIN은 LEFT OUTER JOIN과 RIGHT OUTER JOIN의 합집합입니다. A와 B를 ID로 JOIN하면: (1, Kim, NULL) - A에만 있는 행, (2, Lee, 90) - 양쪽 매칭, (3, Park, 85) - 양쪽 매칭, (NULL, NULL, 70) - B에만 있는 행. 총 4행이 반환됩니다. INNER JOIN이면 2행(ID 2,3), LEFT OUTER JOIN이면 3행(1,2,3), RIGHT OUTER JOIN이면 3행(2,3,4), FULL OUTER JOIN이면 4행(1,2,3,4)입니다.',
-    options: [
-      '2행',
-      '3행 (A 기준)',
-      '3행 (B 기준)',
-      '4행',
-    ],
+    options: ['2행', '3행 (A 기준)', '3행 (B 기준)', '4행'],
     points: 10,
   },
   {
@@ -364,14 +345,14 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     id: 'exam5_p18',
     title: '18. DECODE 함수와 CASE WHEN의 차이',
     description:
-      '다음 두 SQL의 동작 차이에 대한 설명으로 올바른 것은?\n\n```sql\n-- SQL A\nSELECT DECODE(COMM, NULL, \'없음\', 0, \'없음\', COMM) AS 커미션\nFROM EMP;\n\n-- SQL B\nSELECT CASE WHEN COMM IS NULL THEN \'없음\'\n            WHEN COMM = 0 THEN \'없음\'\n            ELSE TO_CHAR(COMM)\n       END AS 커미션\nFROM EMP;\n```',
+      "다음 두 SQL의 동작 차이에 대한 설명으로 올바른 것은?\n\n```sql\n-- SQL A\nSELECT DECODE(COMM, NULL, '없음', 0, '없음', COMM) AS 커미션\nFROM EMP;\n\n-- SQL B\nSELECT CASE WHEN COMM IS NULL THEN '없음'\n            WHEN COMM = 0 THEN '없음'\n            ELSE TO_CHAR(COMM)\n       END AS 커미션\nFROM EMP;\n```",
     type: 'multiple_choice',
     difficulty: 'hard',
     category: '함수',
     correctRate: 35,
     answer: '1',
     explanation:
-      'DECODE 함수에서 NULL 비교는 특별합니다. DECODE(COMM, NULL, \'없음\', ...)는 COMM = NULL이 아닌 COMM IS NULL로 처리하므로 NULL 비교가 정상 동작합니다(이는 DECODE의 특수 기능). 그러나 DECODE는 등가 비교만 가능하며, 범위 조건이나 IS NULL 이외의 복잡한 조건을 직접 지정할 수 없습니다. CASE WHEN은 IS NULL, BETWEEN, 부등호 등 다양한 조건을 사용할 수 있습니다. SQL A에서 DECODE는 COMM이 NULL이거나 0이면 \'없음\'을 반환하고, 그 외에는 COMM(숫자)을 반환합니다. SQL B에서 CASE WHEN은 동일한 논리를 명시적으로 표현하며 TO_CHAR로 문자 변환을 추가했습니다. 두 SQL의 결과는 대부분 동일하지만, SQL A의 ELSE에 해당하는 COMM은 숫자 타입이고 SQL B의 ELSE는 TO_CHAR로 문자 타입이므로 타입이 다를 수 있습니다.',
+      "DECODE 함수에서 NULL 비교는 특별합니다. DECODE(COMM, NULL, '없음', ...)는 COMM = NULL이 아닌 COMM IS NULL로 처리하므로 NULL 비교가 정상 동작합니다(이는 DECODE의 특수 기능). 그러나 DECODE는 등가 비교만 가능하며, 범위 조건이나 IS NULL 이외의 복잡한 조건을 직접 지정할 수 없습니다. CASE WHEN은 IS NULL, BETWEEN, 부등호 등 다양한 조건을 사용할 수 있습니다. SQL A에서 DECODE는 COMM이 NULL이거나 0이면 '없음'을 반환하고, 그 외에는 COMM(숫자)을 반환합니다. SQL B에서 CASE WHEN은 동일한 논리를 명시적으로 표현하며 TO_CHAR로 문자 변환을 추가했습니다. 두 SQL의 결과는 대부분 동일하지만, SQL A의 ELSE에 해당하는 COMM은 숫자 타입이고 SQL B의 ELSE는 TO_CHAR로 문자 타입이므로 타입이 다를 수 있습니다.",
     options: [
       'DECODE는 NULL 비교를 특수하게 처리하며, SQL A와 SQL B의 결과는 데이터 타입에서 차이가 있을 수 있다.',
       'DECODE는 NULL 비교를 지원하지 않아 SQL A에서 NULL 처리가 되지 않는다.',
@@ -382,21 +363,21 @@ export const EXAM_5_PROBLEMS: Problem[] = [
   },
   {
     id: 'exam5_p19',
-    title: '19. 중첩 함수에서의 NULL 전파',
+    title: '19. UNPIVOT 쿼리 결과',
     description:
-      '다음 SQL의 결과로 올바른 것은?\n\n```sql\nSELECT UPPER(TRIM(NULL)) AS 결과1,\n       NVL(UPPER(NULL), \'DEFAULT\') AS 결과2,\n       LENGTH(NULL) AS 결과3\nFROM DUAL;\n```',
+      '다음 테이블과 SQL의 실행 결과 행 수로 올바른 것은?\n\n```sql\n-- SCORE 테이블 (3행)\n-- NAME  KOREAN  ENGLISH  MATH\n-- 홍길동   90      85      70\n-- 김철수   80      90      85\n-- 이영희   95      75      80\n\nSELECT NAME, SUBJECT, SCORE\nFROM SCORE\nUNPIVOT (SCORE FOR SUBJECT IN (KOREAN, ENGLISH, MATH));\n```',
     type: 'multiple_choice',
-    difficulty: 'hard',
-    category: '함수',
-    correctRate: 28,
-    answer: '3',
+    difficulty: 'medium',
+    category: 'PIVOT/UNPIVOT',
+    correctRate: 50,
+    answer: '4',
     explanation:
-      'NULL은 대부분의 함수에서 전파됩니다(NULL propagation). TRIM(NULL)은 NULL을 반환하고, UPPER(NULL)도 NULL을 반환합니다. 따라서 UPPER(TRIM(NULL)) = NULL이 됩니다. NVL(UPPER(NULL), \'DEFAULT\')는 UPPER(NULL)이 NULL이므로 NVL이 \'DEFAULT\'를 반환합니다. LENGTH(NULL)은 NULL을 반환합니다(LENGTH는 NULL 문자열의 길이를 NULL로 처리, Oracle 기준). 따라서 결과1 = NULL, 결과2 = \'DEFAULT\', 결과3 = NULL입니다.',
+      'UNPIVOT은 열을 행으로 변환합니다. 원본 테이블은 3행이고 UNPIVOT 대상 컬럼이 3개(KOREAN, ENGLISH, MATH)이므로 결과는 3 × 3 = 9행이 됩니다. 각 학생마다 3개의 과목별 행이 생성됩니다.',
     options: [
-      '결과1 = \'\', 결과2 = \'DEFAULT\', 결과3 = 0',
-      '결과1 = NULL, 결과2 = NULL, 결과3 = NULL',
-      '결과1 = NULL, 결과2 = \'DEFAULT\', 결과3 = NULL',
-      '결과1 = \'\', 결과2 = \'DEFAULT\', 결과3 = NULL',
+      '3',
+      '4',
+      '6',
+      '9',
     ],
     points: 10,
   },
@@ -424,20 +405,15 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     id: 'exam5_p21',
     title: '21. 문자 함수의 조합 활용',
     description:
-      '다음 SQL의 결과로 올바른 것은?\n\n```sql\nSELECT LPAD(SUBSTR(\'SQLD-2025-EXAM\', 6, 4), 8, \'0\') AS 결과\nFROM DUAL;\n```',
+      "다음 SQL의 결과로 올바른 것은?\n\n```sql\nSELECT LPAD(SUBSTR('SQLD-2025-EXAM', 6, 4), 8, '0') AS 결과\nFROM DUAL;\n```",
     type: 'multiple_choice',
     difficulty: 'medium',
     category: '함수',
     correctRate: 52,
     answer: '4',
     explanation:
-      'SUBSTR(\'SQLD-2025-EXAM\', 6, 4)는 6번째 위치부터 4글자를 추출합니다. \'SQLD-2025-EXAM\'에서 위치는 S=1, Q=2, L=3, D=4, -=5, 2=6, 0=7, 2=8, 5=9이므로, 6번째부터 4글자는 \'2025\'입니다. 그 다음 LPAD(\'2025\', 8, \'0\')은 \'2025\'를 왼쪽에 \'0\'으로 채워 총 8자리로 만들면 \'00002025\'가 됩니다.',
-    options: [
-      '\'0002025\'',
-      '\'2025-EXA\'',
-      '\'0000SQLD\'',
-      '\'00002025\'',
-    ],
+      "SUBSTR('SQLD-2025-EXAM', 6, 4)는 6번째 위치부터 4글자를 추출합니다. 'SQLD-2025-EXAM'에서 위치는 S=1, Q=2, L=3, D=4, -=5, 2=6, 0=7, 2=8, 5=9이므로, 6번째부터 4글자는 '2025'입니다. 그 다음 LPAD('2025', 8, '0')은 '2025'를 왼쪽에 '0'으로 채워 총 8자리로 만들면 '00002025'가 됩니다.",
+    options: ["'0002025'", "'2025-EXA'", "'0000SQLD'", "'00002025'"],
     points: 10,
   },
   {
@@ -463,8 +439,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
   {
     id: 'exam5_p23',
     title: '23. Oracle의 TO_CHAR 날짜 형식',
-    description:
-      '오라클에서 날짜를 \'2025년 12월 31일 화요일\'로 출력하려 할 때, 올바른 SQL은?',
+    description: "오라클에서 날짜를 '2025년 12월 31일 화요일'로 출력하려 할 때, 올바른 SQL은?",
     type: 'multiple_choice',
     difficulty: 'easy',
     category: '함수',
@@ -474,9 +449,9 @@ export const EXAM_5_PROBLEMS: Problem[] = [
       'Oracle의 TO_CHAR 함수를 사용하여 날짜를 원하는 형식의 문자열로 변환합니다. 날짜 형식 요소 중 YYYY는 4자리 연도, MM은 2자리 월, DD는 2자리 일, DAY는 요일의 전체 이름을 나타냅니다. NLS_DATE_LANGUAGE 설정에 따라 언어가 결정됩니다. 한국어 환경에서 올바른 형식은 TO_CHAR(날짜, \'YYYY"년" MM"월" DD"일" DAY\')입니다. 큰따옴표로 묶인 문자는 형식 지정자가 아닌 리터럴로 처리됩니다.',
     options: [
       'SELECT TO_CHAR(SYSDATE, \'YYYY"년" MM"월" DD"일" DAY\') FROM DUAL;',
-      'SELECT TO_CHAR(SYSDATE, \'YYYY년 MM월 DD일 DAY\') FROM DUAL;',
-      'SELECT CONVERT(SYSDATE, \'YYYY년 MM월 DD일 DAY\') FROM DUAL;',
-      'SELECT FORMAT(SYSDATE, \'YYYY년 MM월 DD일 DAY\') FROM DUAL;',
+      "SELECT TO_CHAR(SYSDATE, 'YYYY년 MM월 DD일 DAY') FROM DUAL;",
+      "SELECT CONVERT(SYSDATE, 'YYYY년 MM월 DD일 DAY') FROM DUAL;",
+      "SELECT FORMAT(SYSDATE, 'YYYY년 MM월 DD일 DAY') FROM DUAL;",
     ],
     points: 10,
   },
@@ -486,17 +461,17 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     id: 'exam5_p24',
     title: '24. INSERT INTO SELECT 구문',
     description:
-      '다음 SQL에 대한 설명으로 올바른 것은?\n\n```sql\nINSERT INTO DEPT_BACKUP (DEPTNO, DNAME, LOC)\nSELECT DEPTNO, DNAME, LOC\nFROM DEPT\nWHERE LOC = \'SEOUL\';\n```',
+      "다음 SQL에 대한 설명으로 올바른 것은?\n\n```sql\nINSERT INTO DEPT_BACKUP (DEPTNO, DNAME, LOC)\nSELECT DEPTNO, DNAME, LOC\nFROM DEPT\nWHERE LOC = 'SEOUL';\n```",
     type: 'multiple_choice',
-    difficulty: 'easy',
+    difficulty: 'medium',
     category: 'DML',
-    correctRate: 76,
+    correctRate: 50,
     answer: '2',
     explanation:
-      'INSERT INTO ... SELECT 구문은 SELECT 결과를 대상 테이블에 삽입합니다. 이 SQL은 DEPT 테이블에서 LOC가 \'SEOUL\'인 행을 DEPT_BACKUP 테이블에 복사합니다. SELECT 결과가 여러 행이면 여러 행이 한 번에 삽입됩니다. 대상 테이블(DEPT_BACKUP)은 이미 존재해야 하며, 컬럼 수와 데이터 타입이 일치해야 합니다. 만약 테이블을 새로 생성하며 데이터를 삽입하려면 CREATE TABLE ... AS SELECT 구문을 사용합니다.',
+      "INSERT INTO ... SELECT 구문은 SELECT 결과를 대상 테이블에 삽입합니다. 이 SQL은 DEPT 테이블에서 LOC가 'SEOUL'인 행을 DEPT_BACKUP 테이블에 복사합니다. SELECT 결과가 여러 행이면 여러 행이 한 번에 삽입됩니다. 대상 테이블(DEPT_BACKUP)은 이미 존재해야 하며, 컬럼 수와 데이터 타입이 일치해야 합니다. 만약 테이블을 새로 생성하며 데이터를 삽입하려면 CREATE TABLE ... AS SELECT 구문을 사용합니다.",
     options: [
       'DEPT_BACKUP 테이블이 없으면 자동으로 생성한다.',
-      'DEPT 테이블의 LOC = \'SEOUL\' 행을 DEPT_BACKUP에 삽입한다.',
+      "DEPT 테이블의 LOC = 'SEOUL' 행을 DEPT_BACKUP에 삽입한다.",
       'SELECT 결과가 여러 행이면 오류가 발생한다.',
       '이 구문은 Oracle에서만 지원된다.',
     ],
@@ -504,21 +479,21 @@ export const EXAM_5_PROBLEMS: Problem[] = [
   },
   {
     id: 'exam5_p25',
-    title: '25. UPDATE 문의 서브쿼리 사용',
+    title: '25. REGEXP_COUNT 함수',
     description:
-      '다음 SQL에 대한 설명으로 올바른 것은?\n\n```sql\nUPDATE EMP\nSET SAL = SAL * 1.1,\n    COMM = (SELECT AVG(COMM) FROM EMP WHERE DEPTNO = 30)\nWHERE DEPTNO = 30\n  AND JOB = \'SALESMAN\';\n```',
+      '다음 SQL의 실행 결과로 올바른 것은?\n\n```sql\nSELECT REGEXP_COUNT(\'Hello World 123 Test 456\', \'[0-9]+\') AS CNT\nFROM DUAL;\n```',
     type: 'multiple_choice',
     difficulty: 'medium',
-    category: 'DML',
-    correctRate: 55,
-    answer: '4',
+    category: '정규표현식',
+    correctRate: 50,
+    answer: '2',
     explanation:
-      'UPDATE 문에서 SET 절에 서브쿼리를 사용할 수 있습니다. 이 SQL은 DEPTNO가 30이고 JOB이 \'SALESMAN\'인 사원에 대해 SAL을 10% 인상하고, COMM을 30번 부서 전체 평균 COMM으로 갱신합니다. 서브쿼리는 WHERE 절을 적용하기 전에 실행되어 UPDATE 시작 시점의 평균값을 사용합니다(일반적으로 서브쿼리가 먼저 평가됨). SET 절의 서브쿼리가 NULL을 반환하면 COMM이 NULL로 업데이트됩니다.',
+      'REGEXP_COUNT는 문자열에서 정규표현식 패턴이 매칭되는 횟수를 반환합니다. [0-9]+는 연속된 숫자 그룹을 의미하며, 123과 456 두 그룹이 매칭되므로 결과는 2입니다.',
     options: [
-      'SET 절에서 서브쿼리를 사용할 수 없어 오류가 발생한다.',
-      'SAL은 변경되지 않고 COMM만 서브쿼리 결과로 업데이트된다.',
-      'WHERE 절과 SET의 서브쿼리 모두 UPDATE 후의 값을 기준으로 실행된다.',
-      '30번 부서 SALESMAN의 SAL을 10% 인상하고 COMM을 30번 부서 평균 COMM으로 업데이트한다.',
+      '1',
+      '2',
+      '6',
+      '9',
     ],
     points: 10,
   },
@@ -545,12 +520,11 @@ export const EXAM_5_PROBLEMS: Problem[] = [
   {
     id: 'exam5_p27',
     title: '27. DELETE와 TRUNCATE의 차이',
-    description:
-      '다음 중 DELETE와 TRUNCATE의 차이에 대한 설명으로 올바른 것은?',
+    description: '다음 중 DELETE와 TRUNCATE의 차이에 대한 설명으로 올바른 것은?',
     type: 'multiple_choice',
-    difficulty: 'easy',
+    difficulty: 'hard',
     category: 'DML',
-    correctRate: 72,
+    correctRate: 30,
     answer: '2',
     explanation:
       'DELETE는 DML(Data Manipulation Language)로 COMMIT/ROLLBACK이 가능하며, WHERE 절로 특정 행만 삭제할 수 있습니다. 삭제된 각 행에 대한 로그가 생성되어 처리 속도가 느릴 수 있습니다. TRUNCATE는 DDL(Data Definition Language)로 자동으로 COMMIT되며 ROLLBACK이 불가능합니다. TRUNCATE는 테이블의 모든 데이터를 한 번에 삭제하며, 로그를 최소화하여 DELETE보다 빠릅니다. Oracle에서 TRUNCATE는 테이블의 STORAGE 초기화도 함께 수행합니다.',
@@ -710,7 +684,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     id: 'exam5_p35',
     title: '35. RANK, DENSE_RANK, ROW_NUMBER의 차이',
     description:
-      '다음 테이블에서 SQL 실행 결과로 올바른 것은?\n\n테이블 SCORE: (NAME=\'A\', SCORE=90), (NAME=\'B\', SCORE=85), (NAME=\'C\', SCORE=85), (NAME=\'D\', SCORE=80)\n\n```sql\nSELECT NAME, SCORE,\n       RANK() OVER (ORDER BY SCORE DESC) AS RK,\n       DENSE_RANK() OVER (ORDER BY SCORE DESC) AS DRK,\n       ROW_NUMBER() OVER (ORDER BY SCORE DESC) AS RN\nFROM SCORE;\n```',
+      "다음 테이블에서 SQL 실행 결과로 올바른 것은?\n\n테이블 SCORE: (NAME='A', SCORE=90), (NAME='B', SCORE=85), (NAME='C', SCORE=85), (NAME='D', SCORE=80)\n\n```sql\nSELECT NAME, SCORE,\n       RANK() OVER (ORDER BY SCORE DESC) AS RK,\n       DENSE_RANK() OVER (ORDER BY SCORE DESC) AS DRK,\n       ROW_NUMBER() OVER (ORDER BY SCORE DESC) AS RN\nFROM SCORE;\n```",
     type: 'multiple_choice',
     difficulty: 'medium',
     category: '윈도우함수',
@@ -772,14 +746,14 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     id: 'exam5_p38',
     title: '38. UNION과 UNION ALL의 차이',
     description:
-      '다음 SQL에 대한 설명으로 올바른 것은?\n\n```sql\n-- SQL A\nSELECT EMPNO, ENAME FROM EMP WHERE DEPTNO = 10\nUNION\nSELECT EMPNO, ENAME FROM EMP WHERE JOB = \'MANAGER\';\n\n-- SQL B\nSELECT EMPNO, ENAME FROM EMP WHERE DEPTNO = 10\nUNION ALL\nSELECT EMPNO, ENAME FROM EMP WHERE JOB = \'MANAGER\';\n```',
+      "다음 SQL에 대한 설명으로 올바른 것은?\n\n```sql\n-- SQL A\nSELECT EMPNO, ENAME FROM EMP WHERE DEPTNO = 10\nUNION\nSELECT EMPNO, ENAME FROM EMP WHERE JOB = 'MANAGER';\n\n-- SQL B\nSELECT EMPNO, ENAME FROM EMP WHERE DEPTNO = 10\nUNION ALL\nSELECT EMPNO, ENAME FROM EMP WHERE JOB = 'MANAGER';\n```",
     type: 'multiple_choice',
     difficulty: 'easy',
     category: '집합연산',
     correctRate: 76,
     answer: '1',
     explanation:
-      'UNION은 두 SELECT 결과를 합치면서 중복을 제거합니다. 정렬 연산이 발생하므로 UNION ALL보다 느릴 수 있습니다. UNION ALL은 중복을 제거하지 않고 모든 행을 합칩니다. DEPTNO=10이면서 JOB=\'MANAGER\'인 사원이 있다면, SQL A에서는 1번 나타나고 SQL B에서는 2번 나타납니다. 따라서 중복 행이 있을 경우 SQL A의 결과 행 수 <= SQL B의 결과 행 수입니다.',
+      "UNION은 두 SELECT 결과를 합치면서 중복을 제거합니다. 정렬 연산이 발생하므로 UNION ALL보다 느릴 수 있습니다. UNION ALL은 중복을 제거하지 않고 모든 행을 합칩니다. DEPTNO=10이면서 JOB='MANAGER'인 사원이 있다면, SQL A에서는 1번 나타나고 SQL B에서는 2번 나타납니다. 따라서 중복 행이 있을 경우 SQL A의 결과 행 수 <= SQL B의 결과 행 수입니다.",
     options: [
       '중복 행이 있으면 SQL A의 결과 행 수가 SQL B보다 적거나 같다.',
       'SQL A와 SQL B는 항상 동일한 결과를 반환한다.',
@@ -792,7 +766,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     id: 'exam5_p39',
     title: '39. INTERSECT와 MINUS/EXCEPT',
     description:
-      '다음 두 SQL의 결과에 대한 설명으로 올바른 것은?\n\n```sql\n-- SQL A (INTERSECT)\nSELECT DEPTNO FROM EMP WHERE JOB = \'CLERK\'\nINTERSECT\nSELECT DEPTNO FROM EMP WHERE JOB = \'MANAGER\';\n\n-- SQL B (MINUS)\nSELECT DEPTNO FROM EMP WHERE JOB = \'CLERK\'\nMINUS\nSELECT DEPTNO FROM EMP WHERE JOB = \'MANAGER\';\n```',
+      "다음 두 SQL의 결과에 대한 설명으로 올바른 것은?\n\n```sql\n-- SQL A (INTERSECT)\nSELECT DEPTNO FROM EMP WHERE JOB = 'CLERK'\nINTERSECT\nSELECT DEPTNO FROM EMP WHERE JOB = 'MANAGER';\n\n-- SQL B (MINUS)\nSELECT DEPTNO FROM EMP WHERE JOB = 'CLERK'\nMINUS\nSELECT DEPTNO FROM EMP WHERE JOB = 'MANAGER';\n```",
     type: 'multiple_choice',
     difficulty: 'medium',
     category: '집합연산',
@@ -831,8 +805,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
   {
     id: 'exam5_p41',
     title: '41. 집합 연산자와 컬럼 개수/타입 조건',
-    description:
-      '다음 SQL 중 오류가 발생하는 것은?',
+    description: '다음 SQL 중 오류가 발생하는 것은?',
     type: 'multiple_choice',
     difficulty: 'medium',
     category: '집합연산',
@@ -842,7 +815,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
       '집합 연산자를 사용할 때 각 SELECT 문의 컬럼 수는 동일해야 하며, 대응되는 컬럼의 데이터 타입이 호환 가능해야 합니다. 컬럼 이름이 다른 경우 첫 번째 SELECT의 컬럼명이 결과 컬럼명이 됩니다. SELECT 컬럼 수가 다르면 오류가 발생합니다. SQL 3번은 첫 번째 SELECT는 2개 컬럼, 두 번째 SELECT는 3개 컬럼으로 컬럼 수가 달라 오류가 발생합니다.',
     options: [
       'SELECT EMPNO, ENAME FROM EMP UNION SELECT DEPTNO, DNAME FROM DEPT;',
-      'SELECT 1, \'A\' FROM DUAL UNION SELECT 2, \'B\' FROM DUAL;',
+      "SELECT 1, 'A' FROM DUAL UNION SELECT 2, 'B' FROM DUAL;",
       'SELECT EMPNO, ENAME FROM EMP UNION SELECT DEPTNO, DNAME, LOC FROM DEPT;',
       'SELECT EMPNO, ENAME FROM EMP UNION ALL SELECT EMPNO, ENAME FROM EMP WHERE DEPTNO = 10;',
     ],
@@ -853,8 +826,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
   {
     id: 'exam5_p42',
     title: '42. Oracle과 SQL Server의 AUTO INCREMENT 차이',
-    description:
-      '자동 증가 기본키를 생성할 때 Oracle과 SQL Server의 차이로 올바른 것은?',
+    description: '자동 증가 기본키를 생성할 때 Oracle과 SQL Server의 차이로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'hard',
     category: 'DDL',
@@ -874,19 +846,19 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     id: 'exam5_p43',
     title: '43. DDL 제약조건 위반 시나리오',
     description:
-      '다음 테이블 생성 후 INSERT 시 오류가 발생하는 것은?\n\n```sql\nCREATE TABLE ORDERS (\n  ORDER_ID   NUMBER PRIMARY KEY,\n  CUST_ID    NUMBER NOT NULL,\n  AMOUNT     NUMBER CHECK (AMOUNT > 0),\n  STATUS     VARCHAR2(10) DEFAULT \'PENDING\'\n             CHECK (STATUS IN (\'PENDING\', \'DONE\', \'CANCEL\'))\n);\n```',
+      "다음 테이블 생성 후 INSERT 시 오류가 발생하는 것은?\n\n```sql\nCREATE TABLE ORDERS (\n  ORDER_ID   NUMBER PRIMARY KEY,\n  CUST_ID    NUMBER NOT NULL,\n  AMOUNT     NUMBER CHECK (AMOUNT > 0),\n  STATUS     VARCHAR2(10) DEFAULT 'PENDING'\n             CHECK (STATUS IN ('PENDING', 'DONE', 'CANCEL'))\n);\n```",
     type: 'multiple_choice',
     difficulty: 'medium',
     category: 'DDL',
     correctRate: 55,
     answer: '4',
     explanation:
-      'INSERT INTO ORDERS VALUES (1, 101, 500, \'PENDING\')는 모든 제약 조건 만족으로 성공합니다. INSERT INTO ORDERS (ORDER_ID, CUST_ID, AMOUNT) VALUES (2, 102, 300)는 STATUS가 생략되어 DEFAULT \'PENDING\'이 적용되므로 성공합니다. INSERT INTO ORDERS VALUES (3, 103, 200, \'HOLD\')는 STATUS가 \'HOLD\'로 CHECK 제약(IN(\'PENDING\',\'DONE\',\'CANCEL\'))을 위반하여 오류가 발생합니다. 오류가 발생하는 것은 4번입니다.',
+      "INSERT INTO ORDERS VALUES (1, 101, 500, 'PENDING')는 모든 제약 조건 만족으로 성공합니다. INSERT INTO ORDERS (ORDER_ID, CUST_ID, AMOUNT) VALUES (2, 102, 300)는 STATUS가 생략되어 DEFAULT 'PENDING'이 적용되므로 성공합니다. INSERT INTO ORDERS VALUES (3, 103, 200, 'HOLD')는 STATUS가 'HOLD'로 CHECK 제약(IN('PENDING','DONE','CANCEL'))을 위반하여 오류가 발생합니다. 오류가 발생하는 것은 4번입니다.",
     options: [
-      'INSERT INTO ORDERS VALUES (1, 101, 500, \'PENDING\');',
+      "INSERT INTO ORDERS VALUES (1, 101, 500, 'PENDING');",
       'INSERT INTO ORDERS (ORDER_ID, CUST_ID, AMOUNT) VALUES (2, 102, 300);',
-      'INSERT INTO ORDERS VALUES (3, 103, 0, \'DONE\');',
-      'INSERT INTO ORDERS VALUES (4, 104, 200, \'HOLD\');',
+      "INSERT INTO ORDERS VALUES (3, 103, 0, 'DONE');",
+      "INSERT INTO ORDERS VALUES (4, 104, 200, 'HOLD');",
     ],
     points: 10,
   },
@@ -914,7 +886,7 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     id: 'exam5_p45',
     title: '45. TCL과 DDL의 자동 커밋 상호작용',
     description:
-      '다음 SQL 실행 순서에서 최종 상태로 올바른 것은? (Oracle 기준)\n\n```sql\nINSERT INTO EMP (EMPNO, ENAME) VALUES (9999, \'TEST\');\n-- 커밋 전\nCREATE TABLE TEMP_TABLE (ID NUMBER);\n-- DDL 실행\nROLLBACK;\n```',
+      "다음 SQL 실행 순서에서 최종 상태로 올바른 것은? (Oracle 기준)\n\n```sql\nINSERT INTO EMP (EMPNO, ENAME) VALUES (9999, 'TEST');\n-- 커밋 전\nCREATE TABLE TEMP_TABLE (ID NUMBER);\n-- DDL 실행\nROLLBACK;\n```",
     type: 'multiple_choice',
     difficulty: 'hard',
     category: 'DDL',
@@ -944,19 +916,13 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     answer: '3',
     explanation:
       'SAVEPOINT는 트랜잭션 내에서 부분 롤백 지점을 설정합니다. ROLLBACK TO SP1은 SP1 이후의 변경사항(INSERT 2, INSERT 3)을 취소하고 SP1 시점(INSERT 1만 있는 상태)으로 돌아갑니다. SP1 이전의 INSERT 1은 유지됩니다. 이후 INSERT 4를 실행하면 T에는 1과 4가 있습니다. COMMIT으로 확정되면 최종 상태는 {1, 4}입니다. ROLLBACK TO SAVEPOINT는 해당 SAVEPOINT 이후의 변경만 취소하고, SAVEPOINT 이전의 변경은 유지합니다.',
-    options: [
-      'T에 {1, 2, 3, 4} 존재',
-      'T에 {1} 존재',
-      'T에 {1, 4} 존재',
-      'T에 {4} 존재',
-    ],
+    options: ['T에 {1, 2, 3, 4} 존재', 'T에 {1} 존재', 'T에 {1, 4} 존재', 'T에 {4} 존재'],
     points: 10,
   },
   {
     id: 'exam5_p47',
     title: '47. 트랜잭션 격리 수준(Isolation Level)',
-    description:
-      '트랜잭션 격리 수준과 발생 가능한 현상에 대한 설명으로 올바른 것은?',
+    description: '트랜잭션 격리 수준과 발생 가능한 현상에 대한 설명으로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'hard',
     category: 'TCL',
@@ -1020,14 +986,14 @@ export const EXAM_5_PROBLEMS: Problem[] = [
     id: 'exam5_p50',
     title: '50. 계층형 쿼리의 LEVEL과 CONNECT BY',
     description:
-      '다음 계층형 쿼리에 대한 설명으로 올바른 것은?\n\n```sql\nSELECT LEVEL, EMPNO, ENAME, MGR,\n       LPAD(\' \', (LEVEL-1)*2) || ENAME AS 계층표현\nFROM EMP\nSTART WITH MGR IS NULL\nCONNECT BY PRIOR EMPNO = MGR\nORDER SIBLINGS BY ENAME;\n```',
+      "다음 계층형 쿼리에 대한 설명으로 올바른 것은?\n\n```sql\nSELECT LEVEL, EMPNO, ENAME, MGR,\n       LPAD(' ', (LEVEL-1)*2) || ENAME AS 계층표현\nFROM EMP\nSTART WITH MGR IS NULL\nCONNECT BY PRIOR EMPNO = MGR\nORDER SIBLINGS BY ENAME;\n```",
     type: 'multiple_choice',
     difficulty: 'hard',
     category: '계층형쿼리',
     correctRate: 32,
     answer: '3',
     explanation:
-      'Oracle의 계층형 쿼리에서 START WITH는 루트 노드 조건을 지정합니다. MGR IS NULL은 관리자가 없는 사원(최상위 관리자)을 루트로 지정합니다. CONNECT BY PRIOR EMPNO = MGR은 부모(PRIOR EMPNO)와 자식(MGR)의 연결 방향을 정의합니다. PRIOR가 EMPNO 앞에 있으므로 부모에서 자식 방향(Top-Down)으로 탐색합니다. LEVEL은 루트가 1이고 자식이 내려갈수록 증가합니다. LPAD(\' \', (LEVEL-1)*2)는 계층 깊이에 따라 들여쓰기를 합니다. ORDER SIBLINGS BY ENAME은 같은 부모의 자식들 사이에서만 ENAME으로 정렬하여 계층 구조를 유지합니다.',
+      "Oracle의 계층형 쿼리에서 START WITH는 루트 노드 조건을 지정합니다. MGR IS NULL은 관리자가 없는 사원(최상위 관리자)을 루트로 지정합니다. CONNECT BY PRIOR EMPNO = MGR은 부모(PRIOR EMPNO)와 자식(MGR)의 연결 방향을 정의합니다. PRIOR가 EMPNO 앞에 있으므로 부모에서 자식 방향(Top-Down)으로 탐색합니다. LEVEL은 루트가 1이고 자식이 내려갈수록 증가합니다. LPAD(' ', (LEVEL-1)*2)는 계층 깊이에 따라 들여쓰기를 합니다. ORDER SIBLINGS BY ENAME은 같은 부모의 자식들 사이에서만 ENAME으로 정렬하여 계층 구조를 유지합니다.",
     options: [
       'START WITH MGR IS NULL은 모든 사원을 루트로 시작한다.',
       'CONNECT BY PRIOR EMPNO = MGR은 자식에서 부모 방향(Bottom-Up)으로 탐색한다.',

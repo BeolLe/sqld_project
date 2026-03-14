@@ -23,7 +23,8 @@ export default function ExamListPage() {
       <div className="max-w-4xl mx-auto px-4 py-10">
         <h1 className="text-2xl font-bold text-sqld-navy mb-1">모의고사</h1>
         <p className="text-slate-500 text-sm mb-8">
-          실제 SQLD 시험 형식의 모의고사로 실력을 점검하세요. (1~3회 기본 / 4~6회 중급 / 7~10회 고급)
+          실제 SQLD 시험 형식의 모의고사로 실력을 점검하세요. (1~3회 기본 / 4~6회 중급 / 7~10회
+          고급)
         </p>
 
         <div className="grid gap-4">
