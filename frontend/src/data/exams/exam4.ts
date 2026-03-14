@@ -1,9 +1,9 @@
 import type { Problem } from '../../types';
 
-// SQLD 모의고사 4회 (중급 난이도 - 목표 합격률 ~45%)
+// SQLD 모의고사 4회 (중급 난이도 - 실제 시험의 95% 수준)
 // 1과목: 데이터 모델링의 이해 (10문항, 20점)
 // 2과목: SQL 기본 및 활용 (40문항, 80점)
-// 난이도 배분: easy 12 / medium 23 / hard 15
+// 난이도 배분: easy 10 / medium 25 / hard 15
 
 export const EXAM_4_PROBLEMS: Problem[] = [
   // ===== 1과목: 데이터 모델링의 이해 (1~10번) =====
@@ -71,8 +71,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   {
     id: 'exam4_p4',
     title: '4. 반정규화의 정의와 목적',
-    description:
-      '반정규화(Denormalization)에 대한 설명으로 올바르지 않은 것은?',
+    description: '반정규화(Denormalization)에 대한 설명으로 올바르지 않은 것은?',
     type: 'multiple_choice',
     difficulty: 'medium',
     category: '데이터모델링',
@@ -122,12 +121,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     answer: '2',
     explanation:
       '기본키가 (학번, 과목코드)인 복합키일 때, 교수명이 과목코드만으로 결정된다면 이는 부분 함수적 종속(Partial Functional Dependency)입니다. 부분 종속이 존재하면 제2정규형(2NF)을 위반합니다. 이를 해소하기 위해 (과목코드, 교수명) 테이블을 분리해야 합니다.',
-    options: [
-      '제1정규형(1NF)',
-      '제2정규형(2NF)',
-      '제3정규형(3NF)',
-      'BCNF',
-    ],
+    options: ['제1정규형(1NF)', '제2정규형(2NF)', '제3정규형(3NF)', 'BCNF'],
     points: 10,
   },
   {
@@ -153,8 +147,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   {
     id: 'exam4_p8',
     title: '8. BCNF와 제3정규형의 차이',
-    description:
-      'BCNF(Boyce-Codd Normal Form)가 제3정규형(3NF)과 다른 점으로 올바른 것은?',
+    description: 'BCNF(Boyce-Codd Normal Form)가 제3정규형(3NF)과 다른 점으로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'hard',
     category: '정규화',
@@ -173,8 +166,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   {
     id: 'exam4_p9',
     title: '9. 정규화 단계별 핵심 조건',
-    description:
-      '다음 중 정규화 단계와 해소하는 종속성의 연결이 올바른 것은?',
+    description: '다음 중 정규화 단계와 해소하는 종속성의 연결이 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'medium',
     category: '정규화',
@@ -193,8 +185,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   {
     id: 'exam4_p10',
     title: '10. 정규화와 성능',
-    description:
-      '정규화와 성능의 트레이드오프에 대한 설명으로 올바른 것은?',
+    description: '정규화와 성능의 트레이드오프에 대한 설명으로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'medium',
     category: '정규화',
@@ -225,7 +216,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     correctRate: 38,
     answer: '1',
     explanation:
-      "NULL을 명시적으로 지정하면 DEFAULT가 적용되지 않고 실제로 NULL이 저장됩니다. STATUS는 NULL이 허용되므로 NULL이 입력됩니다. AMT는 명시하지 않았으므로 DEFAULT인 0이 입력됩니다. DEFAULT는 열을 INSERT 대상에서 제외할 때만 적용되며, 명시적으로 NULL을 넣으면 NULL이 입력됩니다.",
+      'NULL을 명시적으로 지정하면 DEFAULT가 적용되지 않고 실제로 NULL이 저장됩니다. STATUS는 NULL이 허용되므로 NULL이 입력됩니다. AMT는 명시하지 않았으므로 DEFAULT인 0이 입력됩니다. DEFAULT는 열을 INSERT 대상에서 제외할 때만 적용되며, 명시적으로 NULL을 넣으면 NULL이 입력됩니다.',
     options: [
       'ORDER_ID=1, STATUS=NULL, AMT=0',
       "ORDER_ID=1, STATUS='PENDING', AMT=0",
@@ -238,11 +229,11 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     id: 'exam4_p12',
     title: '12. UPDATE와 서브쿼리',
     description:
-      '다음 SQL의 실행 결과에 대한 설명으로 올바른 것은?\n\nUPDATE EMP\nSET SAL = SAL * 1.1\nWHERE DEPTNO IN (\n  SELECT DEPTNO FROM DEPT\n  WHERE LOC = \'DALLAS\'\n);',
+      "다음 SQL의 실행 결과에 대한 설명으로 올바른 것은?\n\nUPDATE EMP\nSET SAL = SAL * 1.1\nWHERE DEPTNO IN (\n  SELECT DEPTNO FROM DEPT\n  WHERE LOC = 'DALLAS'\n);",
     type: 'multiple_choice',
-    difficulty: 'medium',
+    difficulty: 'hard',
     category: 'DML',
-    correctRate: 62,
+    correctRate: 30,
     answer: '2',
     explanation:
       '서브쿼리에서 LOC가 DALLAS인 부서의 DEPTNO를 가져오고, 그 부서에 속한 사원들의 급여를 10% 인상합니다. DALLAS에 해당하는 부서가 없으면 업데이트되는 행이 없지만 오류는 발생하지 않습니다.',
@@ -257,8 +248,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   {
     id: 'exam4_p13',
     title: '13. DELETE와 TRUNCATE 차이',
-    description:
-      '다음 중 DELETE와 TRUNCATE에 대한 비교 설명으로 올바르지 않은 것은?',
+    description: '다음 중 DELETE와 TRUNCATE에 대한 비교 설명으로 올바르지 않은 것은?',
     type: 'multiple_choice',
     difficulty: 'medium',
     category: 'DML',
@@ -306,12 +296,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     answer: '2',
     explanation:
       'DISTINCT는 중복된 값을 제거한 고유한 값만 반환합니다. DEPTNO의 고유값은 10, 20, 30이므로 3개 행이 반환됩니다.',
-    options: [
-      '5행',
-      '3행',
-      '2행',
-      '1행',
-    ],
+    options: ['5행', '3행', '2행', '1행'],
     points: 10,
   },
 
@@ -328,19 +313,13 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     answer: '3',
     explanation:
       'LEFT OUTER JOIN에서 LEFT 테이블(DEPT)의 행은 RIGHT 테이블(EMP)에 매칭되는 행이 없어도 결과에 포함됩니다. 이때 RIGHT 테이블의 컬럼(E.ENAME, E.SAL)은 NULL로 채워집니다.',
-    options: [
-      '0',
-      '빈 문자열',
-      'NULL',
-      '행이 결과에서 제외됨',
-    ],
+    options: ['0', '빈 문자열', 'NULL', '행이 결과에서 제외됨'],
     points: 10,
   },
   {
     id: 'exam4_p17',
     title: '17. CROSS JOIN의 결과 행 수',
-    description:
-      'A 테이블에 5개 행, B 테이블에 3개 행이 있을 때, CROSS JOIN의 결과 행 수는?',
+    description: 'A 테이블에 5개 행, B 테이블에 3개 행이 있을 때, CROSS JOIN의 결과 행 수는?',
     type: 'multiple_choice',
     difficulty: 'easy',
     category: 'JOIN',
@@ -348,23 +327,17 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     answer: '2',
     explanation:
       'CROSS JOIN(카르테시안 곱)은 두 테이블의 모든 행 조합을 반환합니다. A(5행) × B(3행) = 15개 행이 반환됩니다.',
-    options: [
-      '8행',
-      '15행',
-      '2행',
-      '25행',
-    ],
+    options: ['8행', '15행', '2행', '25행'],
     points: 10,
   },
   {
     id: 'exam4_p18',
     title: '18. INNER JOIN vs OUTER JOIN 결과 수',
-    description:
-      '다음 중 LEFT OUTER JOIN의 결과 행 수에 대한 설명으로 올바른 것은?',
+    description: '다음 중 LEFT OUTER JOIN의 결과 행 수에 대한 설명으로 올바른 것은?',
     type: 'multiple_choice',
-    difficulty: 'easy',
+    difficulty: 'medium',
     category: 'JOIN',
-    correctRate: 72,
+    correctRate: 50,
     answer: '1',
     explanation:
       'LEFT OUTER JOIN은 LEFT 테이블의 모든 행을 포함하므로 결과 행 수는 항상 LEFT 테이블의 행 수 이상입니다. RIGHT 테이블과 1:N 관계라면 LEFT 테이블보다 결과가 많아질 수 있습니다.',
@@ -378,21 +351,21 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   },
   {
     id: 'exam4_p19',
-    title: '19. NATURAL JOIN의 위험성',
+    title: '19. REGEXP_LIKE와 메타문자',
     description:
-      'NATURAL JOIN에 대한 설명으로 올바르지 않은 것은?',
+      '다음 중 REGEXP_LIKE 함수의 정규표현식 메타문자에 대한 설명으로 올바르지 않은 것은?',
     type: 'multiple_choice',
     difficulty: 'medium',
-    category: 'JOIN',
-    correctRate: 48,
+    category: '정규표현식',
+    correctRate: 50,
     answer: '4',
     explanation:
-      'NATURAL JOIN은 두 테이블에서 동일한 이름의 컬럼을 자동으로 찾아 조인합니다. 의도하지 않은 컬럼으로 조인될 수 있어 위험합니다. 또한 조인에 사용된 컬럼은 결과에 한 번만 나타납니다. NATURAL JOIN에서는 ON 절이나 USING 절을 함께 사용할 수 없습니다.',
+      '^는 문자열의 시작, $는 문자열의 끝, .은 임의의 한 문자를 의미합니다. *는 앞의 문자가 0회 이상 반복을 의미하며, 정확히 1회 이상 반복은 +로 표현합니다. ?는 0회 또는 1회를 의미합니다.',
     options: [
-      '동일한 이름의 컬럼을 자동으로 조인에 사용한다.',
-      '조인에 사용된 컬럼이 결과에 중복되지 않는다.',
-      '의도치 않은 컬럼으로 조인될 위험이 있다.',
-      'ON 절과 함께 사용하여 조건을 추가할 수 있다.',
+      '^는 문자열의 시작을 의미한다.',
+      '$는 문자열의 끝을 의미한다.',
+      '.은 임의의 한 문자를 의미한다.',
+      '*는 앞의 문자가 정확히 1회 이상 반복됨을 의미한다.',
     ],
     points: 10,
   },
@@ -402,9 +375,9 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     description:
       '다음 SQL의 결과에 대한 설명으로 올바른 것은?\n\nSELECT D.DEPTNO, E.EMPNO\nFROM DEPT D\nFULL OUTER JOIN EMP E ON D.DEPTNO = E.DEPTNO;',
     type: 'multiple_choice',
-    difficulty: 'easy',
+    difficulty: 'medium',
     category: 'JOIN',
-    correctRate: 70,
+    correctRate: 50,
     answer: '2',
     explanation:
       'FULL OUTER JOIN은 LEFT OUTER JOIN과 RIGHT OUTER JOIN의 합집합으로, 양쪽 테이블의 모든 행을 포함합니다. 한쪽에만 존재하는 행은 반대쪽 컬럼이 NULL로 채워집니다.',
@@ -419,8 +392,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   {
     id: 'exam4_p21',
     title: '21. 조인 순서와 성능',
-    description:
-      '옵티마이저가 조인 순서를 결정할 때 일반적으로 선호하는 방식으로 올바른 것은?',
+    description: '옵티마이저가 조인 순서를 결정할 때 일반적으로 선호하는 방식으로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'hard',
     category: 'JOIN',
@@ -439,8 +411,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   {
     id: 'exam4_p22',
     title: '22. USING 절과 ON 절의 차이',
-    description:
-      'JOIN에서 USING 절과 ON 절의 차이에 대한 설명으로 올바른 것은?',
+    description: 'JOIN에서 USING 절과 ON 절의 차이에 대한 설명으로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'medium',
     category: 'JOIN',
@@ -460,21 +431,21 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   // --- 함수 (23~28) ---
   {
     id: 'exam4_p23',
-    title: '23. DECODE와 CASE의 NULL 처리',
+    title: '23. PIVOT 쿼리 작성',
     description:
-      "다음 SQL의 결과로 올바른 것은?\n\nSELECT DECODE(NULL, NULL, 'MATCH', 'NO MATCH') FROM DUAL;",
+      '다음 SALES 테이블을 분기별 매출 합계로 피벗하려 한다. 빈칸에 들어갈 내용으로 올바른 것은?\n\n```sql\nSELECT *\nFROM (\n  SELECT PRODUCT, QUARTER, AMOUNT\n  FROM SALES\n)\nPIVOT (\n  _____(AMOUNT)\n  FOR QUARTER IN (\'Q1\' AS Q1, \'Q2\' AS Q2, \'Q3\' AS Q3, \'Q4\' AS Q4)\n);\n```',
     type: 'multiple_choice',
     difficulty: 'medium',
-    category: '함수',
+    category: 'PIVOT/UNPIVOT',
     correctRate: 50,
     answer: '1',
     explanation:
-      "DECODE 함수는 유일하게 NULL = NULL을 TRUE로 처리합니다. DECODE(expr, search, result) 구조에서 expr과 search가 모두 NULL이면 일치로 판단하여 'MATCH'를 반환합니다. 이는 일반적인 SQL에서 NULL = NULL이 UNKNOWN인 것과 다릅니다.",
+      'PIVOT 절에서는 집계함수로 값을 요약합니다. 분기별 매출 합계를 구하므로 SUM이 적합합니다. FOR 절은 피벗 대상 컬럼(QUARTER), IN 절은 변환할 값 목록을 지정합니다.',
     options: [
-      'MATCH',
-      'NO MATCH',
-      'NULL',
-      '오류 발생',
+      'SUM',
+      'GROUP BY',
+      'ORDER BY',
+      'PARTITION BY',
     ],
     points: 10,
   },
@@ -490,12 +461,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     answer: '3',
     explanation:
       'ROUND(4.567, 2)는 소수점 2자리에서 반올림하여 4.57이 됩니다. TRUNC(4.567, 2)는 소수점 2자리 이하를 버려서(절삭) 4.56이 됩니다.',
-    options: [
-      '① 4.56, ② 4.57',
-      '① 4.57, ② 4.57',
-      '① 4.57, ② 4.56',
-      '① 4.56, ② 4.56',
-    ],
+    options: ['① 4.56, ② 4.57', '① 4.57, ② 4.57', '① 4.57, ② 4.56', '① 4.56, ② 4.56'],
     points: 10,
   },
   {
@@ -509,13 +475,8 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     correctRate: 58,
     answer: '2',
     explanation:
-      "ADD_MONTHS는 월을 더할 때 결과 월의 마지막 날을 초과하면 자동으로 해당 월의 마지막 날로 조정합니다. 2024-01-31에서 1달을 더하면 2024-02-31이 없으므로 2024-02-29(윤년)가 됩니다.",
-    options: [
-      '2024-02-28',
-      '2024-02-29',
-      '2024-03-02',
-      '오류 발생',
-    ],
+      'ADD_MONTHS는 월을 더할 때 결과 월의 마지막 날을 초과하면 자동으로 해당 월의 마지막 날로 조정합니다. 2024-01-31에서 1달을 더하면 2024-02-31이 없으므로 2024-02-29(윤년)가 됩니다.',
+    options: ['2024-02-28', '2024-02-29', '2024-03-02', '오류 발생'],
     points: 10,
   },
   {
@@ -550,19 +511,13 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     answer: '2',
     explanation:
       "COALESCE(v1, v2, ..., vn)는 인수를 순서대로 평가하여 NULL이 아닌 첫 번째 값을 반환합니다. NULL, NULL, 'C', 'D' 순서이므로 첫 번째 NULL이 아닌 값인 'C'를 반환합니다.",
-    options: [
-      'NULL',
-      'C',
-      'D',
-      'C, D',
-    ],
+    options: ['NULL', 'C', 'D', 'C, D'],
     points: 10,
   },
   {
     id: 'exam4_p28',
     title: '28. TO_CHAR와 TO_DATE',
-    description:
-      "다음 중 Oracle에서 날짜를 '2024/12/25' 형식의 문자열로 변환하는 올바른 SQL은?",
+    description: "다음 중 Oracle에서 날짜를 '2024/12/25' 형식의 문자열로 변환하는 올바른 SQL은?",
     type: 'multiple_choice',
     difficulty: 'medium',
     category: '함수',
@@ -592,19 +547,13 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     answer: '3',
     explanation:
       '스칼라 서브쿼리에서 COUNT(*)는 조건에 맞는 행이 없어도 0을 반환합니다. NULL을 반환하는 것이 아닙니다. 따라서 부서 40에 사원이 없으면 CNT는 0이 됩니다. DEPT의 행 자체는 존재하므로 결과 행이 반환됩니다.',
-    options: [
-      '결과 행 없음',
-      'DNAME=해당값, CNT=NULL',
-      'DNAME=해당값, CNT=0',
-      '오류 발생',
-    ],
+    options: ['결과 행 없음', 'DNAME=해당값, CNT=NULL', 'DNAME=해당값, CNT=0', '오류 발생'],
     points: 10,
   },
   {
     id: 'exam4_p30',
     title: '30. IN과 EXISTS 성능 차이',
-    description:
-      'IN과 EXISTS의 성능 차이에 대한 설명으로 올바른 것은?',
+    description: 'IN과 EXISTS의 성능 차이에 대한 설명으로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'hard',
     category: '서브쿼리',
@@ -663,8 +612,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   {
     id: 'exam4_p33',
     title: '33. 서브쿼리의 위치',
-    description:
-      '서브쿼리가 위치할 수 없는 절은?',
+    description: '서브쿼리가 위치할 수 없는 절은?',
     type: 'multiple_choice',
     difficulty: 'easy',
     category: '서브쿼리',
@@ -672,12 +620,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     answer: '3',
     explanation:
       '서브쿼리는 SELECT 절(스칼라), FROM 절(인라인 뷰), WHERE 절, HAVING 절 등에 사용할 수 있습니다. GROUP BY 절에는 서브쿼리를 사용할 수 없습니다.',
-    options: [
-      'SELECT 절',
-      'WHERE 절',
-      'GROUP BY 절',
-      'HAVING 절',
-    ],
+    options: ['SELECT 절', 'WHERE 절', 'GROUP BY 절', 'HAVING 절'],
     points: 10,
   },
 
@@ -705,8 +648,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   {
     id: 'exam4_p35',
     title: '35. LAG / LEAD 함수',
-    description:
-      '다음 SQL에서 LAG(SAL, 1, 0) OVER (ORDER BY EMPNO)의 의미로 올바른 것은?',
+    description: '다음 SQL에서 LAG(SAL, 1, 0) OVER (ORDER BY EMPNO)의 의미로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'medium',
     category: '윈도우함수',
@@ -767,8 +709,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   {
     id: 'exam4_p38',
     title: '38. UNION과 UNION ALL 차이',
-    description:
-      '다음 중 UNION과 UNION ALL의 차이에 대한 설명으로 올바른 것은?',
+    description: '다음 중 UNION과 UNION ALL의 차이에 대한 설명으로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'easy',
     category: '집합연산',
@@ -826,21 +767,21 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   },
   {
     id: 'exam4_p41',
-    title: '41. MINUS와 NOT IN',
+    title: '41. RANK vs DENSE_RANK vs ROW_NUMBER (Top N)',
     description:
-      '다음 두 SQL이 동일한 결과를 반환하는가?\n\n① SELECT DEPTNO FROM DEPT\n   MINUS\n   SELECT DEPTNO FROM EMP;\n\n② SELECT DEPTNO FROM DEPT\n   WHERE DEPTNO NOT IN (SELECT DEPTNO FROM EMP);',
+      '다음 중 Top N 쿼리에서 RANK, DENSE_RANK, ROW_NUMBER의 차이에 대한 설명으로 올바른 것은?\n\n예: SALARY가 100, 100, 90, 80인 경우',
     type: 'multiple_choice',
-    difficulty: 'hard',
-    category: '집합연산',
-    correctRate: 32,
-    answer: '4',
+    difficulty: 'medium',
+    category: 'Top N 쿼리',
+    correctRate: 50,
+    answer: '3',
     explanation:
-      'EMP.DEPTNO에 NULL이 포함된 경우 결과가 다릅니다. NOT IN은 NULL이 포함된 서브쿼리에서 UNKNOWN이 발생하여 빈 결과를 반환할 수 있습니다. 반면 MINUS는 NULL 비교에서도 NULL = NULL을 같은 것으로 처리하여 정상 동작합니다. EMP.DEPTNO에 NULL이 없다면 동일한 결과를 반환합니다.',
+      'RANK는 동순위 허용 후 다음 순위를 건너뜁니다(1,1,3,4). DENSE_RANK는 동순위 허용 후 다음 순위를 연속합니다(1,1,2,3). ROW_NUMBER는 동순위 없이 유일한 순번을 부여합니다(1,2,3,4). Top N에서 동점자 처리가 필요하면 RANK/DENSE_RANK, 정확히 N건만 필요하면 ROW_NUMBER를 사용합니다.',
     options: [
-      '항상 동일한 결과를 반환한다.',
-      'DEPT.DEPTNO에 NULL이 있을 때만 결과가 다르다.',
-      'MINUS는 중복을 제거하지 않아 결과가 다르다.',
-      'EMP.DEPTNO에 NULL이 포함되면 결과가 달라질 수 있다.',
+      'RANK는 동순위가 있어도 순위를 건너뛰지 않는다.',
+      'DENSE_RANK와 ROW_NUMBER는 동일하게 동작한다.',
+      'RANK는 동순위 후 순위를 건너뛰고, DENSE_RANK는 연속된 순위를 부여한다.',
+      'ROW_NUMBER는 동순위를 허용한다.',
     ],
     points: 10,
   },
@@ -849,8 +790,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   {
     id: 'exam4_p42',
     title: '42. ALTER TABLE 컬럼 수정 제약',
-    description:
-      '다음 중 ALTER TABLE로 컬럼을 수정할 때의 제약 사항으로 올바른 것은?',
+    description: '다음 중 ALTER TABLE로 컬럼을 수정할 때의 제약 사항으로 올바른 것은?',
     type: 'multiple_choice',
     difficulty: 'medium',
     category: 'DDL',
@@ -889,8 +829,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   {
     id: 'exam4_p44',
     title: '44. DROP과 TRUNCATE의 차이',
-    description:
-      'DROP TABLE과 TRUNCATE TABLE에 대한 설명으로 올바르지 않은 것은?',
+    description: 'DROP TABLE과 TRUNCATE TABLE에 대한 설명으로 올바르지 않은 것은?',
     type: 'multiple_choice',
     difficulty: 'easy',
     category: 'DDL',
@@ -940,19 +879,14 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     answer: '2',
     explanation:
       'SAVEPOINT SP1은 A(값 1) INSERT 이후에 설정됩니다. ROLLBACK TO SP1은 SP1 이후의 B(2), C(3)를 취소하고 SP1 지점으로 되돌립니다. 이후 D(4) INSERT 후 COMMIT하면 A(1)와 D(4)만 영구 저장됩니다.',
-    options: [
-      '값 1, 2, 3, 4',
-      '값 1, 4',
-      '값 4만',
-      '아무 데이터도 없음',
-    ],
+    options: ['값 1, 2, 3, 4', '값 1, 4', '값 4만', '아무 데이터도 없음'],
     points: 10,
   },
   {
     id: 'exam4_p47',
     title: '47. DDL 이후 자동 COMMIT',
     description:
-      '다음 SQL 실행 시 트랜잭션 처리에 대한 설명으로 올바른 것은?\n\nINSERT INTO EMP (EMPNO, ENAME) VALUES (9999, \'TEST\');\nCREATE TABLE TEMP (ID NUMBER);\nROLLBACK;',
+      "다음 SQL 실행 시 트랜잭션 처리에 대한 설명으로 올바른 것은?\n\nINSERT INTO EMP (EMPNO, ENAME) VALUES (9999, 'TEST');\nCREATE TABLE TEMP (ID NUMBER);\nROLLBACK;",
     type: 'multiple_choice',
     difficulty: 'hard',
     category: 'TCL',
@@ -971,8 +905,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
   {
     id: 'exam4_p48',
     title: '48. LOCK과 트랜잭션 격리',
-    description:
-      '트랜잭션 격리 수준 중 Dirty Read가 발생하는 격리 수준은?',
+    description: '트랜잭션 격리 수준 중 Dirty Read가 발생하는 격리 수준은?',
     type: 'multiple_choice',
     difficulty: 'hard',
     category: 'TCL',
@@ -980,12 +913,7 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     answer: '1',
     explanation:
       'READ UNCOMMITTED는 가장 낮은 격리 수준으로, COMMIT되지 않은 다른 트랜잭션의 변경 내용도 읽을 수 있어 Dirty Read가 발생합니다. READ COMMITTED(Oracle 기본)는 Dirty Read를 방지하고, REPEATABLE READ는 Non-Repeatable Read도 방지합니다. SERIALIZABLE은 가장 높은 격리 수준입니다.',
-    options: [
-      'READ UNCOMMITTED',
-      'READ COMMITTED',
-      'REPEATABLE READ',
-      'SERIALIZABLE',
-    ],
+    options: ['READ UNCOMMITTED', 'READ COMMITTED', 'REPEATABLE READ', 'SERIALIZABLE'],
     points: 10,
   },
 
@@ -1016,14 +944,14 @@ export const EXAM_4_PROBLEMS: Problem[] = [
     id: 'exam4_p50',
     title: '50. 계층형 쿼리 CONNECT BY',
     description:
-      '다음 계층형 쿼리에서 LEVEL과 SYS_CONNECT_BY_PATH에 대한 설명으로 올바른 것은?\n\nSELECT LEVEL, EMPNO, ENAME,\n  SYS_CONNECT_BY_PATH(ENAME, \'/\') AS PATH\nFROM EMP\nSTART WITH MGR IS NULL\nCONNECT BY PRIOR EMPNO = MGR;',
+      "다음 계층형 쿼리에서 LEVEL과 SYS_CONNECT_BY_PATH에 대한 설명으로 올바른 것은?\n\nSELECT LEVEL, EMPNO, ENAME,\n  SYS_CONNECT_BY_PATH(ENAME, '/') AS PATH\nFROM EMP\nSTART WITH MGR IS NULL\nCONNECT BY PRIOR EMPNO = MGR;",
     type: 'multiple_choice',
     difficulty: 'hard',
     category: '계층형쿼리',
     correctRate: 35,
     answer: '3',
     explanation:
-      "LEVEL은 계층의 깊이를 나타내며 루트(최상위)가 LEVEL 1입니다. SYS_CONNECT_BY_PATH(컬럼, 구분자)는 루트에서 현재 행까지의 경로를 구분자로 연결하여 반환합니다. START WITH MGR IS NULL은 관리자가 없는 최상위 사원(루트)에서 시작하고, PRIOR EMPNO = MGR은 부모→자식 방향으로 탐색합니다.",
+      'LEVEL은 계층의 깊이를 나타내며 루트(최상위)가 LEVEL 1입니다. SYS_CONNECT_BY_PATH(컬럼, 구분자)는 루트에서 현재 행까지의 경로를 구분자로 연결하여 반환합니다. START WITH MGR IS NULL은 관리자가 없는 최상위 사원(루트)에서 시작하고, PRIOR EMPNO = MGR은 부모→자식 방향으로 탐색합니다.',
     options: [
       'LEVEL은 전체 행 수를 의미한다.',
       'START WITH MGR IS NULL은 부하직원이 없는 말단 사원부터 시작한다.',

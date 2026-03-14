@@ -8,8 +8,10 @@
  * - 일반 텍스트
  */
 
-const SQL_KEYWORDS = /^(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|MERGE|GRANT|REVOKE|COMMIT|ROLLBACK|SAVEPOINT|WITH|TRUNCATE)\b/i;
-const SQL_INLINE_KEYWORDS = /^--.+|^(SET|FROM|WHERE|ORDER|GROUP|HAVING|JOIN|LEFT|RIGHT|FULL|CROSS|INNER|OUTER|ON|AND|OR|IN|NOT|EXISTS|UNION|INTERSECT|MINUS|EXCEPT|START|CONNECT|PARTITION|OVER|CASE|WHEN|THEN|ELSE|END|VALUES|INTO|AS|BETWEEN|LIKE|IS|NULL|DISTINCT|ALL|ANY|SOME|LIMIT|FETCH|OFFSET)\b/i;
+const SQL_KEYWORDS =
+  /^(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|MERGE|GRANT|REVOKE|COMMIT|ROLLBACK|SAVEPOINT|WITH|TRUNCATE)\b/i;
+const SQL_INLINE_KEYWORDS =
+  /^--.+|^(SET|FROM|WHERE|ORDER|GROUP|HAVING|JOIN|LEFT|RIGHT|FULL|CROSS|INNER|OUTER|ON|AND|OR|IN|NOT|EXISTS|UNION|INTERSECT|MINUS|EXCEPT|START|CONNECT|PARTITION|OVER|CASE|WHEN|THEN|ELSE|END|VALUES|INTO|AS|BETWEEN|LIKE|IS|NULL|DISTINCT|ALL|ANY|SOME|LIMIT|FETCH|OFFSET)\b/i;
 
 /** 파이프 구분선 행인지 (|------|------| 형태) */
 function isSeparatorRow(line: string): boolean {
@@ -158,7 +160,7 @@ function TableBlock({ lines }: { lines: string[] }) {
 
 function SqlBlock({ lines }: { lines: string[] }) {
   return (
-    <pre className="my-2 bg-slate-900 text-emerald-300 text-xs rounded-md px-4 py-3 overflow-x-auto font-mono leading-relaxed">
+    <pre className="my-2 bg-white text-slate-900 text-xs border border-slate-800 px-4 py-3 overflow-x-auto font-mono leading-relaxed">
       {lines.join('\n')}
     </pre>
   );

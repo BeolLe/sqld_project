@@ -70,7 +70,7 @@ export default function MainPage() {
             onClick={() => navigate('/sql-practice')}
             className="flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold px-8 py-4 rounded-xl text-lg transition-colors"
           >
-            SQL 실습 <Terminal className="w-5 h-5" />
+            SQL 실습 <ChevronRight className="w-5 h-5" />
           </button>
         </div>
       </section>

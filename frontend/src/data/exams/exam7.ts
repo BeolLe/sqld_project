@@ -1,9 +1,9 @@
 import type { Problem } from '../../types';
 
-// SQLD 모의고사 7회 (고급 난이도 - 목표 합격률 ~40%)
+// SQLD 모의고사 7회 (고급 난이도 - 실제 시험의 110% 수준)
 // 1과목: 데이터 모델링의 이해 (10문항, 20점)
 // 2과목: SQL 기본 및 활용 (40문항, 80점)
-// 난이도 배분: easy 8 / medium 22 / hard 20
+// 난이도 배분: easy 5 / medium 15 / hard 30
 
 export const EXAM_7_PROBLEMS: Problem[] = [
   // ===== 1과목: 데이터 모델링의 이해 (1~10번) =====
@@ -52,7 +52,7 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     id: 'exam7_p3',
     title: '3. 속성의 원자성과 1NF 위반',
     description:
-      '다음 테이블에서 1NF(제1정규형)를 위반하는 속성은?\n\n고객(고객ID, 고객명, 전화번호목록, 주소, 나이)\n\n위 테이블에서 전화번호목록 컬럼에는 \'010-1234-5678, 02-999-0000\' 형태로 여러 전화번호가 콤마로 구분되어 저장되어 있다.',
+      "다음 테이블에서 1NF(제1정규형)를 위반하는 속성은?\n\n고객(고객ID, 고객명, 전화번호목록, 주소, 나이)\n\n위 테이블에서 전화번호목록 컬럼에는 '010-1234-5678, 02-999-0000' 형태로 여러 전화번호가 콤마로 구분되어 저장되어 있다.",
     type: 'multiple_choice',
     difficulty: 'easy',
     category: '데이터모델링',
@@ -202,12 +202,7 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     answer: '1',
     explanation:
       '정규화 단계별 제거 대상:\n- 1NF: 원자값이 아닌 속성 분리 (B)\n- 2NF: 부분 함수 종속 제거 (C)\n- 3NF: 이행 함수 종속 제거 (A)\n- 4NF: 다중값 종속 제거 (D)\n따라서 순서는 B → C → A → D 입니다.',
-    options: [
-      'B → C → A → D',
-      'C → B → A → D',
-      'B → A → C → D',
-      'A → B → C → D',
-    ],
+    options: ['B → C → A → D', 'C → B → A → D', 'B → A → C → D', 'A → B → C → D'],
     points: 10,
   },
 
@@ -217,7 +212,7 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     id: 'exam7_p11',
     title: '11. CROSS JOIN 결과 행 수',
     description:
-      '다음 쿼리의 결과 행 수로 올바른 것은?\n\nSELECT *\nFROM   (SELECT 1 AS N FROM DUAL\n         UNION ALL SELECT 2 FROM DUAL\n         UNION ALL SELECT 3 FROM DUAL) A\n       CROSS JOIN\n       (SELECT \'X\' AS C FROM DUAL\n         UNION ALL SELECT \'Y\' FROM DUAL) B\nWHERE  A.N <> 2;',
+      "다음 쿼리의 결과 행 수로 올바른 것은?\n\nSELECT *\nFROM   (SELECT 1 AS N FROM DUAL\n         UNION ALL SELECT 2 FROM DUAL\n         UNION ALL SELECT 3 FROM DUAL) A\n       CROSS JOIN\n       (SELECT 'X' AS C FROM DUAL\n         UNION ALL SELECT 'Y' FROM DUAL) B\nWHERE  A.N <> 2;",
     type: 'multiple_choice',
     difficulty: 'medium',
     category: 'JOIN',
@@ -307,19 +302,19 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     id: 'exam7_p16',
     title: '16. ANSI JOIN과 Oracle JOIN 등가 변환',
     description:
-      '다음 Oracle 방식의 OUTER JOIN 쿼리를 ANSI 표준 쿼리로 올바르게 변환한 것은?\n\nSELECT A.COL1, B.COL2\nFROM   TABLE_A A, TABLE_B B\nWHERE  A.KEY = B.KEY(+)\nAND    B.STATUS(+) = \'ACTIVE\';',
+      "다음 Oracle 방식의 OUTER JOIN 쿼리를 ANSI 표준 쿼리로 올바르게 변환한 것은?\n\nSELECT A.COL1, B.COL2\nFROM   TABLE_A A, TABLE_B B\nWHERE  A.KEY = B.KEY(+)\nAND    B.STATUS(+) = 'ACTIVE';",
     type: 'multiple_choice',
-    difficulty: 'easy',
+    difficulty: 'hard',
     category: 'JOIN',
-    correctRate: 72,
+    correctRate: 30,
     answer: '1',
     explanation:
-      'Oracle의 (+) 연산자는 해당 컬럼이 속한 테이블이 OUTER 측(NULL을 허용하는 측)임을 나타냅니다. B 쪽에 (+)가 붙어 있으므로 A가 기준(INNER), B가 OUTER입니다 → LEFT OUTER JOIN. 중요한 점은 B.STATUS(+) = \'ACTIVE\' 조건도 JOIN 조건으로 처리해야 합니다. ANSI에서 OUTER JOIN의 한쪽 테이블에 대한 필터 조건은 ON 절에 포함해야 WHERE 절에 넣으면 INNER JOIN과 동일하게 동작합니다. WHERE에 B.STATUS = \'ACTIVE\'를 넣으면 LEFT JOIN 후 NULL인 행이 제거되어 결과가 달라집니다.',
+      "Oracle의 (+) 연산자는 해당 컬럼이 속한 테이블이 OUTER 측(NULL을 허용하는 측)임을 나타냅니다. B 쪽에 (+)가 붙어 있으므로 A가 기준(INNER), B가 OUTER입니다 → LEFT OUTER JOIN. 중요한 점은 B.STATUS(+) = 'ACTIVE' 조건도 JOIN 조건으로 처리해야 합니다. ANSI에서 OUTER JOIN의 한쪽 테이블에 대한 필터 조건은 ON 절에 포함해야 WHERE 절에 넣으면 INNER JOIN과 동일하게 동작합니다. WHERE에 B.STATUS = 'ACTIVE'를 넣으면 LEFT JOIN 후 NULL인 행이 제거되어 결과가 달라집니다.",
     options: [
-      'SELECT A.COL1, B.COL2 FROM TABLE_A A LEFT OUTER JOIN TABLE_B B ON A.KEY = B.KEY AND B.STATUS = \'ACTIVE\'',
-      'SELECT A.COL1, B.COL2 FROM TABLE_A A LEFT OUTER JOIN TABLE_B B ON A.KEY = B.KEY WHERE B.STATUS = \'ACTIVE\'',
-      'SELECT A.COL1, B.COL2 FROM TABLE_A A RIGHT OUTER JOIN TABLE_B B ON A.KEY = B.KEY AND B.STATUS = \'ACTIVE\'',
-      'SELECT A.COL1, B.COL2 FROM TABLE_A A FULL OUTER JOIN TABLE_B B ON A.KEY = B.KEY AND B.STATUS = \'ACTIVE\'',
+      "SELECT A.COL1, B.COL2 FROM TABLE_A A LEFT OUTER JOIN TABLE_B B ON A.KEY = B.KEY AND B.STATUS = 'ACTIVE'",
+      "SELECT A.COL1, B.COL2 FROM TABLE_A A LEFT OUTER JOIN TABLE_B B ON A.KEY = B.KEY WHERE B.STATUS = 'ACTIVE'",
+      "SELECT A.COL1, B.COL2 FROM TABLE_A A RIGHT OUTER JOIN TABLE_B B ON A.KEY = B.KEY AND B.STATUS = 'ACTIVE'",
+      "SELECT A.COL1, B.COL2 FROM TABLE_A A FULL OUTER JOIN TABLE_B B ON A.KEY = B.KEY AND B.STATUS = 'ACTIVE'",
     ],
     points: 10,
   },
@@ -349,19 +344,19 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     id: 'exam7_p18',
     title: '18. DECODE와 CASE의 NULL 비교 차이',
     description:
-      '다음 두 쿼리의 결과 차이로 올바른 것은?\n\n-- COL1에 NULL 값이 포함된 테이블\nSELECT DECODE(COL1, NULL, \'NULL값\', \'다른값\') AS R1\nFROM   TEMP;\n\nSELECT CASE COL1 WHEN NULL THEN \'NULL값\' ELSE \'다른값\' END AS R2\nFROM   TEMP;',
+      "다음 두 쿼리의 결과 차이로 올바른 것은?\n\n-- COL1에 NULL 값이 포함된 테이블\nSELECT DECODE(COL1, NULL, 'NULL값', '다른값') AS R1\nFROM   TEMP;\n\nSELECT CASE COL1 WHEN NULL THEN 'NULL값' ELSE '다른값' END AS R2\nFROM   TEMP;",
     type: 'multiple_choice',
     difficulty: 'hard',
     category: '함수',
     correctRate: 28,
     answer: '1',
     explanation:
-      'DECODE 함수는 내부적으로 NULL 비교 시 IS NULL과 동일하게 처리하므로 DECODE(COL1, NULL, \'NULL값\', \'다른값\')에서 COL1이 NULL이면 \'NULL값\'을 반환합니다. 그러나 단순 CASE 표현식(CASE COL1 WHEN NULL ...)은 내부적으로 COL1 = NULL을 평가하는데, NULL = NULL은 UNKNOWN이므로 ELSE 분기인 \'다른값\'을 반환합니다. CASE에서 NULL 처리를 하려면 CASE WHEN COL1 IS NULL THEN ...을 사용해야 합니다.',
+      "DECODE 함수는 내부적으로 NULL 비교 시 IS NULL과 동일하게 처리하므로 DECODE(COL1, NULL, 'NULL값', '다른값')에서 COL1이 NULL이면 'NULL값'을 반환합니다. 그러나 단순 CASE 표현식(CASE COL1 WHEN NULL ...)은 내부적으로 COL1 = NULL을 평가하는데, NULL = NULL은 UNKNOWN이므로 ELSE 분기인 '다른값'을 반환합니다. CASE에서 NULL 처리를 하려면 CASE WHEN COL1 IS NULL THEN ...을 사용해야 합니다.",
     options: [
-      'COL1이 NULL일 때 R1은 \'NULL값\', R2는 \'다른값\'을 반환한다.',
-      'COL1이 NULL일 때 R1, R2 모두 \'NULL값\'을 반환한다.',
-      'COL1이 NULL일 때 R1, R2 모두 \'다른값\'을 반환한다.',
-      'COL1이 NULL일 때 R1은 NULL, R2는 \'NULL값\'을 반환한다.',
+      "COL1이 NULL일 때 R1은 'NULL값', R2는 '다른값'을 반환한다.",
+      "COL1이 NULL일 때 R1, R2 모두 'NULL값'을 반환한다.",
+      "COL1이 NULL일 때 R1, R2 모두 '다른값'을 반환한다.",
+      "COL1이 NULL일 때 R1은 NULL, R2는 'NULL값'을 반환한다.",
     ],
     points: 10,
   },
@@ -369,7 +364,7 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     id: 'exam7_p19',
     title: '19. 날짜 함수 연산 결과',
     description:
-      '다음 Oracle 쿼리의 실행 결과로 올바른 것은?\n\nSELECT MONTHS_BETWEEN(\n         TO_DATE(\'2024-03-31\', \'YYYY-MM-DD\'),\n         TO_DATE(\'2024-01-31\', \'YYYY-MM-DD\')\n       ) AS M1,\n       MONTHS_BETWEEN(\n         TO_DATE(\'2024-03-30\', \'YYYY-MM-DD\'),\n         TO_DATE(\'2024-01-31\', \'YYYY-MM-DD\')\n       ) AS M2\nFROM   DUAL;',
+      "다음 Oracle 쿼리의 실행 결과로 올바른 것은?\n\nSELECT MONTHS_BETWEEN(\n         TO_DATE('2024-03-31', 'YYYY-MM-DD'),\n         TO_DATE('2024-01-31', 'YYYY-MM-DD')\n       ) AS M1,\n       MONTHS_BETWEEN(\n         TO_DATE('2024-03-30', 'YYYY-MM-DD'),\n         TO_DATE('2024-01-31', 'YYYY-MM-DD')\n       ) AS M2\nFROM   DUAL;",
     type: 'multiple_choice',
     difficulty: 'medium',
     category: '함수',
@@ -387,56 +382,56 @@ export const EXAM_7_PROBLEMS: Problem[] = [
   },
   {
     id: 'exam7_p20',
-    title: '20. REGEXP_SUBSTR 정규식 함수',
+    title: '20. PIVOT과 NULL 처리',
     description:
-      '다음 쿼리의 결과로 올바른 것은?\n\nSELECT REGEXP_SUBSTR(\'ABC123DEF456\', \'[0-9]+\', 1, 2) AS R\nFROM   DUAL;',
+      'PIVOT 결과에서 NULL 값이 발생하는 경우와 처리 방법에 대한 설명으로 올바른 것은?',
     type: 'multiple_choice',
-    difficulty: 'medium',
-    category: '함수',
-    correctRate: 45,
-    answer: '4',
+    difficulty: 'hard',
+    category: 'PIVOT/UNPIVOT',
+    correctRate: 30,
+    answer: '3',
     explanation:
-      'REGEXP_SUBSTR(source, pattern, position, occurrence)는 정규식 패턴에 매칭되는 부분 문자열을 반환합니다. source=\'ABC123DEF456\', pattern=\'[0-9]+\'(하나 이상의 숫자), position=1(처음부터 검색), occurrence=2(두 번째 매칭). 첫 번째 매칭: 123 (ABC 이후) → 두 번째 매칭: 456 (DEF 이후). 결과: \'456\'',
-    options: ['\'123\'', '\'1\'', '\'12\'', '\'456\''],
+      'PIVOT에서 FOR...IN 절에 지정된 값에 해당하는 데이터가 원본에 없으면 NULL이 됩니다. 이를 처리하려면 NVL 함수로 감싸거나(NVL(SUM(AMOUNT), 0)), PIVOT 외부에서 NVL을 적용할 수 있습니다. UNPIVOT에서는 INCLUDE NULLS 옵션으로 NULL 포함 여부를 제어합니다.',
+    options: [
+      'PIVOT 결과에서는 NULL이 발생할 수 없다.',
+      'PIVOT에서 NULL 처리는 DEFAULT 키워드로 한다.',
+      'PIVOT에서 데이터가 없는 교차점은 NULL이 되며, NVL로 처리할 수 있다.',
+      'UNPIVOT은 기본적으로 NULL 값을 포함하여 변환한다.',
+    ],
     points: 10,
   },
   {
     id: 'exam7_p21',
     title: '21. NULLIF와 NVL2 중첩 사용',
     description:
-      '다음 쿼리의 실행 결과로 올바른 것은?\n\n-- 데이터: COL_A = 0, COL_B = NULL\nSELECT NVL2(\n         NULLIF(COL_A, 0),\n         \'A가 0이 아님\',\n         NVL(COL_B, \'B도NULL\')\n       ) AS RESULT\nFROM   TEMP;',
+      "다음 쿼리의 실행 결과로 올바른 것은?\n\n-- 데이터: COL_A = 0, COL_B = NULL\nSELECT NVL2(\n         NULLIF(COL_A, 0),\n         'A가 0이 아님',\n         NVL(COL_B, 'B도NULL')\n       ) AS RESULT\nFROM   TEMP;",
     type: 'multiple_choice',
     difficulty: 'hard',
     category: '함수',
     correctRate: 25,
     answer: '3',
     explanation:
-      'NULLIF(COL_A, 0): COL_A가 0이므로 0 = 0 → NULL을 반환.\nNVL2(expr1, expr2, expr3): expr1이 NULL이면 expr3 반환, NULL이 아니면 expr2 반환.\nNULLIF 결과가 NULL이므로 NVL2는 세 번째 인수를 반환합니다.\n세 번째 인수: NVL(COL_B, \'B도NULL\'). COL_B = NULL이므로 NVL은 \'B도NULL\'을 반환.\n최종 결과: \'B도NULL\'',
-    options: [
-      '\'A가 0이 아님\'',
-      'NULL',
-      '\'B도NULL\'',
-      '0',
-    ],
+      "NULLIF(COL_A, 0): COL_A가 0이므로 0 = 0 → NULL을 반환.\nNVL2(expr1, expr2, expr3): expr1이 NULL이면 expr3 반환, NULL이 아니면 expr2 반환.\nNULLIF 결과가 NULL이므로 NVL2는 세 번째 인수를 반환합니다.\n세 번째 인수: NVL(COL_B, 'B도NULL'). COL_B = NULL이므로 NVL은 'B도NULL'을 반환.\n최종 결과: 'B도NULL'",
+    options: ["'A가 0이 아님'", 'NULL', "'B도NULL'", '0'],
     points: 10,
   },
   {
     id: 'exam7_p22',
-    title: '22. LISTAGG 함수와 내부 정렬',
+    title: '22. REGEXP_SUBSTR과 역참조',
     description:
-      '다음 쿼리 결과로 올바른 것은?\n\n-- DEPT_MEMBER 테이블:\n-- DEPTNO  ENAME    SALARY\n-- 10      KING     5000\n-- 10      CLARK    2450\n-- 10      MILLER   1300\n\nSELECT DEPTNO,\n       LISTAGG(ENAME, \',\') WITHIN GROUP (ORDER BY SALARY DESC) AS NAMES\nFROM   DEPT_MEMBER\nWHERE  DEPTNO = 10\nGROUP BY DEPTNO;',
+      '다음 SQL의 실행 결과로 올바른 것은?\n\n```sql\nSELECT REGEXP_SUBSTR(\'2024-03-15\', \'([0-9]{4})-([0-9]{2})-([0-9]{2})\', 1, 1, NULL, 2) AS RESULT\nFROM DUAL;\n```',
     type: 'multiple_choice',
-    difficulty: 'medium',
-    category: '함수',
-    correctRate: 50,
+    difficulty: 'hard',
+    category: '정규표현식',
+    correctRate: 30,
     answer: '2',
     explanation:
-      'LISTAGG 함수는 그룹 내 값을 지정한 구분자로 이어 붙입니다. WITHIN GROUP (ORDER BY SALARY DESC)는 연결 순서를 급여 내림차순으로 지정합니다. 급여 내림차순: KING(5000) > CLARK(2450) > MILLER(1300). 결과: \'KING,CLARK,MILLER\'',
+      'REGEXP_SUBSTR의 6번째 파라미터는 서브그룹(캡처 그룹) 번호입니다. 패턴에서 괄호로 묶인 그룹이 순서대로 1, 2, 3번이 되며, 2번 그룹은 ([0-9]{2})로 월(03)에 해당합니다. 따라서 결과는 03입니다.',
     options: [
-      '\'MILLER,CLARK,KING\'',
-      '\'KING,CLARK,MILLER\'',
-      '\'CLARK,KING,MILLER\'',
-      '\'KING,MILLER,CLARK\'',
+      '2024',
+      '03',
+      '15',
+      '2024-03-15',
     ],
     points: 10,
   },
@@ -444,19 +439,19 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     id: 'exam7_p23',
     title: '23. TO_CHAR 숫자 포맷과 반올림',
     description:
-      '다음 쿼리의 결과로 올바른 것은?\n\nSELECT TO_CHAR(12345.678, \'99,999.99\') AS R1,\n       TO_CHAR(12345.678, \'FM99,999.99\') AS R2\nFROM   DUAL;',
+      "다음 쿼리의 결과로 올바른 것은?\n\nSELECT TO_CHAR(12345.678, '99,999.99') AS R1,\n       TO_CHAR(12345.678, 'FM99,999.99') AS R2\nFROM   DUAL;",
     type: 'multiple_choice',
-    difficulty: 'medium',
+    difficulty: 'hard',
     category: '함수',
-    correctRate: 42,
+    correctRate: 30,
     answer: '1',
     explanation:
-      'TO_CHAR(숫자, 포맷)에서 포맷 \'99,999.99\'는 천 단위 구분자와 소수 2자리를 표시합니다. 12345.678에서 소수 셋째 자리에서 반올림 → 12345.68. 결과에 앞뒤 공백이 포함됩니다. FM(Fill Mode) 접두사는 앞뒤 공백과 불필요한 0을 제거합니다. R1 = \' 12,345.68\' (앞에 공백 있음), R2 = \'12,345.68\' (공백 없음). Oracle TO_CHAR는 양수에 부호 자리로 앞에 1칸 공백이 생깁니다.',
+      "TO_CHAR(숫자, 포맷)에서 포맷 '99,999.99'는 천 단위 구분자와 소수 2자리를 표시합니다. 12345.678에서 소수 셋째 자리에서 반올림 → 12345.68. 결과에 앞뒤 공백이 포함됩니다. FM(Fill Mode) 접두사는 앞뒤 공백과 불필요한 0을 제거합니다. R1 = ' 12,345.68' (앞에 공백 있음), R2 = '12,345.68' (공백 없음). Oracle TO_CHAR는 양수에 부호 자리로 앞에 1칸 공백이 생깁니다.",
     options: [
-      'R1 = \' 12,345.68\' (앞에 공백), R2 = \'12,345.68\' (공백 없음)',
-      'R1 = \'12,345.68\', R2 = \'12,345.68\'',
-      'R1 = \' 12,345.678\', R2 = \'12,345.678\'',
-      'R1 = \'12,345.67\', R2 = \'12345.68\'',
+      "R1 = ' 12,345.68' (앞에 공백), R2 = '12,345.68' (공백 없음)",
+      "R1 = '12,345.68', R2 = '12,345.68'",
+      "R1 = ' 12,345.678', R2 = '12,345.678'",
+      "R1 = '12,345.67', R2 = '12345.68'",
     ],
     points: 10,
   },
@@ -466,19 +461,19 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     id: 'exam7_p24',
     title: '24. MERGE 문 UPDATE와 INSERT 조건',
     description:
-      '다음 MERGE 문 실행 후 TARGET 테이블의 상태로 올바른 것은?\n\n-- TARGET: (ID=1, VAL=\'A\'), (ID=2, VAL=\'B\')\n-- SOURCE: (ID=2, VAL=\'X\'), (ID=3, VAL=\'Y\')\n\nMERGE INTO TARGET T\nUSING  SOURCE S ON (T.ID = S.ID)\nWHEN MATCHED THEN\n  UPDATE SET T.VAL = S.VAL\n  WHERE S.VAL != \'X\'\nWHEN NOT MATCHED THEN\n  INSERT (ID, VAL) VALUES (S.ID, S.VAL);',
+      "다음 MERGE 문 실행 후 TARGET 테이블의 상태로 올바른 것은?\n\n-- TARGET: (ID=1, VAL='A'), (ID=2, VAL='B')\n-- SOURCE: (ID=2, VAL='X'), (ID=3, VAL='Y')\n\nMERGE INTO TARGET T\nUSING  SOURCE S ON (T.ID = S.ID)\nWHEN MATCHED THEN\n  UPDATE SET T.VAL = S.VAL\n  WHERE S.VAL != 'X'\nWHEN NOT MATCHED THEN\n  INSERT (ID, VAL) VALUES (S.ID, S.VAL);",
     type: 'multiple_choice',
     difficulty: 'hard',
     category: 'DML',
     correctRate: 30,
     answer: '3',
     explanation:
-      'MERGE 실행 분석:\n- ID=1: SOURCE에 없음 → MATCHED 조건 미해당, NOT MATCHED도 아님(TARGET에 있음) → 변화 없음\n- ID=2: MATCHED (T.ID=2, S.ID=2 매칭) → UPDATE WHERE S.VAL != \'X\' → S.VAL=\'X\'이므로 WHERE 조건 FALSE → UPDATE 미실행 → T.VAL=\'B\' 유지\n- ID=3: NOT MATCHED (TARGET에 없음) → INSERT (3, \'Y\')\n\n최종 TARGET: (1, \'A\'), (2, \'B\'), (3, \'Y\')',
+      "MERGE 실행 분석:\n- ID=1: SOURCE에 없음 → MATCHED 조건 미해당, NOT MATCHED도 아님(TARGET에 있음) → 변화 없음\n- ID=2: MATCHED (T.ID=2, S.ID=2 매칭) → UPDATE WHERE S.VAL != 'X' → S.VAL='X'이므로 WHERE 조건 FALSE → UPDATE 미실행 → T.VAL='B' 유지\n- ID=3: NOT MATCHED (TARGET에 없음) → INSERT (3, 'Y')\n\n최종 TARGET: (1, 'A'), (2, 'B'), (3, 'Y')",
     options: [
-      '(1, \'A\'), (2, \'X\'), (3, \'Y\')',
-      '(1, \'A\'), (2, \'B\')',
-      '(1, \'A\'), (2, \'B\'), (3, \'Y\')',
-      '(2, \'X\'), (3, \'Y\')',
+      "(1, 'A'), (2, 'X'), (3, 'Y')",
+      "(1, 'A'), (2, 'B')",
+      "(1, 'A'), (2, 'B'), (3, 'Y')",
+      "(2, 'X'), (3, 'Y')",
     ],
     points: 10,
   },
@@ -508,9 +503,9 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     description:
       '다음 쿼리의 실행 결과로 올바른 것은?\n\n-- SRC: (SCORE=85), (SCORE=72), (SCORE=60)\nINSERT ALL\n  WHEN SCORE >= 80 THEN INTO HIGH_SCORE(S) VALUES(SCORE)\n  WHEN SCORE >= 60 THEN INTO MID_SCORE(S) VALUES(SCORE)\n  ELSE INTO LOW_SCORE(S) VALUES(SCORE)\nSELECT SCORE FROM SRC;',
     type: 'multiple_choice',
-    difficulty: 'medium',
+    difficulty: 'hard',
     category: 'DML',
-    correctRate: 45,
+    correctRate: 30,
     answer: '1',
     explanation:
       'INSERT ALL ... WHEN은 Oracle의 조건부 다중 테이블 INSERT입니다. 각 행에 대해 모든 WHEN 조건을 독립적으로 평가합니다(INSERT FIRST와 달리 여러 조건이 동시에 참일 수 있음).\n- SCORE=85: WHEN SCORE>=80 → HIGH_SCORE 삽입. WHEN SCORE>=60도 TRUE → MID_SCORE도 삽입.\n- SCORE=72: WHEN SCORE>=80 FALSE. WHEN SCORE>=60 TRUE → MID_SCORE 삽입.\n- SCORE=60: WHEN SCORE>=80 FALSE. WHEN SCORE>=60 TRUE → MID_SCORE 삽입.\n\nHIGH_SCORE: 85 (1행), MID_SCORE: 85, 72, 60 (3행), LOW_SCORE: 없음.',
@@ -525,12 +520,11 @@ export const EXAM_7_PROBLEMS: Problem[] = [
   {
     id: 'exam7_p27',
     title: '27. DELETE와 TRUNCATE의 차이 - 롤백 및 트리거',
-    description:
-      '다음 중 DELETE와 TRUNCATE에 대한 설명으로 올바르지 않은 것은?',
+    description: '다음 중 DELETE와 TRUNCATE에 대한 설명으로 올바르지 않은 것은?',
     type: 'multiple_choice',
-    difficulty: 'easy',
+    difficulty: 'hard',
     category: 'DML',
-    correctRate: 70,
+    correctRate: 30,
     answer: '4',
     explanation:
       'DELETE는 DML 명령으로 WHERE 절로 조건 지정이 가능하고, ROLLBACK이 가능하며, 각 행 삭제 시 DELETE 트리거가 발생합니다. TRUNCATE는 DDL 명령으로 테이블의 모든 데이터를 삭제하며, 자동으로 COMMIT되어 ROLLBACK이 불가능합니다. TRUNCATE는 행 단위로 처리하지 않으므로 DML 트리거(DELETE 트리거)가 발생하지 않습니다. DELETE는 UNDO 세그먼트에 변경 정보를 기록하지만, TRUNCATE는 UNDO를 최소화합니다.',
@@ -550,9 +544,9 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     description:
       '다음 쿼리 결과에서 DEPT_AVG 컬럼의 값으로 올바른 것은?\n\n-- EMP: EMPNO=9999, DEPTNO=99 (99번 부서에 이 직원만 존재)\n-- DEPT_STAT: DEPTNO, AVG_SAL (10, 20, 30번 부서 통계만 존재, 99번 없음)\n\nSELECT E.EMPNO,\n       (SELECT D.AVG_SAL\n        FROM   DEPT_STAT D\n        WHERE  D.DEPTNO = E.DEPTNO) AS DEPT_AVG\nFROM   EMP E\nWHERE  E.EMPNO = 9999;',
     type: 'multiple_choice',
-    difficulty: 'medium',
+    difficulty: 'hard',
     category: '서브쿼리',
-    correctRate: 55,
+    correctRate: 30,
     answer: '3',
     explanation:
       '스칼라 서브쿼리는 SELECT 절에서 서브쿼리를 사용하여 단일 값을 반환합니다. EMPNO=9999의 DEPTNO=99에 대해 DEPT_STAT에서 D.DEPTNO=99인 행을 조회하면 해당 행이 없습니다. 스칼라 서브쿼리가 행을 반환하지 않으면(0건) NULL을 반환합니다. 따라서 DEPT_AVG = NULL이 됩니다. 오류가 발생하지 않고 NULL이 반환되는 것이 스칼라 서브쿼리의 특징입니다.',
@@ -630,9 +624,9 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     description:
       '다음 WITH 절 쿼리의 실행 결과 행 수로 올바른 것은?\n\nWITH CTE AS (\n  SELECT 1 AS N FROM DUAL\n  UNION ALL\n  SELECT N + 1 FROM CTE WHERE N < 5\n)\nSELECT N FROM CTE;',
     type: 'multiple_choice',
-    difficulty: 'medium',
+    difficulty: 'hard',
     category: '서브쿼리',
-    correctRate: 50,
+    correctRate: 30,
     answer: '3',
     explanation:
       '재귀 WITH 절(Recursive CTE)은 초기 집합에서 시작하여 종료 조건까지 반복 실행합니다. 초기: N=1. 재귀 단계: N+1이 WHERE N < 5를 만족하는 동안 반복. N=1 → 2, N=2 → 3, N=3 → 4, N=4 → 5, N=5 → WHERE N<5 FALSE로 종료. 결과: 1, 2, 3, 4, 5 → 5행. 단, Oracle에서는 일반 WITH 절이 재귀를 기본 지원하지 않으며, 표준 SQL 또는 Oracle 11gR2+에서 WITH ... CYCLE/SEARCH 문법을 사용합니다. 문제는 표준 SQL 재귀 CTE 기준입니다.',
@@ -673,26 +667,21 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     answer: '4',
     explanation:
       'SCORE 순서: 100(1위), 90(2위=2명), 80(4위=2명).\nEMP_ID=5의 SCORE=80:\n- RANK(): 동점자 수를 건너뜀. 100이 1위, 90이 2명 2위, 80은 4위(2명이 90으로 2, 3위를 차지하므로 다음은 4위). RANK=4.\n- DENSE_RANK(): 동점자가 있어도 연속 순위. 100=1, 90=2, 80=3. DENSE_RANK=3.\n- ROW_NUMBER(): 물리적 행 번호. 100, 90, 90, 80, 80 순서에서 EMP_ID=5가 5번째(정렬 후 ORDER가 보장되지 않아 4 또는 5가 될 수 있지만 일반적으로 5번째로 처리). RN=5(또는 4, 순서 비결정적).\n보기에서 가장 정확한 답: RANK=4, DENSE_RANK=3, RN=5',
-    options: [
-      'RK=4, DRK=4, RN=4',
-      'RK=3, DRK=3, RN=5',
-      'RK=4, DRK=3, RN=4',
-      'RK=4, DRK=3, RN=5',
-    ],
+    options: ['RK=4, DRK=4, RN=4', 'RK=3, DRK=3, RN=5', 'RK=4, DRK=3, RN=4', 'RK=4, DRK=3, RN=5'],
     points: 10,
   },
   {
     id: 'exam7_p35',
     title: '35. LAG 함수와 NULLS 처리',
     description:
-      '다음 쿼리에서 ORDER_DATE=\'2024-03-01\'인 행의 PREV_AMOUNT 값으로 올바른 것은?\n\n-- SALES 데이터 (ORDER BY ORDER_DATE):\n-- ORDER_DATE   AMOUNT\n-- 2024-01-01   1000\n-- 2024-02-01   NULL\n-- 2024-03-01   1500\n\nSELECT ORDER_DATE, AMOUNT,\n       LAG(AMOUNT, 2, -1) OVER (ORDER BY ORDER_DATE) AS PREV_AMOUNT\nFROM SALES;',
+      "다음 쿼리에서 ORDER_DATE='2024-03-01'인 행의 PREV_AMOUNT 값으로 올바른 것은?\n\n-- SALES 데이터 (ORDER BY ORDER_DATE):\n-- ORDER_DATE   AMOUNT\n-- 2024-01-01   1000\n-- 2024-02-01   NULL\n-- 2024-03-01   1500\n\nSELECT ORDER_DATE, AMOUNT,\n       LAG(AMOUNT, 2, -1) OVER (ORDER BY ORDER_DATE) AS PREV_AMOUNT\nFROM SALES;",
     type: 'multiple_choice',
     difficulty: 'hard',
     category: '윈도우함수',
     correctRate: 32,
     answer: '1',
     explanation:
-      'LAG(value, offset, default)는 현재 행에서 offset 행 이전의 값을 반환합니다. 반환할 행이 없으면 default 값을 반환합니다.\n- ORDER_DATE=\'2024-03-01\'은 세 번째 행\n- LAG(AMOUNT, 2, -1): 2행 이전 = 첫 번째 행(2024-01-01)의 AMOUNT\n- 첫 번째 행의 AMOUNT = 1000\n- 결과: 1000\n\n주의: offset=2이므로 두 번째 행(NULL)을 건너뛰고 첫 번째 행의 값을 가져옵니다. default(-1)는 이전 행이 존재하지 않을 때만 사용됩니다.',
+      "LAG(value, offset, default)는 현재 행에서 offset 행 이전의 값을 반환합니다. 반환할 행이 없으면 default 값을 반환합니다.\n- ORDER_DATE='2024-03-01'은 세 번째 행\n- LAG(AMOUNT, 2, -1): 2행 이전 = 첫 번째 행(2024-01-01)의 AMOUNT\n- 첫 번째 행의 AMOUNT = 1000\n- 결과: 1000\n\n주의: offset=2이므로 두 번째 행(NULL)을 건너뛰고 첫 번째 행의 값을 가져옵니다. default(-1)는 이전 행이 존재하지 않을 때만 사용됩니다.",
     options: ['1000', 'NULL', '-1', '1500'],
     points: 10,
   },
@@ -739,9 +728,9 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     description:
       '다음 쿼리의 결과로 올바른 것은?\n\nSELECT NULL AS COL FROM DUAL\nINTERSECT\nSELECT NULL AS COL FROM DUAL;',
     type: 'multiple_choice',
-    difficulty: 'easy',
+    difficulty: 'hard',
     category: '집합연산',
-    correctRate: 72,
+    correctRate: 30,
     answer: '1',
     explanation:
       'INTERSECT 및 집합 연산(UNION, MINUS 등)에서는 NULL 비교가 일반 WHERE 절과 다릅니다. WHERE 절에서 NULL = NULL은 UNKNOWN이지만, 집합 연산에서는 NULL 값이 같다고 처리하여 중복 제거 및 교집합에 포함됩니다. 따라서 SELECT NULL INTERSECT SELECT NULL은 NULL 1행을 반환합니다. 이것은 SQL 표준의 특별한 처리입니다.',
@@ -777,7 +766,7 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     id: 'exam7_p40',
     title: '40. 집합연산과 컬럼 수/타입 제약',
     description:
-      '다음 집합 연산 쿼리 중 오류가 발생하는 것은?\n\n[쿼리 A]\nSELECT EMPNO, ENAME FROM EMP\nUNION\nSELECT DEPTNO, DNAME FROM DEPT;\n\n[쿼리 B]\nSELECT EMPNO, ENAME, NULL FROM EMP\nUNION\nSELECT DEPTNO, DNAME, LOC FROM DEPT;\n\n[쿼리 C]\nSELECT EMPNO, TO_CHAR(HIREDATE, \'YYYY\') FROM EMP\nUNION\nSELECT DEPTNO, DNAME FROM DEPT;',
+      "다음 집합 연산 쿼리 중 오류가 발생하는 것은?\n\n[쿼리 A]\nSELECT EMPNO, ENAME FROM EMP\nUNION\nSELECT DEPTNO, DNAME FROM DEPT;\n\n[쿼리 B]\nSELECT EMPNO, ENAME, NULL FROM EMP\nUNION\nSELECT DEPTNO, DNAME, LOC FROM DEPT;\n\n[쿼리 C]\nSELECT EMPNO, TO_CHAR(HIREDATE, 'YYYY') FROM EMP\nUNION\nSELECT DEPTNO, DNAME FROM DEPT;",
     type: 'multiple_choice',
     difficulty: 'medium',
     category: '집합연산',
@@ -839,7 +828,7 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     id: 'exam7_p43',
     title: '43. 뷰(View) 생성과 WITH CHECK OPTION',
     description:
-      '다음 뷰 생성 후 INSERT 실행 시 결과로 올바른 것은?\n\nCREATE OR REPLACE VIEW V_DEPT10 AS\nSELECT EMPNO, ENAME, DEPTNO\nFROM   EMP\nWHERE  DEPTNO = 10\nWITH CHECK OPTION;\n\nINSERT INTO V_DEPT10 (EMPNO, ENAME, DEPTNO)\nVALUES (9999, \'TESTER\', 20);',
+      "다음 뷰 생성 후 INSERT 실행 시 결과로 올바른 것은?\n\nCREATE OR REPLACE VIEW V_DEPT10 AS\nSELECT EMPNO, ENAME, DEPTNO\nFROM   EMP\nWHERE  DEPTNO = 10\nWITH CHECK OPTION;\n\nINSERT INTO V_DEPT10 (EMPNO, ENAME, DEPTNO)\nVALUES (9999, 'TESTER', 20);",
     type: 'multiple_choice',
     difficulty: 'hard',
     category: 'DDL',
@@ -859,11 +848,11 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     id: 'exam7_p44',
     title: '44. 인덱스 컬럼 순서와 선두 컬럼 원칙',
     description:
-      '다음 인덱스와 쿼리에서 인덱스가 활용(선두 컬럼 조건 포함)되는 경우는?\n\n-- 인덱스: IDX_ORDER (CUST_ID, ORDER_DATE, STATUS)\n\n[쿼리 A] WHERE CUST_ID = 100 AND STATUS = \'DONE\'\n[쿼리 B] WHERE ORDER_DATE = \'2024-01-01\' AND STATUS = \'DONE\'\n[쿼리 C] WHERE CUST_ID = 100 AND ORDER_DATE >= \'2024-01-01\'\n[쿼리 D] WHERE STATUS = \'DONE\'',
+      "다음 인덱스와 쿼리에서 인덱스가 활용(선두 컬럼 조건 포함)되는 경우는?\n\n-- 인덱스: IDX_ORDER (CUST_ID, ORDER_DATE, STATUS)\n\n[쿼리 A] WHERE CUST_ID = 100 AND STATUS = 'DONE'\n[쿼리 B] WHERE ORDER_DATE = '2024-01-01' AND STATUS = 'DONE'\n[쿼리 C] WHERE CUST_ID = 100 AND ORDER_DATE >= '2024-01-01'\n[쿼리 D] WHERE STATUS = 'DONE'",
     type: 'multiple_choice',
-    difficulty: 'medium',
+    difficulty: 'hard',
     category: 'DDL',
-    correctRate: 55,
+    correctRate: 30,
     answer: '3',
     explanation:
       '복합 인덱스 IDX_ORDER (CUST_ID, ORDER_DATE, STATUS)는 선두 컬럼인 CUST_ID가 조건에 포함될 때 인덱스를 효율적으로 활용할 수 있습니다. 쿼리 A: CUST_ID(선두) 있음 → 인덱스 활용. STATUS는 CUST_ID 이후 연속이 아니지만 CUST_ID로 범위를 좁힌 후 STATUS 필터는 가능(부분 활용). 쿼리 B: ORDER_DATE만 있고 선두 CUST_ID 없음 → 인덱스 스캔 비효율. 쿼리 C: CUST_ID(선두) + ORDER_DATE(두 번째) → 가장 효율적 활용. 쿼리 D: STATUS만 있고 선두 없음 → 인덱스 활용 어려움. A와 C 모두 활용되지만, 선두+두 번째까지 조건이 있는 C가 가장 효율적입니다.',
@@ -901,7 +890,7 @@ export const EXAM_7_PROBLEMS: Problem[] = [
     id: 'exam7_p46',
     title: '46. 트랜잭션 격리 수준과 팬텀 리드',
     description:
-      '다음 중 REPEATABLE READ 격리 수준에서도 발생할 수 있는 현상으로 올바른 것은?\n\n[상황]\n트랜잭션 T1: SELECT COUNT(*) FROM ORDERS WHERE STATUS = \'PENDING\' (결과: 5건)\n트랜잭션 T2: INSERT INTO ORDERS (STATUS) VALUES (\'PENDING\'); COMMIT;\n트랜잭션 T1: SELECT COUNT(*) FROM ORDERS WHERE STATUS = \'PENDING\' (결과: ?)',
+      "다음 중 REPEATABLE READ 격리 수준에서도 발생할 수 있는 현상으로 올바른 것은?\n\n[상황]\n트랜잭션 T1: SELECT COUNT(*) FROM ORDERS WHERE STATUS = 'PENDING' (결과: 5건)\n트랜잭션 T2: INSERT INTO ORDERS (STATUS) VALUES ('PENDING'); COMMIT;\n트랜잭션 T1: SELECT COUNT(*) FROM ORDERS WHERE STATUS = 'PENDING' (결과: ?)",
     type: 'multiple_choice',
     difficulty: 'hard',
     category: 'TCL',
