@@ -7,7 +7,7 @@ app = FastAPI(title="sqld-backend")
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok_test"}
+    return {"status": "ok_test2"}
 
 
 @app.get("/api/health/db/oracle")
