@@ -6,7 +6,7 @@ metadata:
 spec:
   parentRefs:
     - name: sqld-gateway
-      namespace: envoy-gateway-system
+      namespace: app
   rules:
     - matches:
         - path:
