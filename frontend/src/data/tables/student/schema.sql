@@ -1,0 +1,43 @@
+-- ============================================
+-- 테이블셋 3: STUDENT (학생/수강/과목)
+-- SQLD 학습 목표: ROLLUP/CUBE, 윈도우함수, 집합연산자, 계층형쿼리
+-- ============================================
+
+-- 교수 테이블
+CREATE TABLE PROFESSOR (
+    PROF_ID     NUMBER        PRIMARY KEY,
+    PROF_NAME   VARCHAR2(30)  NOT NULL,
+    DEPT_NAME   VARCHAR2(30),
+    POSITION    VARCHAR2(20),
+    HIRE_DATE   DATE,
+    SAL         NUMBER(8,2)
+);
+
+-- 학생 테이블
+CREATE TABLE STUDENT (
+    STU_ID      NUMBER        PRIMARY KEY,
+    STU_NAME    VARCHAR2(30)  NOT NULL,
+    DEPT_NAME   VARCHAR2(30),
+    GRADE       NUMBER(1),
+    ADVISOR_ID  NUMBER        REFERENCES PROFESSOR(PROF_ID),
+    ENT_DATE    DATE
+);
+
+-- 과목 테이블
+CREATE TABLE COURSE (
+    COURSE_ID   VARCHAR2(10)  PRIMARY KEY,
+    COURSE_NAME VARCHAR2(50)  NOT NULL,
+    CREDIT      NUMBER(1),
+    PROF_ID     NUMBER        REFERENCES PROFESSOR(PROF_ID),
+    DEPT_NAME   VARCHAR2(30)
+);
+
+-- 수강 테이블
+CREATE TABLE ENROLLMENT (
+    ENROLL_ID   NUMBER        PRIMARY KEY,
+    STU_ID      NUMBER        REFERENCES STUDENT(STU_ID),
+    COURSE_ID   VARCHAR2(10)  REFERENCES COURSE(COURSE_ID),
+    SEMESTER    VARCHAR2(10),
+    SCORE       NUMBER(3),
+    GRADE       VARCHAR2(2)
+);
