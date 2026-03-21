@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import type { User } from '../types';
-import { logEvent } from '../utils/eventLogger';
+import { logEvent, setAmplitudeUserId, resetAmplitudeUserId } from '../utils/eventLogger';
 
 interface AuthContextValue {
   user: User | null;
@@ -25,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     };
     setUser(mockUser);
+    setAmplitudeUserId(mockUser.id);
     logEvent('user_login', { email }, mockUser.id);
   }, []);
 
@@ -39,12 +40,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     };
     setUser(newUser);
+    setAmplitudeUserId(newUser.id);
     logEvent('user_signup', { email, nickname: resolvedNickname }, newUser.id);
     logEvent('user_first_visit', { email }, newUser.id);
   }, []);
 
   const logout = useCallback(() => {
     setUser(null);
+    resetAmplitudeUserId();
   }, []);
 
   return (
