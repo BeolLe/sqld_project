@@ -16,32 +16,7 @@ import { keymap } from '@codemirror/view';
 import { logEvent } from '../utils/eventLogger';
 import { useAuth } from '../contexts/AuthContext';
 import type { SQLResult } from '../types';
-
-// 목업 SQL 문제 상세
-const SQL_PROBLEM_DETAIL: Record<
-  string,
-  {
-    id: string;
-    title: string;
-    description: string;
-    schema: string;
-    answer: string;
-    hint: string;
-  }
-> = {
-  sql2: {
-    id: 'sql2',
-    title: 'GROUP BY와 HAVING 절',
-    description: `아래 EMP 테이블에서 부서별 평균 급여가 2000을 초과하는 부서번호(DEPTNO)와 해당 부서의 평균 급여(AVG_SAL)를 조회하세요.\n\n- 평균 급여는 소수점 없이 반올림(ROUND)하여 출력\n- 결과는 평균 급여 내림차순 정렬`,
-    schema: `-- EMP 테이블\n-- EMPNO, ENAME, JOB, MGR, HIREDATE, SAL, COMM, DEPTNO`,
-    answer: `SELECT DEPTNO, ROUND(AVG(SAL)) AS AVG_SAL
-FROM EMP
-GROUP BY DEPTNO
-HAVING AVG(SAL) > 2000
-ORDER BY AVG_SAL DESC`,
-    hint: 'GROUP BY → HAVING 순서로 작성하고, 집계 함수(AVG)는 SELECT와 HAVING에서 사용할 수 있습니다.',
-  },
-};
+import { getPracticeProblemById } from '../data/practice';
 
 function executeMockSQL(query: string): SQLResult {
   const normalized = query.trim().toUpperCase();
@@ -110,7 +85,17 @@ export default function SQLPracticePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const problem = id ? SQL_PROBLEM_DETAIL[id] : null;
+  const problemData = id ? getPracticeProblemById(id) : null;
+  const problem = problemData
+    ? {
+        id: problemData.id,
+        title: problemData.title,
+        description: problemData.description,
+        schema: problemData.schemaSQL ?? '',
+        answer: problemData.answer,
+        hint: problemData.explanation,
+      }
+    : null;
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<SQLResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -157,9 +142,11 @@ export default function SQLPracticePage() {
 
   const handleSubmit = useCallback(() => {
     if (!problem || !query.trim()) return;
-    const isCorrect =
-      query.trim().toUpperCase().includes('AVG(SAL)') &&
-      query.trim().toUpperCase().includes('HAVING');
+    // 정답 SQL의 핵심 키워드들을 추출하여 비교 (공백/줄바꿈 무시)
+    const normalize = (s: string) => s.trim().toUpperCase().replace(/\s+/g, ' ');
+    const userNorm = normalize(query);
+    const answerNorm = normalize(problem.answer);
+    const isCorrect = userNorm === answerNorm;
     logEvent('sql_submit', { problemId: id, query, isCorrect }, user?.id);
     if (isCorrect) {
       logEvent('points_update', { userId: user?.id, delta: 10 }, user?.id);
@@ -171,7 +158,7 @@ export default function SQLPracticePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <p className="text-slate-500 mb-4">문제를 찾을 수 없습니다. (현재 sql2 문제만 지원)</p>
+          <p className="text-slate-500 mb-4">문제를 찾을 수 없습니다.</p>
           <button
             onClick={() => navigate('/sql-practice')}
             className="text-primary-600 hover:underline"
