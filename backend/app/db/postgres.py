@@ -1,5 +1,6 @@
 import psycopg
 from app.core.config import settings
+import os
 
 
 def get_postgres_connection():
@@ -22,3 +23,13 @@ def check_postgres():
     finally:
         cur.close()
         conn.close()
+
+
+def get_connection():
+    return psycopg2.connect(
+        host=os.getenv("POSTGRES_HOST"),
+        port=os.getenv("POSTGRES_PORT"),
+        dbname=os.getenv("POSTGRES_DB"),
+        user=os.getenv("POSTGRES_USER"),
+        password=os.getenv("POSTGRES_PASSWORD"),
+    )

@@ -4,10 +4,10 @@ from app.db.postgres import check_postgres
 from app.api.auth.router import router as auth_router
 
 
-app.include_router(auth_router)
-
-
 app = FastAPI(title="sqld-backend")
+
+
+app.include_router(auth_router)
 
 
 @app.get("/api/health")
