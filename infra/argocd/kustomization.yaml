@@ -6,3 +6,4 @@ resources:
   - argocd-back.yaml
   - argocd-gateway.yaml
   - back-k8s-updater.yaml
+  - front-image-updater.yaml
