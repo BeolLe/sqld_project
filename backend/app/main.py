@@ -5,18 +5,18 @@ from app.db.postgres import check_postgres
 app = FastAPI(title="sqld-backend")
 
 
-@app.get("/health")
+@app.get("/api/health")
 def health():
     return {"status": "ok"}
 
 
-@app.get("/health/db/oracle")
+@app.get("/api/health/db/oracle")
 def health_oracle():
     result = check_oracle()
     return {"status": result}
 
 
-@app.get("/health/db/postgres")
+@app.get("/api/health/db/postgres")
 def health_postgres():
     result = check_postgres()
     return {"status": result}
