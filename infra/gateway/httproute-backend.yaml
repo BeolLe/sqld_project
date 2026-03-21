@@ -7,8 +7,6 @@ spec:
   parentRefs:
     - name: sqld-gateway
       namespace: envoy-gateway-system
-  hostnames:
-    - test_dummies.selfronny.com
   rules:
     - matches:
         - path:
