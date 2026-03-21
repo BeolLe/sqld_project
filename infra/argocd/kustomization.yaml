@@ -5,3 +5,4 @@ resources:
   - argocd-front.yaml
   - argocd-back.yaml
   - argocd-gateway.yaml
+  - back-k8s-updater.yaml
