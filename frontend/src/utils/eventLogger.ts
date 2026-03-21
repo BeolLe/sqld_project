@@ -28,9 +28,14 @@ export function initAmplitude(): void {
   console.debug('[Amplitude] 초기화 완료');
 }
 
-export function setAmplitudeUserId(userId: string): void {
+export function setAmplitudeUserId(userId: string | undefined): void {
   if (!amplitudeInitialized) return;
   amplitude.setUserId(userId);
+}
+
+export function resetAmplitudeUserId(): void {
+  if (!amplitudeInitialized) return;
+  amplitude.reset();
 }
 
 // 실제 서비스에서는 API 호출로 교체
