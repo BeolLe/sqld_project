@@ -1,0 +1,391 @@
+import type { Problem } from '../../types';
+
+export const MEDIUM_PROBLEMS: Problem[] = [
+  // ─── EMP 테이블셋 (7문제) ──────────────────────────────────────────────────
+  {
+    id: 'sql_medium_01',
+    title: 'LEFT OUTER JOIN - 부서 미배정 사원 포함 조회',
+    description:
+      'EMP 테이블과 DEPT 테이블을 LEFT OUTER JOIN하여 모든 사원의 EMPNO, ENAME, DNAME을 조회하시오.\n부서가 배정되지 않은 사원(DEPTNO가 NULL)도 결과에 포함되어야 하며, 이 경우 DNAME은 NULL로 표시한다.\nENAME 오름차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: 'JOIN',
+    correctRate: 65,
+    answer:
+      'SELECT E.EMPNO, E.ENAME, D.DNAME\nFROM EMP E LEFT OUTER JOIN DEPT D ON E.DEPTNO = D.DEPTNO\nORDER BY E.ENAME',
+    explanation:
+      'LEFT OUTER JOIN은 왼쪽 테이블(EMP)의 모든 행을 반환하고, 오른쪽 테이블(DEPT)에 매칭되지 않는 행은 NULL로 채운다.\n함정: INNER JOIN을 사용하면 DEPTNO가 NULL인 사원(GRANT)이 결과에서 제외된다. 부서 미배정 사원도 반드시 포함해야 하므로 LEFT OUTER JOIN을 사용해야 한다.\nOracle 구문에서는 (+) 연산자로도 표현 가능: WHERE E.DEPTNO = D.DEPTNO(+)',
+    schemaSQL:
+      'CREATE TABLE DEPT (DEPTNO NUMBER(2) PRIMARY KEY, DNAME VARCHAR2(20), LOC VARCHAR2(20));\nCREATE TABLE EMP (EMPNO NUMBER(4) PRIMARY KEY, ENAME VARCHAR2(20) NOT NULL, JOB VARCHAR2(20), MGR NUMBER(4), HIREDATE DATE, SAL NUMBER(7,2), COMM NUMBER(7,2), DEPTNO NUMBER(2));',
+    sampleData:
+      "INSERT INTO DEPT VALUES (10, 'ACCOUNTING', 'NEW YORK');\nINSERT INTO DEPT VALUES (20, 'RESEARCH', 'DALLAS');\nINSERT INTO DEPT VALUES (30, 'SALES', 'CHICAGO');\nINSERT INTO DEPT VALUES (40, 'OPERATIONS', 'BOSTON');\nINSERT INTO EMP VALUES (7839, 'KING', 'PRESIDENT', NULL, TO_DATE('1981-11-17','YYYY-MM-DD'), 5000, NULL, 10);\nINSERT INTO EMP VALUES (7566, 'JONES', 'MANAGER', 7839, TO_DATE('1981-04-02','YYYY-MM-DD'), 2975, NULL, 20);\nINSERT INTO EMP VALUES (7788, 'SCOTT', 'ANALYST', 7566, TO_DATE('1987-04-19','YYYY-MM-DD'), 3000, NULL, 20);\nINSERT INTO EMP VALUES (7876, 'ADAMS', 'CLERK', 7788, TO_DATE('1987-05-23','YYYY-MM-DD'), 1100, NULL, 20);\nINSERT INTO EMP VALUES (7902, 'FORD', 'ANALYST', 7566, TO_DATE('1981-12-03','YYYY-MM-DD'), 3000, NULL, 20);\nINSERT INTO EMP VALUES (7698, 'BLAKE', 'MANAGER', 7839, TO_DATE('1981-05-01','YYYY-MM-DD'), 2850, NULL, 30);\nINSERT INTO EMP VALUES (7654, 'MARTIN', 'SALESMAN', 7698, TO_DATE('1981-09-28','YYYY-MM-DD'), 1250, 1400, 30);\nINSERT INTO EMP VALUES (7521, 'WARD', 'SALESMAN', 7698, TO_DATE('1981-02-22','YYYY-MM-DD'), 1250, 500, 30);\nINSERT INTO EMP VALUES (7844, 'TURNER', 'SALESMAN', 7698, TO_DATE('1981-09-08','YYYY-MM-DD'), 1500, 0, 30);\nINSERT INTO EMP VALUES (7999, 'GRANT', 'ANALYST', 7839, TO_DATE('1990-01-15','YYYY-MM-DD'), 2800, NULL, NULL);",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_02',
+    title: '셀프조인 - 사원과 매니저 이름 조회',
+    description:
+      'EMP 테이블을 셀프조인하여 각 사원의 EMPNO, ENAME(사원명), 매니저의 ENAME(매니저명)을 조회하시오.\n매니저가 없는 사원(MGR이 NULL)은 결과에서 제외한다.\n사원명(ENAME) 오름차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: 'JOIN',
+    correctRate: 60,
+    answer:
+      'SELECT E.EMPNO, E.ENAME, M.ENAME AS MGR_NAME\nFROM EMP E JOIN EMP M ON E.MGR = M.EMPNO\nORDER BY E.ENAME',
+    explanation:
+      '셀프조인은 같은 테이블을 별칭을 달리하여 두 번 참조하는 기법이다.\nE(사원)의 MGR 값이 M(매니저)의 EMPNO와 일치하는 행을 조인한다.\n함정: KING(사장)은 MGR이 NULL이므로 INNER JOIN 시 자동으로 제외된다. 만약 사장도 포함하고 싶다면 LEFT OUTER JOIN을 사용해야 하지만, 이 문제에서는 제외 조건이므로 INNER JOIN이 정답이다.\nNULL = 어떤값은 항상 FALSE이므로 MGR이 NULL인 행은 조인 조건을 만족하지 않는다.',
+    schemaSQL:
+      'CREATE TABLE EMP (EMPNO NUMBER(4) PRIMARY KEY, ENAME VARCHAR2(20) NOT NULL, JOB VARCHAR2(20), MGR NUMBER(4), HIREDATE DATE, SAL NUMBER(7,2), COMM NUMBER(7,2), DEPTNO NUMBER(2));',
+    sampleData:
+      "INSERT INTO EMP VALUES (7839, 'KING', 'PRESIDENT', NULL, TO_DATE('1981-11-17','YYYY-MM-DD'), 5000, NULL, 10);\nINSERT INTO EMP VALUES (7566, 'JONES', 'MANAGER', 7839, TO_DATE('1981-04-02','YYYY-MM-DD'), 2975, NULL, 20);\nINSERT INTO EMP VALUES (7788, 'SCOTT', 'ANALYST', 7566, TO_DATE('1987-04-19','YYYY-MM-DD'), 3000, NULL, 20);\nINSERT INTO EMP VALUES (7876, 'ADAMS', 'CLERK', 7788, TO_DATE('1987-05-23','YYYY-MM-DD'), 1100, NULL, 20);\nINSERT INTO EMP VALUES (7902, 'FORD', 'ANALYST', 7566, TO_DATE('1981-12-03','YYYY-MM-DD'), 3000, NULL, 20);\nINSERT INTO EMP VALUES (7698, 'BLAKE', 'MANAGER', 7839, TO_DATE('1981-05-01','YYYY-MM-DD'), 2850, NULL, 30);\nINSERT INTO EMP VALUES (7654, 'MARTIN', 'SALESMAN', 7698, TO_DATE('1981-09-28','YYYY-MM-DD'), 1250, 1400, 30);\nINSERT INTO EMP VALUES (7521, 'WARD', 'SALESMAN', 7698, TO_DATE('1981-02-22','YYYY-MM-DD'), 1250, 500, 30);\nINSERT INTO EMP VALUES (7844, 'TURNER', 'SALESMAN', 7698, TO_DATE('1981-09-08','YYYY-MM-DD'), 1500, 0, 30);\nINSERT INTO EMP VALUES (7369, 'SMITH', 'CLERK', 7902, TO_DATE('1980-12-17','YYYY-MM-DD'), 800, NULL, 20);\nINSERT INTO EMP VALUES (7499, 'ALLEN', 'SALESMAN', 7698, TO_DATE('1981-02-20','YYYY-MM-DD'), 1600, 300, 30);",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_03',
+    title: 'GROUP BY + HAVING - 부서별 평균 급여 필터링',
+    description:
+      'EMP 테이블과 DEPT 테이블을 조인하여 부서별 평균 급여가 2000 이상인 부서의 DEPTNO, DNAME, 평균 급여(AVG_SAL)를 조회하시오.\n평균 급여는 소수점 이하 절삭(TRUNC)하여 정수로 표시하고, 평균 급여 내림차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '그룹함수',
+    correctRate: 55,
+    answer:
+      'SELECT E.DEPTNO, D.DNAME, TRUNC(AVG(E.SAL)) AS AVG_SAL\nFROM EMP E JOIN DEPT D ON E.DEPTNO = D.DEPTNO\nGROUP BY E.DEPTNO, D.DNAME\nHAVING AVG(E.SAL) >= 2000\nORDER BY AVG_SAL DESC',
+    explanation:
+      'WHERE절은 그룹핑 전에 개별 행을 필터링하고, HAVING절은 그룹핑 후에 그룹을 필터링한다.\n함정 1: WHERE AVG(SAL) >= 2000은 오류를 발생시킨다. 집계 함수는 WHERE절에서 사용할 수 없다.\n함정 2: DEPTNO가 NULL인 사원은 INNER JOIN 시 자동으로 제외되므로 부서 미배정 사원은 집계에 포함되지 않는다.\n함정 3: GROUP BY에 DNAME을 포함해야 SELECT절에서 DNAME을 사용할 수 있다.',
+    schemaSQL:
+      'CREATE TABLE DEPT (DEPTNO NUMBER(2) PRIMARY KEY, DNAME VARCHAR2(20), LOC VARCHAR2(20));\nCREATE TABLE EMP (EMPNO NUMBER(4) PRIMARY KEY, ENAME VARCHAR2(20) NOT NULL, JOB VARCHAR2(20), MGR NUMBER(4), HIREDATE DATE, SAL NUMBER(7,2), COMM NUMBER(7,2), DEPTNO NUMBER(2));',
+    sampleData:
+      "INSERT INTO DEPT VALUES (10, 'ACCOUNTING', 'NEW YORK');\nINSERT INTO DEPT VALUES (20, 'RESEARCH', 'DALLAS');\nINSERT INTO DEPT VALUES (30, 'SALES', 'CHICAGO');\nINSERT INTO DEPT VALUES (40, 'OPERATIONS', 'BOSTON');\nINSERT INTO EMP VALUES (7839, 'KING', 'PRESIDENT', NULL, TO_DATE('1981-11-17','YYYY-MM-DD'), 5000, NULL, 10);\nINSERT INTO EMP VALUES (7782, 'CLARK', 'MANAGER', 7839, TO_DATE('1981-06-09','YYYY-MM-DD'), 2450, NULL, 10);\nINSERT INTO EMP VALUES (7566, 'JONES', 'MANAGER', 7839, TO_DATE('1981-04-02','YYYY-MM-DD'), 2975, NULL, 20);\nINSERT INTO EMP VALUES (7788, 'SCOTT', 'ANALYST', 7566, TO_DATE('1987-04-19','YYYY-MM-DD'), 3000, NULL, 20);\nINSERT INTO EMP VALUES (7876, 'ADAMS', 'CLERK', 7788, TO_DATE('1987-05-23','YYYY-MM-DD'), 1100, NULL, 20);\nINSERT INTO EMP VALUES (7902, 'FORD', 'ANALYST', 7566, TO_DATE('1981-12-03','YYYY-MM-DD'), 3000, NULL, 20);\nINSERT INTO EMP VALUES (7698, 'BLAKE', 'MANAGER', 7839, TO_DATE('1981-05-01','YYYY-MM-DD'), 2850, NULL, 30);\nINSERT INTO EMP VALUES (7654, 'MARTIN', 'SALESMAN', 7698, TO_DATE('1981-09-28','YYYY-MM-DD'), 1250, 1400, 30);\nINSERT INTO EMP VALUES (7521, 'WARD', 'SALESMAN', 7698, TO_DATE('1981-02-22','YYYY-MM-DD'), 1250, 500, 30);\nINSERT INTO EMP VALUES (7900, 'JAMES', 'CLERK', 7698, TO_DATE('1981-12-03','YYYY-MM-DD'), 950, NULL, 30);\nINSERT INTO EMP VALUES (7369, 'SMITH', 'CLERK', 7902, TO_DATE('1980-12-17','YYYY-MM-DD'), 800, NULL, 20);",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_04',
+    title: '단일행 서브쿼리 - 평균 급여 초과 사원 조회',
+    description:
+      'EMP 테이블에서 전체 사원의 평균 급여보다 높은 급여를 받는 사원의 EMPNO, ENAME, SAL을 조회하시오.\nSAL 내림차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '서브쿼리',
+    correctRate: 65,
+    answer:
+      'SELECT EMPNO, ENAME, SAL\nFROM EMP\nWHERE SAL > (SELECT AVG(SAL) FROM EMP)\nORDER BY SAL DESC',
+    explanation:
+      '단일행 서브쿼리는 하나의 값을 반환하며 비교 연산자(>, <, =, >=, <=, <>)와 함께 사용한다.\nSELECT AVG(SAL) FROM EMP는 전체 평균 급여(하나의 값)를 반환하므로 단일행 서브쿼리이다.\n함정: AVG 함수는 NULL을 제외하고 계산한다. SAL에 NULL이 있는 사원이 있다면 평균 계산 시 분모에서 제외되어 평균이 높아질 수 있다.\n이 문제에서는 모든 사원에게 SAL이 있으므로 영향은 없지만, 실제 시험에서는 NULL 처리에 주의해야 한다.',
+    schemaSQL:
+      'CREATE TABLE EMP (EMPNO NUMBER(4) PRIMARY KEY, ENAME VARCHAR2(20) NOT NULL, JOB VARCHAR2(20), MGR NUMBER(4), HIREDATE DATE, SAL NUMBER(7,2), COMM NUMBER(7,2), DEPTNO NUMBER(2));',
+    sampleData:
+      "INSERT INTO EMP VALUES (7839, 'KING', 'PRESIDENT', NULL, TO_DATE('1981-11-17','YYYY-MM-DD'), 5000, NULL, 10);\nINSERT INTO EMP VALUES (7566, 'JONES', 'MANAGER', 7839, TO_DATE('1981-04-02','YYYY-MM-DD'), 2975, NULL, 20);\nINSERT INTO EMP VALUES (7788, 'SCOTT', 'ANALYST', 7566, TO_DATE('1987-04-19','YYYY-MM-DD'), 3000, NULL, 20);\nINSERT INTO EMP VALUES (7902, 'FORD', 'ANALYST', 7566, TO_DATE('1981-12-03','YYYY-MM-DD'), 3000, NULL, 20);\nINSERT INTO EMP VALUES (7698, 'BLAKE', 'MANAGER', 7839, TO_DATE('1981-05-01','YYYY-MM-DD'), 2850, NULL, 30);\nINSERT INTO EMP VALUES (7782, 'CLARK', 'MANAGER', 7839, TO_DATE('1981-06-09','YYYY-MM-DD'), 2450, NULL, 10);\nINSERT INTO EMP VALUES (7654, 'MARTIN', 'SALESMAN', 7698, TO_DATE('1981-09-28','YYYY-MM-DD'), 1250, 1400, 30);\nINSERT INTO EMP VALUES (7521, 'WARD', 'SALESMAN', 7698, TO_DATE('1981-02-22','YYYY-MM-DD'), 1250, 500, 30);\nINSERT INTO EMP VALUES (7876, 'ADAMS', 'CLERK', 7788, TO_DATE('1987-05-23','YYYY-MM-DD'), 1100, NULL, 20);\nINSERT INTO EMP VALUES (7369, 'SMITH', 'CLERK', 7902, TO_DATE('1980-12-17','YYYY-MM-DD'), 800, NULL, 20);\nINSERT INTO EMP VALUES (7844, 'TURNER', 'SALESMAN', 7698, TO_DATE('1981-09-08','YYYY-MM-DD'), 1500, 0, 30);",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_05',
+    title: 'NVL2 - 수당 유무에 따른 분류 표시',
+    description:
+      'EMP 테이블에서 EMPNO, ENAME, SAL, COMM을 조회하되,\nCOMM 컬럼의 값에 따라 COMM_STATUS를 추가로 표시하시오.\n- COMM이 NULL이 아니면: \'수당있음\'\n- COMM이 NULL이면: \'수당없음\'\nENAME 오름차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '함수',
+    correctRate: 58,
+    answer:
+      "SELECT EMPNO, ENAME, SAL, COMM, NVL2(COMM, '수당있음', '수당없음') AS COMM_STATUS\nFROM EMP\nORDER BY ENAME",
+    explanation:
+      'NVL2(expr1, expr2, expr3)는 expr1이 NULL이 아니면 expr2를, NULL이면 expr3를 반환한다.\n함정 1: NVL(COMM, \'수당없음\')과 혼동하기 쉽다. NVL은 NULL일 때 대체값만 지정하며, NULL이 아닐 때의 변환은 불가능하다.\n함정 2: COMM이 0인 경우(TURNER)는 NULL이 아니므로 \'수당있음\'으로 분류된다. 0과 NULL은 다르다는 점에 주의해야 한다.\nCASE WHEN COMM IS NOT NULL THEN \'수당있음\' ELSE \'수당없음\' END으로도 동일한 결과를 얻을 수 있다.',
+    schemaSQL:
+      'CREATE TABLE EMP (EMPNO NUMBER(4) PRIMARY KEY, ENAME VARCHAR2(20) NOT NULL, JOB VARCHAR2(20), MGR NUMBER(4), HIREDATE DATE, SAL NUMBER(7,2), COMM NUMBER(7,2), DEPTNO NUMBER(2));',
+    sampleData:
+      "INSERT INTO EMP VALUES (7839, 'KING', 'PRESIDENT', NULL, TO_DATE('1981-11-17','YYYY-MM-DD'), 5000, NULL, 10);\nINSERT INTO EMP VALUES (7566, 'JONES', 'MANAGER', 7839, TO_DATE('1981-04-02','YYYY-MM-DD'), 2975, NULL, 20);\nINSERT INTO EMP VALUES (7788, 'SCOTT', 'ANALYST', 7566, TO_DATE('1987-04-19','YYYY-MM-DD'), 3000, NULL, 20);\nINSERT INTO EMP VALUES (7698, 'BLAKE', 'MANAGER', 7839, TO_DATE('1981-05-01','YYYY-MM-DD'), 2850, NULL, 30);\nINSERT INTO EMP VALUES (7654, 'MARTIN', 'SALESMAN', 7698, TO_DATE('1981-09-28','YYYY-MM-DD'), 1250, 1400, 30);\nINSERT INTO EMP VALUES (7521, 'WARD', 'SALESMAN', 7698, TO_DATE('1981-02-22','YYYY-MM-DD'), 1250, 500, 30);\nINSERT INTO EMP VALUES (7844, 'TURNER', 'SALESMAN', 7698, TO_DATE('1981-09-08','YYYY-MM-DD'), 1500, 0, 30);\nINSERT INTO EMP VALUES (7499, 'ALLEN', 'SALESMAN', 7698, TO_DATE('1981-02-20','YYYY-MM-DD'), 1600, 300, 30);\nINSERT INTO EMP VALUES (7876, 'ADAMS', 'CLERK', 7788, TO_DATE('1987-05-23','YYYY-MM-DD'), 1100, NULL, 20);\nINSERT INTO EMP VALUES (7369, 'SMITH', 'CLERK', 7902, TO_DATE('1980-12-17','YYYY-MM-DD'), 800, NULL, 20);",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_06',
+    title: 'CASE WHEN - 급여 구간별 등급 표시',
+    description:
+      'EMP 테이블에서 EMPNO, ENAME, SAL을 조회하고,\nSAL 값에 따라 SAL_GRADE를 추가로 표시하시오.\n- SAL >= 4000: \'S\'\n- SAL >= 3000: \'A\'\n- SAL >= 2000: \'B\'\n- SAL >= 1000: \'C\'\n- SAL < 1000: \'D\'\nSAL 내림차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '함수',
+    correctRate: 62,
+    answer:
+      "SELECT EMPNO, ENAME, SAL,\n  CASE\n    WHEN SAL >= 4000 THEN 'S'\n    WHEN SAL >= 3000 THEN 'A'\n    WHEN SAL >= 2000 THEN 'B'\n    WHEN SAL >= 1000 THEN 'C'\n    ELSE 'D'\n  END AS SAL_GRADE\nFROM EMP\nORDER BY SAL DESC",
+    explanation:
+      'CASE WHEN은 조건을 순차적으로 평가하며, 첫 번째로 TRUE인 조건의 결과를 반환한다.\n함정 1: 조건 순서가 중요하다. 만약 WHEN SAL >= 1000을 먼저 쓰면 3000 이상인 사원도 \'C\'로 분류된다.\n함정 2: ELSE를 생략하면 어떤 조건도 만족하지 않는 행은 NULL이 반환된다.\n함정 3: SAL이 정확히 3000인 SCOTT과 FORD는 \'A\' 등급이다. 경계값 처리에 주의해야 한다.\nOracle에서는 DECODE로도 유사한 처리가 가능하지만, 범위 비교에는 CASE WHEN이 더 적합하다.',
+    schemaSQL:
+      'CREATE TABLE EMP (EMPNO NUMBER(4) PRIMARY KEY, ENAME VARCHAR2(20) NOT NULL, JOB VARCHAR2(20), MGR NUMBER(4), HIREDATE DATE, SAL NUMBER(7,2), COMM NUMBER(7,2), DEPTNO NUMBER(2));',
+    sampleData:
+      "INSERT INTO EMP VALUES (7839, 'KING', 'PRESIDENT', NULL, TO_DATE('1981-11-17','YYYY-MM-DD'), 5000, NULL, 10);\nINSERT INTO EMP VALUES (7788, 'SCOTT', 'ANALYST', 7566, TO_DATE('1987-04-19','YYYY-MM-DD'), 3000, NULL, 20);\nINSERT INTO EMP VALUES (7902, 'FORD', 'ANALYST', 7566, TO_DATE('1981-12-03','YYYY-MM-DD'), 3000, NULL, 20);\nINSERT INTO EMP VALUES (7566, 'JONES', 'MANAGER', 7839, TO_DATE('1981-04-02','YYYY-MM-DD'), 2975, NULL, 20);\nINSERT INTO EMP VALUES (7698, 'BLAKE', 'MANAGER', 7839, TO_DATE('1981-05-01','YYYY-MM-DD'), 2850, NULL, 30);\nINSERT INTO EMP VALUES (7782, 'CLARK', 'MANAGER', 7839, TO_DATE('1981-06-09','YYYY-MM-DD'), 2450, NULL, 10);\nINSERT INTO EMP VALUES (7499, 'ALLEN', 'SALESMAN', 7698, TO_DATE('1981-02-20','YYYY-MM-DD'), 1600, 300, 30);\nINSERT INTO EMP VALUES (7844, 'TURNER', 'SALESMAN', 7698, TO_DATE('1981-09-08','YYYY-MM-DD'), 1500, 0, 30);\nINSERT INTO EMP VALUES (7654, 'MARTIN', 'SALESMAN', 7698, TO_DATE('1981-09-28','YYYY-MM-DD'), 1250, 1400, 30);\nINSERT INTO EMP VALUES (7876, 'ADAMS', 'CLERK', 7788, TO_DATE('1987-05-23','YYYY-MM-DD'), 1100, NULL, 20);\nINSERT INTO EMP VALUES (7369, 'SMITH', 'CLERK', 7902, TO_DATE('1980-12-17','YYYY-MM-DD'), 800, NULL, 20);",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_07',
+    title: '다중행 서브쿼리(IN) - 부서별 최고 급여 사원 조회',
+    description:
+      'EMP 테이블에서 각 부서(DEPTNO)의 최고 급여를 받는 사원의 DEPTNO, EMPNO, ENAME, SAL을 조회하시오.\n부서가 NULL인 사원은 제외하고, DEPTNO 오름차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '서브쿼리',
+    correctRate: 50,
+    answer:
+      'SELECT DEPTNO, EMPNO, ENAME, SAL\nFROM EMP\nWHERE (DEPTNO, SAL) IN (SELECT DEPTNO, MAX(SAL) FROM EMP WHERE DEPTNO IS NOT NULL GROUP BY DEPTNO)\nORDER BY DEPTNO',
+    explanation:
+      '다중행 서브쿼리는 여러 행을 반환하며 IN, ANY, ALL 등의 연산자와 함께 사용한다.\n핵심: 페어(DEPTNO, SAL) 비교를 사용하여 부서번호와 급여를 동시에 비교해야 정확한 결과를 얻는다.\n함정 1: SAL만으로 비교하면 (WHERE SAL IN (SELECT MAX(SAL) ...)) 다른 부서에서 동일한 최고 급여를 가진 사원이 잘못 포함될 수 있다.\n함정 2: DEPTNO가 NULL인 사원은 GROUP BY에서 하나의 그룹으로 처리되므로, 제외 조건(WHERE DEPTNO IS NOT NULL)을 서브쿼리 안에 명시해야 한다.\n함정 3: 같은 부서에서 동일한 최고 급여를 받는 사원이 여러 명이면 모두 출력된다(20번 부서의 SCOTT, FORD).',
+    schemaSQL:
+      'CREATE TABLE EMP (EMPNO NUMBER(4) PRIMARY KEY, ENAME VARCHAR2(20) NOT NULL, JOB VARCHAR2(20), MGR NUMBER(4), HIREDATE DATE, SAL NUMBER(7,2), COMM NUMBER(7,2), DEPTNO NUMBER(2));',
+    sampleData:
+      "INSERT INTO EMP VALUES (7839, 'KING', 'PRESIDENT', NULL, TO_DATE('1981-11-17','YYYY-MM-DD'), 5000, NULL, 10);\nINSERT INTO EMP VALUES (7782, 'CLARK', 'MANAGER', 7839, TO_DATE('1981-06-09','YYYY-MM-DD'), 2450, NULL, 10);\nINSERT INTO EMP VALUES (7566, 'JONES', 'MANAGER', 7839, TO_DATE('1981-04-02','YYYY-MM-DD'), 2975, NULL, 20);\nINSERT INTO EMP VALUES (7788, 'SCOTT', 'ANALYST', 7566, TO_DATE('1987-04-19','YYYY-MM-DD'), 3000, NULL, 20);\nINSERT INTO EMP VALUES (7902, 'FORD', 'ANALYST', 7566, TO_DATE('1981-12-03','YYYY-MM-DD'), 3000, NULL, 20);\nINSERT INTO EMP VALUES (7876, 'ADAMS', 'CLERK', 7788, TO_DATE('1987-05-23','YYYY-MM-DD'), 1100, NULL, 20);\nINSERT INTO EMP VALUES (7698, 'BLAKE', 'MANAGER', 7839, TO_DATE('1981-05-01','YYYY-MM-DD'), 2850, NULL, 30);\nINSERT INTO EMP VALUES (7654, 'MARTIN', 'SALESMAN', 7698, TO_DATE('1981-09-28','YYYY-MM-DD'), 1250, 1400, 30);\nINSERT INTO EMP VALUES (7521, 'WARD', 'SALESMAN', 7698, TO_DATE('1981-02-22','YYYY-MM-DD'), 1250, 500, 30);\nINSERT INTO EMP VALUES (7369, 'SMITH', 'CLERK', 7902, TO_DATE('1980-12-17','YYYY-MM-DD'), 800, NULL, 20);\nINSERT INTO EMP VALUES (7999, 'GRANT', 'ANALYST', 7839, TO_DATE('1990-01-15','YYYY-MM-DD'), 2800, NULL, NULL);",
+    points: 10,
+  },
+
+  // ─── ORDER 테이블셋 (7문제) ────────────────────────────────────────────────
+  {
+    id: 'sql_medium_08',
+    title: '3테이블 JOIN - 주문 상세 정보 조회',
+    description:
+      'CUSTOMER, ORDERS, ORDER_DETAIL 테이블을 조인하여\n주문일자(ORDER_DATE)가 2024년 1월인 주문의\nORDER_ID, CUST_NAME, ORDER_DATE, PROD_ID, QTY, UNIT_PRICE를 조회하시오.\nORDER_ID 오름차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: 'JOIN',
+    correctRate: 55,
+    answer:
+      "SELECT O.ORDER_ID, C.CUST_NAME, O.ORDER_DATE, D.PROD_ID, D.QTY, D.UNIT_PRICE\nFROM ORDERS O\nJOIN CUSTOMER C ON O.CUST_ID = C.CUST_ID\nJOIN ORDER_DETAIL D ON O.ORDER_ID = D.ORDER_ID\nWHERE O.ORDER_DATE >= TO_DATE('2024-01-01','YYYY-MM-DD')\n  AND O.ORDER_DATE < TO_DATE('2024-02-01','YYYY-MM-DD')\nORDER BY O.ORDER_ID",
+    explanation:
+      '3개 이상의 테이블을 조인할 때는 JOIN을 연쇄적으로 사용한다.\n함정 1: 날짜 범위 조건에서 BETWEEN을 쓸 때, BETWEEN \'2024-01-01\' AND \'2024-01-31\'은 1월 31일 00:00:00만 포함하므로 1월 31일의 시간이 있는 데이터를 누락할 수 있다. >= 와 < 조합이 안전하다.\n함정 2: TO_DATE 없이 문자열 비교를 하면 NLS_DATE_FORMAT에 따라 결과가 달라질 수 있다.\n함정 3: ORDER_DETAIL에 없는 ORDER_ID가 있을 수 있으므로, 주문 상세가 없는 주문은 결과에 나타나지 않는다.',
+    schemaSQL:
+      'CREATE TABLE CUSTOMER (CUST_ID NUMBER PRIMARY KEY, CUST_NAME VARCHAR2(30) NOT NULL, GRADE VARCHAR2(10), CITY VARCHAR2(20), REG_DATE DATE);\nCREATE TABLE ORDERS (ORDER_ID NUMBER PRIMARY KEY, CUST_ID NUMBER, ORDER_DATE DATE, TOTAL_AMT NUMBER(12,2), STATUS VARCHAR2(10));\nCREATE TABLE ORDER_DETAIL (DETAIL_ID NUMBER PRIMARY KEY, ORDER_ID NUMBER, PROD_ID NUMBER, QTY NUMBER, UNIT_PRICE NUMBER(10,2));',
+    sampleData:
+      "INSERT INTO CUSTOMER VALUES (1, '김철수', 'GOLD', '서울', TO_DATE('2023-01-15','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (2, '이영희', 'SILVER', '부산', TO_DATE('2023-03-20','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (3, '박민수', 'GOLD', '서울', TO_DATE('2023-06-10','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (4, '최지연', NULL, '대구', TO_DATE('2023-09-05','YYYY-MM-DD'));\nINSERT INTO ORDERS VALUES (1001, 1, TO_DATE('2024-01-05','YYYY-MM-DD'), 150000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1002, 2, TO_DATE('2024-01-15','YYYY-MM-DD'), 85000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1003, 1, TO_DATE('2024-02-01','YYYY-MM-DD'), 200000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1004, 3, TO_DATE('2024-01-25','YYYY-MM-DD'), 320000, 'SHIPPING');\nINSERT INTO ORDERS VALUES (1005, 4, TO_DATE('2023-12-28','YYYY-MM-DD'), 50000, 'COMPLETE');\nINSERT INTO ORDER_DETAIL VALUES (1, 1001, 101, 2, 50000);\nINSERT INTO ORDER_DETAIL VALUES (2, 1001, 102, 1, 50000);\nINSERT INTO ORDER_DETAIL VALUES (3, 1002, 103, 3, 25000);\nINSERT INTO ORDER_DETAIL VALUES (4, 1002, 101, 1, 10000);\nINSERT INTO ORDER_DETAIL VALUES (5, 1004, 104, 2, 160000);",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_09',
+    title: 'GROUP BY + HAVING - 고객별 총 주문금액 필터링',
+    description:
+      'CUSTOMER 테이블과 ORDERS 테이블을 조인하여\n고객별 총 주문금액(SUM(TOTAL_AMT))이 200000 이상인 고객의\nCUST_ID, CUST_NAME, 총 주문금액(TOTAL_ORDER_AMT)을 조회하시오.\n총 주문금액 내림차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '그룹함수',
+    correctRate: 60,
+    answer:
+      'SELECT C.CUST_ID, C.CUST_NAME, SUM(O.TOTAL_AMT) AS TOTAL_ORDER_AMT\nFROM CUSTOMER C JOIN ORDERS O ON C.CUST_ID = O.CUST_ID\nGROUP BY C.CUST_ID, C.CUST_NAME\nHAVING SUM(O.TOTAL_AMT) >= 200000\nORDER BY TOTAL_ORDER_AMT DESC',
+    explanation:
+      'GROUP BY로 고객별 그룹핑 후, HAVING으로 집계 조건을 필터링한다.\n함정 1: 주문이 없는 고객(CUST_ID=5)은 INNER JOIN에서 제외된다. 문제에서 주문금액 합계 조건을 묻고 있으므로 INNER JOIN이 적절하다.\n함정 2: GROUP BY에 CUST_NAME도 포함해야 SELECT절에서 사용할 수 있다.\n함정 3: STATUS가 \'CANCEL\'인 주문도 합계에 포함된다. 문제에서 별도 필터링 조건을 명시하지 않았으므로 모든 주문을 합산해야 한다.',
+    schemaSQL:
+      'CREATE TABLE CUSTOMER (CUST_ID NUMBER PRIMARY KEY, CUST_NAME VARCHAR2(30) NOT NULL, GRADE VARCHAR2(10), CITY VARCHAR2(20), REG_DATE DATE);\nCREATE TABLE ORDERS (ORDER_ID NUMBER PRIMARY KEY, CUST_ID NUMBER, ORDER_DATE DATE, TOTAL_AMT NUMBER(12,2), STATUS VARCHAR2(10));',
+    sampleData:
+      "INSERT INTO CUSTOMER VALUES (1, '김철수', 'GOLD', '서울', TO_DATE('2023-01-15','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (2, '이영희', 'SILVER', '부산', TO_DATE('2023-03-20','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (3, '박민수', 'GOLD', '서울', TO_DATE('2023-06-10','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (4, '최지연', NULL, '대구', TO_DATE('2023-09-05','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (5, '정하늘', 'BRONZE', '인천', TO_DATE('2024-01-01','YYYY-MM-DD'));\nINSERT INTO ORDERS VALUES (1001, 1, TO_DATE('2024-01-05','YYYY-MM-DD'), 150000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1002, 2, TO_DATE('2024-01-15','YYYY-MM-DD'), 85000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1003, 1, TO_DATE('2024-02-01','YYYY-MM-DD'), 200000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1004, 3, TO_DATE('2024-01-25','YYYY-MM-DD'), 320000, 'SHIPPING');\nINSERT INTO ORDERS VALUES (1005, 4, TO_DATE('2023-12-28','YYYY-MM-DD'), 50000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1006, 2, TO_DATE('2024-02-10','YYYY-MM-DD'), 120000, 'CANCEL');\nINSERT INTO ORDERS VALUES (1007, 1, TO_DATE('2024-03-01','YYYY-MM-DD'), 75000, 'COMPLETE');",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_10',
+    title: '스칼라 서브쿼리 - SELECT절에서 고객명 조회',
+    description:
+      'ORDERS 테이블의 모든 주문에 대해 ORDER_ID, CUST_ID, ORDER_DATE, TOTAL_AMT를 조회하되,\nSELECT절의 스칼라 서브쿼리를 사용하여 CUSTOMER 테이블에서 CUST_NAME을 함께 조회하시오.\nORDER_DATE 내림차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '서브쿼리',
+    correctRate: 52,
+    answer:
+      'SELECT O.ORDER_ID, O.CUST_ID,\n  (SELECT C.CUST_NAME FROM CUSTOMER C WHERE C.CUST_ID = O.CUST_ID) AS CUST_NAME,\n  O.ORDER_DATE, O.TOTAL_AMT\nFROM ORDERS O\nORDER BY O.ORDER_DATE DESC',
+    explanation:
+      '스칼라 서브쿼리는 SELECT절에 위치하며 반드시 단일 행, 단일 컬럼을 반환해야 한다.\n함정 1: 스칼라 서브쿼리가 2개 이상의 행을 반환하면 ORA-01427 오류가 발생한다. CUST_ID가 PK이므로 여기서는 안전하다.\n함정 2: 매칭되는 CUST_ID가 없는 경우(CUST_ID=99) 스칼라 서브쿼리는 NULL을 반환한다. JOIN과 달리 행 자체가 제외되지 않는다.\n함정 3: 대량 데이터에서는 스칼라 서브쿼리가 행마다 실행되어 성능이 저하될 수 있으므로 JOIN이 더 효율적일 수 있다.',
+    schemaSQL:
+      'CREATE TABLE CUSTOMER (CUST_ID NUMBER PRIMARY KEY, CUST_NAME VARCHAR2(30) NOT NULL, GRADE VARCHAR2(10), CITY VARCHAR2(20), REG_DATE DATE);\nCREATE TABLE ORDERS (ORDER_ID NUMBER PRIMARY KEY, CUST_ID NUMBER, ORDER_DATE DATE, TOTAL_AMT NUMBER(12,2), STATUS VARCHAR2(10));',
+    sampleData:
+      "INSERT INTO CUSTOMER VALUES (1, '김철수', 'GOLD', '서울', TO_DATE('2023-01-15','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (2, '이영희', 'SILVER', '부산', TO_DATE('2023-03-20','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (3, '박민수', 'GOLD', '서울', TO_DATE('2023-06-10','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (4, '최지연', NULL, '대구', TO_DATE('2023-09-05','YYYY-MM-DD'));\nINSERT INTO ORDERS VALUES (1001, 1, TO_DATE('2024-01-05','YYYY-MM-DD'), 150000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1002, 2, TO_DATE('2024-01-15','YYYY-MM-DD'), 85000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1003, 1, TO_DATE('2024-02-01','YYYY-MM-DD'), 200000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1004, 3, TO_DATE('2024-01-25','YYYY-MM-DD'), 320000, 'SHIPPING');\nINSERT INTO ORDERS VALUES (1005, 4, TO_DATE('2023-12-28','YYYY-MM-DD'), 50000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1006, 2, TO_DATE('2024-02-10','YYYY-MM-DD'), 120000, 'CANCEL');\nINSERT INTO ORDERS VALUES (1007, 99, TO_DATE('2024-03-15','YYYY-MM-DD'), 30000, 'COMPLETE');",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_11',
+    title: '인라인 뷰 - 주문금액 상위 5건 조회',
+    description:
+      'ORDERS 테이블에서 주문금액(TOTAL_AMT)이 높은 순서로 상위 5건의\nORDER_ID, CUST_ID, ORDER_DATE, TOTAL_AMT를 조회하시오.\nOracle에서는 ROWNUM을 사용하여 상위 N건을 조회할 수 있다.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '서브쿼리',
+    correctRate: 48,
+    answer:
+      'SELECT ORDER_ID, CUST_ID, ORDER_DATE, TOTAL_AMT\nFROM (\n  SELECT ORDER_ID, CUST_ID, ORDER_DATE, TOTAL_AMT\n  FROM ORDERS\n  ORDER BY TOTAL_AMT DESC\n)\nWHERE ROWNUM <= 5',
+    explanation:
+      'Oracle에서 상위 N건을 조회하려면 인라인 뷰(FROM절의 서브쿼리)에서 정렬한 후 외부 쿼리에서 ROWNUM으로 제한한다.\n함정 1: WHERE ROWNUM <= 5를 ORDER BY보다 먼저 쓰면 정렬 전에 5건이 추출되므로 원하는 결과를 얻을 수 없다. 즉, SELECT * FROM ORDERS WHERE ROWNUM <= 5 ORDER BY TOTAL_AMT DESC는 잘못된 쿼리이다.\n함정 2: ROWNUM은 WHERE절에서 <= 또는 < 비교만 가능하다. ROWNUM = 5나 ROWNUM > 3은 결과를 반환하지 않는다(ROWNUM은 1부터 할당되므로).\n함정 3: 동일한 TOTAL_AMT가 있을 경우 어떤 행이 선택될지 보장되지 않으므로, 정확한 결과를 위해 추가 정렬 기준이 필요할 수 있다.',
+    schemaSQL:
+      'CREATE TABLE ORDERS (ORDER_ID NUMBER PRIMARY KEY, CUST_ID NUMBER, ORDER_DATE DATE, TOTAL_AMT NUMBER(12,2), STATUS VARCHAR2(10));',
+    sampleData:
+      "INSERT INTO ORDERS VALUES (1001, 1, TO_DATE('2024-01-05','YYYY-MM-DD'), 150000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1002, 2, TO_DATE('2024-01-15','YYYY-MM-DD'), 85000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1003, 1, TO_DATE('2024-02-01','YYYY-MM-DD'), 200000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1004, 3, TO_DATE('2024-01-25','YYYY-MM-DD'), 320000, 'SHIPPING');\nINSERT INTO ORDERS VALUES (1005, 4, TO_DATE('2023-12-28','YYYY-MM-DD'), 50000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1006, 2, TO_DATE('2024-02-10','YYYY-MM-DD'), 120000, 'CANCEL');\nINSERT INTO ORDERS VALUES (1007, 1, TO_DATE('2024-03-01','YYYY-MM-DD'), 75000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1008, 5, TO_DATE('2024-03-10','YYYY-MM-DD'), 450000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1009, 3, TO_DATE('2024-03-15','YYYY-MM-DD'), 280000, 'SHIPPING');\nINSERT INTO ORDERS VALUES (1010, 2, TO_DATE('2024-03-20','YYYY-MM-DD'), 95000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1011, 4, TO_DATE('2024-04-01','YYYY-MM-DD'), 180000, 'COMPLETE');",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_12',
+    title: 'COALESCE - NULL 등급 대체 표시',
+    description:
+      'CUSTOMER 테이블에서 CUST_ID, CUST_NAME, GRADE를 조회하되,\nGRADE가 NULL인 경우 \'미분류\'로 표시하시오.\n결과 컬럼명은 GRADE_DISPLAY로 하고, CUST_ID 오름차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '함수',
+    correctRate: 62,
+    answer:
+      "SELECT CUST_ID, CUST_NAME, COALESCE(GRADE, '미분류') AS GRADE_DISPLAY\nFROM CUSTOMER\nORDER BY CUST_ID",
+    explanation:
+      'COALESCE(expr1, expr2, ..., exprN)는 인자 목록에서 첫 번째 NULL이 아닌 값을 반환한다.\n함정 1: NVL(GRADE, \'미분류\')도 같은 결과를 내지만, COALESCE는 ANSI 표준이며 3개 이상의 인자를 받을 수 있다는 점에서 더 유연하다.\n함정 2: COALESCE는 인자들의 데이터 타입이 호환되어야 한다. GRADE가 VARCHAR2이므로 대체값도 문자열이어야 한다.\n함정 3: 빈 문자열(\'\')과 NULL은 Oracle에서 동일하게 취급된다. 따라서 GRADE가 \'\'인 행도 \'미분류\'로 표시된다.',
+    schemaSQL:
+      'CREATE TABLE CUSTOMER (CUST_ID NUMBER PRIMARY KEY, CUST_NAME VARCHAR2(30) NOT NULL, GRADE VARCHAR2(10), CITY VARCHAR2(20), REG_DATE DATE);',
+    sampleData:
+      "INSERT INTO CUSTOMER VALUES (1, '김철수', 'GOLD', '서울', TO_DATE('2023-01-15','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (2, '이영희', 'SILVER', '부산', TO_DATE('2023-03-20','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (3, '박민수', 'GOLD', '서울', TO_DATE('2023-06-10','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (4, '최지연', NULL, '대구', TO_DATE('2023-09-05','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (5, '정하늘', 'BRONZE', '인천', TO_DATE('2024-01-01','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (6, '한미래', NULL, '광주', TO_DATE('2024-02-15','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (7, '오세진', 'SILVER', '서울', TO_DATE('2023-07-22','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (8, '윤도현', 'GOLD', '부산', TO_DATE('2023-11-30','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (9, '강수정', NULL, '대전', TO_DATE('2024-03-05','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (10, '임재현', 'BRONZE', '서울', TO_DATE('2024-01-20','YYYY-MM-DD'));",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_13',
+    title: 'ROW_NUMBER() - 주문 금액순 순번 부여',
+    description:
+      'ORDERS 테이블에서 모든 주문에 대해 주문금액(TOTAL_AMT) 내림차순으로 순번(RN)을 부여하고,\nRN, ORDER_ID, CUST_ID, TOTAL_AMT를 조회하시오.\n동일 금액일 경우 ORDER_ID 오름차순으로 순번을 부여하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '윈도우함수',
+    correctRate: 50,
+    answer:
+      'SELECT ROW_NUMBER() OVER (ORDER BY TOTAL_AMT DESC, ORDER_ID ASC) AS RN,\n  ORDER_ID, CUST_ID, TOTAL_AMT\nFROM ORDERS',
+    explanation:
+      'ROW_NUMBER()는 OVER절의 ORDER BY에 따라 각 행에 고유한 순번을 부여하는 윈도우 함수이다.\n함정 1: ROW_NUMBER()와 RANK()를 혼동하기 쉽다. RANK()는 동일 값에 같은 순위를 부여하고 다음 순위를 건너뛰지만, ROW_NUMBER()는 항상 연속된 고유 번호를 부여한다.\n함정 2: OVER절에 ORDER BY가 반드시 있어야 한다. 생략하면 오류가 발생한다.\n함정 3: 동일 TOTAL_AMT가 있을 경우 보조 정렬 기준(ORDER_ID)이 없으면 순번이 비결정적(nondeterministic)이 된다.',
+    schemaSQL:
+      'CREATE TABLE ORDERS (ORDER_ID NUMBER PRIMARY KEY, CUST_ID NUMBER, ORDER_DATE DATE, TOTAL_AMT NUMBER(12,2), STATUS VARCHAR2(10));',
+    sampleData:
+      "INSERT INTO ORDERS VALUES (1001, 1, TO_DATE('2024-01-05','YYYY-MM-DD'), 150000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1002, 2, TO_DATE('2024-01-15','YYYY-MM-DD'), 85000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1003, 1, TO_DATE('2024-02-01','YYYY-MM-DD'), 200000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1004, 3, TO_DATE('2024-01-25','YYYY-MM-DD'), 320000, 'SHIPPING');\nINSERT INTO ORDERS VALUES (1005, 4, TO_DATE('2023-12-28','YYYY-MM-DD'), 50000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1006, 2, TO_DATE('2024-02-10','YYYY-MM-DD'), 150000, 'CANCEL');\nINSERT INTO ORDERS VALUES (1007, 1, TO_DATE('2024-03-01','YYYY-MM-DD'), 75000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1008, 5, TO_DATE('2024-03-10','YYYY-MM-DD'), 450000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1009, 3, TO_DATE('2024-03-15','YYYY-MM-DD'), 280000, 'SHIPPING');\nINSERT INTO ORDERS VALUES (1010, 2, TO_DATE('2024-03-20','YYYY-MM-DD'), 95000, 'COMPLETE');",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_14',
+    title: 'EXISTS - 주문 이력이 있는 고객 조회',
+    description:
+      'CUSTOMER 테이블에서 ORDERS 테이블에 주문 이력이 있는 고객만 조회하시오.\nCUST_ID, CUST_NAME, GRADE를 조회하고 CUST_ID 오름차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '서브쿼리',
+    correctRate: 55,
+    answer:
+      'SELECT C.CUST_ID, C.CUST_NAME, C.GRADE\nFROM CUSTOMER C\nWHERE EXISTS (SELECT 1 FROM ORDERS O WHERE O.CUST_ID = C.CUST_ID)\nORDER BY C.CUST_ID',
+    explanation:
+      'EXISTS는 서브쿼리가 하나 이상의 행을 반환하면 TRUE이다.\n함정 1: IN과 EXISTS의 차이 - IN (SELECT CUST_ID FROM ORDERS)도 같은 결과를 내지만, 서브쿼리 결과에 NULL이 포함되면 NOT IN은 전체 결과가 공집합이 될 수 있다. NOT EXISTS는 이런 문제가 없다.\n함정 2: EXISTS의 서브쿼리에서 SELECT 1을 사용해도 되고 SELECT *를 사용해도 성능 차이가 없다. 존재 여부만 확인하기 때문이다.\n함정 3: 주문이 여러 건인 고객도 CUSTOMER 결과에서는 1건만 나온다. EXISTS는 존재 여부만 판단하므로 중복이 발생하지 않는다.',
+    schemaSQL:
+      'CREATE TABLE CUSTOMER (CUST_ID NUMBER PRIMARY KEY, CUST_NAME VARCHAR2(30) NOT NULL, GRADE VARCHAR2(10), CITY VARCHAR2(20), REG_DATE DATE);\nCREATE TABLE ORDERS (ORDER_ID NUMBER PRIMARY KEY, CUST_ID NUMBER, ORDER_DATE DATE, TOTAL_AMT NUMBER(12,2), STATUS VARCHAR2(10));',
+    sampleData:
+      "INSERT INTO CUSTOMER VALUES (1, '김철수', 'GOLD', '서울', TO_DATE('2023-01-15','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (2, '이영희', 'SILVER', '부산', TO_DATE('2023-03-20','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (3, '박민수', 'GOLD', '서울', TO_DATE('2023-06-10','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (4, '최지연', NULL, '대구', TO_DATE('2023-09-05','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (5, '정하늘', 'BRONZE', '인천', TO_DATE('2024-01-01','YYYY-MM-DD'));\nINSERT INTO CUSTOMER VALUES (6, '한미래', NULL, '광주', TO_DATE('2024-02-15','YYYY-MM-DD'));\nINSERT INTO ORDERS VALUES (1001, 1, TO_DATE('2024-01-05','YYYY-MM-DD'), 150000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1002, 2, TO_DATE('2024-01-15','YYYY-MM-DD'), 85000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1003, 1, TO_DATE('2024-02-01','YYYY-MM-DD'), 200000, 'COMPLETE');\nINSERT INTO ORDERS VALUES (1004, 3, TO_DATE('2024-01-25','YYYY-MM-DD'), 320000, 'SHIPPING');\nINSERT INTO ORDERS VALUES (1005, 4, TO_DATE('2023-12-28','YYYY-MM-DD'), 50000, 'COMPLETE');",
+    points: 10,
+  },
+
+  // ─── STUDENT 테이블셋 (6문제) ──────────────────────────────────────────────
+  {
+    id: 'sql_medium_15',
+    title: 'GROUP BY 다중 컬럼 - 학과별/학년별 평균 성적',
+    description:
+      'STUDENT 테이블과 ENROLLMENT 테이블을 조인하여\n학과별(DEPT_NAME), 학년별(GRADE)로 평균 성적(AVG_SCORE)을 조회하시오.\n평균 성적은 소수점 첫째 자리까지 반올림(ROUND)하여 표시하고,\nDEPT_NAME 오름차순, GRADE 오름차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '그룹함수',
+    correctRate: 55,
+    answer:
+      'SELECT S.DEPT_NAME, S.GRADE, ROUND(AVG(E.SCORE), 1) AS AVG_SCORE\nFROM STUDENT S JOIN ENROLLMENT E ON S.STU_ID = E.STU_ID\nGROUP BY S.DEPT_NAME, S.GRADE\nORDER BY S.DEPT_NAME, S.GRADE',
+    explanation:
+      'GROUP BY에 여러 컬럼을 지정하면 해당 컬럼 조합별로 그룹이 생성된다.\n함정 1: STUDENT의 GRADE(학년)와 ENROLLMENT의 GRADE(학점 등급)를 혼동하기 쉽다. 문제에서 묻는 GRADE는 STUDENT의 학년(NUMBER)이다.\n함정 2: ENROLLMENT에 없는 학생(수강 이력 없음)은 INNER JOIN에서 제외된다.\n함정 3: SCORE가 NULL인 수강 기록이 있으면 AVG 계산 시 해당 행이 제외된다. NULL 행이 많으면 평균이 왜곡될 수 있다.\nROUND(값, 1)은 소수점 둘째 자리에서 반올림하여 첫째 자리까지 표시한다.',
+    schemaSQL:
+      'CREATE TABLE STUDENT (STU_ID NUMBER PRIMARY KEY, STU_NAME VARCHAR2(30) NOT NULL, DEPT_NAME VARCHAR2(30), GRADE NUMBER(1), ADVISOR_ID NUMBER, ENT_DATE DATE);\nCREATE TABLE ENROLLMENT (ENROLL_ID NUMBER PRIMARY KEY, STU_ID NUMBER, COURSE_ID VARCHAR2(10), SEMESTER VARCHAR2(10), SCORE NUMBER(3), GRADE VARCHAR2(2));',
+    sampleData:
+      "INSERT INTO STUDENT VALUES (1001, '김태희', '컴퓨터공학', 3, 101, TO_DATE('2022-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1002, '이준호', '컴퓨터공학', 2, 101, TO_DATE('2023-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1003, '박서연', '경영학', 3, 102, TO_DATE('2022-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1004, '최민준', '경영학', 1, 102, TO_DATE('2024-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1005, '정유진', '컴퓨터공학', 4, 103, TO_DATE('2021-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1006, '한소희', '경영학', 2, NULL, TO_DATE('2023-03-02','YYYY-MM-DD'));\nINSERT INTO ENROLLMENT VALUES (1, 1001, 'CS101', '2024-1', 92, 'A');\nINSERT INTO ENROLLMENT VALUES (2, 1001, 'CS201', '2024-1', 85, 'B');\nINSERT INTO ENROLLMENT VALUES (3, 1002, 'CS101', '2024-1', 78, 'C');\nINSERT INTO ENROLLMENT VALUES (4, 1003, 'BA101', '2024-1', 88, 'B');\nINSERT INTO ENROLLMENT VALUES (5, 1003, 'BA201', '2024-1', 95, 'A');\nINSERT INTO ENROLLMENT VALUES (6, 1004, 'BA101', '2024-1', 72, 'C');\nINSERT INTO ENROLLMENT VALUES (7, 1005, 'CS301', '2024-1', 90, 'A');\nINSERT INTO ENROLLMENT VALUES (8, 1005, 'CS401', '2024-1', NULL, NULL);\nINSERT INTO ENROLLMENT VALUES (9, 1002, 'CS201', '2024-1', 82, 'B');\nINSERT INTO ENROLLMENT VALUES (10, 1006, 'BA101', '2024-1', 68, 'D');",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_16',
+    title: '상관 서브쿼리 - 학과 평균보다 높은 성적의 학생',
+    description:
+      'STUDENT 테이블과 ENROLLMENT 테이블을 사용하여\n자신이 속한 학과의 평균 성적보다 높은 개별 수강 성적을 가진 수강 기록을 조회하시오.\nSTU_NAME, DEPT_NAME, COURSE_ID, SCORE를 조회하고 SCORE 내림차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '서브쿼리',
+    correctRate: 42,
+    answer:
+      'SELECT S.STU_NAME, S.DEPT_NAME, E.COURSE_ID, E.SCORE\nFROM STUDENT S JOIN ENROLLMENT E ON S.STU_ID = E.STU_ID\nWHERE E.SCORE > (\n  SELECT AVG(E2.SCORE)\n  FROM STUDENT S2 JOIN ENROLLMENT E2 ON S2.STU_ID = E2.STU_ID\n  WHERE S2.DEPT_NAME = S.DEPT_NAME\n)\nORDER BY E.SCORE DESC',
+    explanation:
+      '상관 서브쿼리는 외부 쿼리의 컬럼을 참조하며, 외부 쿼리의 각 행에 대해 서브쿼리가 실행된다.\n핵심: S2.DEPT_NAME = S.DEPT_NAME으로 현재 행의 학과와 동일한 학과의 평균 성적을 계산한다.\n함정 1: 비상관 서브쿼리(전체 평균)와 혼동하면 안 된다. 학과별로 평균이 다르므로 상관 서브쿼리가 필요하다.\n함정 2: SCORE가 NULL인 수강 기록은 WHERE E.SCORE > ... 비교에서 자동으로 제외된다(NULL과의 비교는 UNKNOWN).\n함정 3: AVG 계산 시 NULL은 제외되므로, NULL 성적이 많은 학과는 평균이 실제보다 높게 나올 수 있다.',
+    schemaSQL:
+      'CREATE TABLE STUDENT (STU_ID NUMBER PRIMARY KEY, STU_NAME VARCHAR2(30) NOT NULL, DEPT_NAME VARCHAR2(30), GRADE NUMBER(1), ADVISOR_ID NUMBER, ENT_DATE DATE);\nCREATE TABLE ENROLLMENT (ENROLL_ID NUMBER PRIMARY KEY, STU_ID NUMBER, COURSE_ID VARCHAR2(10), SEMESTER VARCHAR2(10), SCORE NUMBER(3), GRADE VARCHAR2(2));',
+    sampleData:
+      "INSERT INTO STUDENT VALUES (1001, '김태희', '컴퓨터공학', 3, 101, TO_DATE('2022-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1002, '이준호', '컴퓨터공학', 2, 101, TO_DATE('2023-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1003, '박서연', '경영학', 3, 102, TO_DATE('2022-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1004, '최민준', '경영학', 1, 102, TO_DATE('2024-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1005, '정유진', '컴퓨터공학', 4, 103, TO_DATE('2021-03-02','YYYY-MM-DD'));\nINSERT INTO ENROLLMENT VALUES (1, 1001, 'CS101', '2024-1', 92, 'A');\nINSERT INTO ENROLLMENT VALUES (2, 1001, 'CS201', '2024-1', 85, 'B');\nINSERT INTO ENROLLMENT VALUES (3, 1002, 'CS101', '2024-1', 78, 'C');\nINSERT INTO ENROLLMENT VALUES (4, 1003, 'BA101', '2024-1', 88, 'B');\nINSERT INTO ENROLLMENT VALUES (5, 1003, 'BA201', '2024-1', 95, 'A');\nINSERT INTO ENROLLMENT VALUES (6, 1004, 'BA101', '2024-1', 72, 'C');\nINSERT INTO ENROLLMENT VALUES (7, 1005, 'CS301', '2024-1', 90, 'A');\nINSERT INTO ENROLLMENT VALUES (8, 1002, 'CS201', '2024-1', 82, 'B');\nINSERT INTO ENROLLMENT VALUES (9, 1005, 'CS401', '2024-1', NULL, NULL);\nINSERT INTO ENROLLMENT VALUES (10, 1004, 'BA201', '2024-1', 60, 'D');",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_17',
+    title: 'RANK() - 성적 순위 조회',
+    description:
+      'ENROLLMENT 테이블과 STUDENT 테이블을 조인하여\n2024-1학기(SEMESTER = \'2024-1\')의 모든 수강 기록에 대해\nSCORE 내림차순 기준으로 순위(RANKING)를 부여하시오.\nSTU_NAME, COURSE_ID, SCORE, RANKING을 조회하고 RANKING 오름차순으로 정렬하시오.\nSCORE가 NULL인 기록은 제외하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '윈도우함수',
+    correctRate: 48,
+    answer:
+      "SELECT S.STU_NAME, E.COURSE_ID, E.SCORE,\n  RANK() OVER (ORDER BY E.SCORE DESC) AS RANKING\nFROM ENROLLMENT E JOIN STUDENT S ON E.STU_ID = S.STU_ID\nWHERE E.SEMESTER = '2024-1' AND E.SCORE IS NOT NULL\nORDER BY RANKING",
+    explanation:
+      'RANK()는 동일한 값에 같은 순위를 부여하고, 다음 순위를 건너뛴다. 예: 1, 2, 2, 4\n함정 1: DENSE_RANK()와의 차이 - DENSE_RANK()는 순위를 건너뛰지 않는다. 예: 1, 2, 2, 3\n함정 2: ROW_NUMBER()와의 차이 - ROW_NUMBER()는 동일 값이어도 고유 번호를 부여한다.\n함정 3: SCORE가 NULL인 행을 제외하지 않으면 NULL이 가장 높거나 낮은 순위로 처리될 수 있다(Oracle에서 ORDER BY에서 NULL은 기본적으로 가장 큰 값으로 취급).\n함정 4: WHERE절에서 NULL 제외 시 IS NOT NULL을 사용해야 하며, != NULL이나 <> NULL은 작동하지 않는다.',
+    schemaSQL:
+      'CREATE TABLE STUDENT (STU_ID NUMBER PRIMARY KEY, STU_NAME VARCHAR2(30) NOT NULL, DEPT_NAME VARCHAR2(30), GRADE NUMBER(1), ADVISOR_ID NUMBER, ENT_DATE DATE);\nCREATE TABLE ENROLLMENT (ENROLL_ID NUMBER PRIMARY KEY, STU_ID NUMBER, COURSE_ID VARCHAR2(10), SEMESTER VARCHAR2(10), SCORE NUMBER(3), GRADE VARCHAR2(2));',
+    sampleData:
+      "INSERT INTO STUDENT VALUES (1001, '김태희', '컴퓨터공학', 3, 101, TO_DATE('2022-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1002, '이준호', '컴퓨터공학', 2, 101, TO_DATE('2023-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1003, '박서연', '경영학', 3, 102, TO_DATE('2022-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1004, '최민준', '경영학', 1, 102, TO_DATE('2024-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1005, '정유진', '컴퓨터공학', 4, 103, TO_DATE('2021-03-02','YYYY-MM-DD'));\nINSERT INTO ENROLLMENT VALUES (1, 1001, 'CS101', '2024-1', 92, 'A');\nINSERT INTO ENROLLMENT VALUES (2, 1001, 'CS201', '2024-1', 85, 'B');\nINSERT INTO ENROLLMENT VALUES (3, 1002, 'CS101', '2024-1', 78, 'C');\nINSERT INTO ENROLLMENT VALUES (4, 1003, 'BA101', '2024-1', 88, 'B');\nINSERT INTO ENROLLMENT VALUES (5, 1003, 'BA201', '2024-1', 95, 'A');\nINSERT INTO ENROLLMENT VALUES (6, 1004, 'BA101', '2024-1', 72, 'C');\nINSERT INTO ENROLLMENT VALUES (7, 1005, 'CS301', '2024-1', 90, 'A');\nINSERT INTO ENROLLMENT VALUES (8, 1002, 'CS201', '2024-1', 85, 'B');\nINSERT INTO ENROLLMENT VALUES (9, 1005, 'CS401', '2024-1', NULL, NULL);\nINSERT INTO ENROLLMENT VALUES (10, 1004, 'BA201', '2024-1', 60, 'D');\nINSERT INTO ENROLLMENT VALUES (11, 1001, 'BA101', '2023-2', 80, 'B');",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_18',
+    title: 'NOT EXISTS - 미수강 학생 조회',
+    description:
+      'STUDENT 테이블에서 ENROLLMENT 테이블에 한 번도 수강 기록이 없는 학생을 조회하시오.\nSTU_ID, STU_NAME, DEPT_NAME을 조회하고 STU_ID 오름차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '서브쿼리',
+    correctRate: 52,
+    answer:
+      'SELECT S.STU_ID, S.STU_NAME, S.DEPT_NAME\nFROM STUDENT S\nWHERE NOT EXISTS (SELECT 1 FROM ENROLLMENT E WHERE E.STU_ID = S.STU_ID)\nORDER BY S.STU_ID',
+    explanation:
+      'NOT EXISTS는 서브쿼리가 하나의 행도 반환하지 않으면 TRUE이다.\n함정 1: NOT IN을 사용할 경우, 서브쿼리 결과에 NULL이 포함되면 전체 결과가 공집합이 된다.\n예: WHERE STU_ID NOT IN (SELECT STU_ID FROM ENROLLMENT)에서 ENROLLMENT.STU_ID에 NULL이 있으면 어떤 학생도 조회되지 않는다.\nNOT EXISTS는 이 문제가 없으므로 더 안전하다.\n함정 2: LEFT OUTER JOIN + IS NULL 패턴으로도 동일한 결과를 얻을 수 있다:\nFROM STUDENT S LEFT JOIN ENROLLMENT E ON S.STU_ID = E.STU_ID WHERE E.ENROLL_ID IS NULL\n함정 3: 수강 기록이 있지만 SCORE가 NULL인 학생은 수강 기록이 존재하는 것이므로 결과에 포함되지 않는다.',
+    schemaSQL:
+      'CREATE TABLE STUDENT (STU_ID NUMBER PRIMARY KEY, STU_NAME VARCHAR2(30) NOT NULL, DEPT_NAME VARCHAR2(30), GRADE NUMBER(1), ADVISOR_ID NUMBER, ENT_DATE DATE);\nCREATE TABLE ENROLLMENT (ENROLL_ID NUMBER PRIMARY KEY, STU_ID NUMBER, COURSE_ID VARCHAR2(10), SEMESTER VARCHAR2(10), SCORE NUMBER(3), GRADE VARCHAR2(2));',
+    sampleData:
+      "INSERT INTO STUDENT VALUES (1001, '김태희', '컴퓨터공학', 3, 101, TO_DATE('2022-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1002, '이준호', '컴퓨터공학', 2, 101, TO_DATE('2023-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1003, '박서연', '경영학', 3, 102, TO_DATE('2022-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1004, '최민준', '경영학', 1, 102, TO_DATE('2024-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1005, '정유진', '컴퓨터공학', 4, 103, TO_DATE('2021-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1006, '한소희', '경영학', 2, NULL, TO_DATE('2023-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1007, '강다니엘', '통계학', 1, NULL, TO_DATE('2024-03-02','YYYY-MM-DD'));\nINSERT INTO ENROLLMENT VALUES (1, 1001, 'CS101', '2024-1', 92, 'A');\nINSERT INTO ENROLLMENT VALUES (2, 1002, 'CS101', '2024-1', 78, 'C');\nINSERT INTO ENROLLMENT VALUES (3, 1003, 'BA101', '2024-1', 88, 'B');\nINSERT INTO ENROLLMENT VALUES (4, 1004, 'BA101', '2024-1', 72, 'C');\nINSERT INTO ENROLLMENT VALUES (5, 1005, 'CS301', '2024-1', 90, 'A');\nINSERT INTO ENROLLMENT VALUES (6, 1005, 'CS401', '2024-1', NULL, NULL);",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_19',
+    title: 'COUNT + CASE - 과목별 학점 등급 분포',
+    description:
+      'ENROLLMENT 테이블에서 과목별(COURSE_ID)로 학점 등급(GRADE) 분포를 조회하시오.\n각 과목의 COURSE_ID, A등급 수(CNT_A), B등급 수(CNT_B), C등급 수(CNT_C), D등급 수(CNT_D), F등급 수(CNT_F)를 표시하시오.\nCOURSE_ID 오름차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '그룹함수',
+    correctRate: 45,
+    answer:
+      "SELECT COURSE_ID,\n  COUNT(CASE WHEN GRADE = 'A' THEN 1 END) AS CNT_A,\n  COUNT(CASE WHEN GRADE = 'B' THEN 1 END) AS CNT_B,\n  COUNT(CASE WHEN GRADE = 'C' THEN 1 END) AS CNT_C,\n  COUNT(CASE WHEN GRADE = 'D' THEN 1 END) AS CNT_D,\n  COUNT(CASE WHEN GRADE = 'F' THEN 1 END) AS CNT_F\nFROM ENROLLMENT\nGROUP BY COURSE_ID\nORDER BY COURSE_ID",
+    explanation:
+      'COUNT + CASE WHEN 조합으로 조건별 개수를 피벗(pivot) 형태로 집계할 수 있다.\n핵심: CASE WHEN 조건 THEN 1 END에서 조건이 FALSE이면 NULL을 반환하고, COUNT는 NULL을 세지 않으므로 조건에 맞는 행만 카운트된다.\n함정 1: SUM(CASE WHEN GRADE = \'A\' THEN 1 ELSE 0 END)으로도 같은 결과를 얻을 수 있다. 하지만 COUNT 방식에서 ELSE 0을 넣으면 모든 행이 카운트되므로 주의해야 한다.\n함정 2: GRADE가 NULL인 수강 기록은 어떤 등급 컬럼에도 포함되지 않는다.\n함정 3: Oracle에서는 DECODE(GRADE, \'A\', 1)로도 대체 가능하다.',
+    schemaSQL:
+      'CREATE TABLE ENROLLMENT (ENROLL_ID NUMBER PRIMARY KEY, STU_ID NUMBER, COURSE_ID VARCHAR2(10), SEMESTER VARCHAR2(10), SCORE NUMBER(3), GRADE VARCHAR2(2));',
+    sampleData:
+      "INSERT INTO ENROLLMENT VALUES (1, 1001, 'CS101', '2024-1', 92, 'A');\nINSERT INTO ENROLLMENT VALUES (2, 1002, 'CS101', '2024-1', 78, 'C');\nINSERT INTO ENROLLMENT VALUES (3, 1003, 'CS101', '2024-1', 85, 'B');\nINSERT INTO ENROLLMENT VALUES (4, 1004, 'CS101', '2024-1', 55, 'F');\nINSERT INTO ENROLLMENT VALUES (5, 1001, 'BA101', '2024-1', 88, 'B');\nINSERT INTO ENROLLMENT VALUES (6, 1003, 'BA101', '2024-1', 95, 'A');\nINSERT INTO ENROLLMENT VALUES (7, 1004, 'BA101', '2024-1', 72, 'C');\nINSERT INTO ENROLLMENT VALUES (8, 1005, 'BA101', '2024-1', 68, 'D');\nINSERT INTO ENROLLMENT VALUES (9, 1002, 'CS201', '2024-1', 82, 'B');\nINSERT INTO ENROLLMENT VALUES (10, 1005, 'CS201', '2024-1', 90, 'A');\nINSERT INTO ENROLLMENT VALUES (11, 1001, 'CS201', '2024-1', NULL, NULL);\nINSERT INTO ENROLLMENT VALUES (12, 1006, 'CS101', '2024-1', 62, 'D');",
+    points: 10,
+  },
+  {
+    id: 'sql_medium_20',
+    title: 'DECODE - 학년 구분 표시',
+    description:
+      'STUDENT 테이블에서 STU_ID, STU_NAME, GRADE를 조회하되,\nDECODE 함수를 사용하여 GRADE에 따라 학년 구분(GRADE_GROUP)을 추가로 표시하시오.\n- GRADE가 1 또는 2이면: \'저학년\'\n- GRADE가 3 또는 4이면: \'고학년\'\nSTU_ID 오름차순으로 정렬하시오.',
+    type: 'sql',
+    difficulty: 'medium',
+    category: '함수',
+    correctRate: 58,
+    answer:
+      "SELECT STU_ID, STU_NAME, GRADE,\n  DECODE(GRADE, 1, '저학년', 2, '저학년', 3, '고학년', 4, '고학년', '기타') AS GRADE_GROUP\nFROM STUDENT\nORDER BY STU_ID",
+    explanation:
+      'DECODE(expr, search1, result1, search2, result2, ..., default)는 expr을 각 search 값과 비교하여 일치하는 result를 반환한다.\n함정 1: DECODE는 Oracle 전용 함수이다. ANSI 표준은 CASE WHEN을 사용해야 한다.\n함정 2: 같은 결과를 반환하는 값(1과 2 모두 \'저학년\')이라도 DECODE에서는 각각 명시해야 한다.\n함정 3: GRADE가 NULL인 경우 DECODE에서 NULL과 비교하려면 search 값에 NULL을 직접 넣을 수 있다(DECODE는 NULL = NULL을 TRUE로 처리하는 유일한 경우). 하지만 이 문제에서는 default인 \'기타\'로 처리된다.\n함정 4: CASE WHEN으로 변환하면 CASE WHEN GRADE IN (1, 2) THEN \'저학년\' WHEN GRADE IN (3, 4) THEN \'고학년\' ELSE \'기타\' END가 더 간결하다.',
+    schemaSQL:
+      'CREATE TABLE STUDENT (STU_ID NUMBER PRIMARY KEY, STU_NAME VARCHAR2(30) NOT NULL, DEPT_NAME VARCHAR2(30), GRADE NUMBER(1), ADVISOR_ID NUMBER, ENT_DATE DATE);',
+    sampleData:
+      "INSERT INTO STUDENT VALUES (1001, '김태희', '컴퓨터공학', 3, 101, TO_DATE('2022-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1002, '이준호', '컴퓨터공학', 2, 101, TO_DATE('2023-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1003, '박서연', '경영학', 3, 102, TO_DATE('2022-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1004, '최민준', '경영학', 1, 102, TO_DATE('2024-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1005, '정유진', '컴퓨터공학', 4, 103, TO_DATE('2021-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1006, '한소희', '경영학', 2, NULL, TO_DATE('2023-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1007, '강다니엘', '통계학', 1, NULL, TO_DATE('2024-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1008, '임나연', '컴퓨터공학', 4, 103, TO_DATE('2021-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1009, '오세훈', '경영학', 3, 102, TO_DATE('2022-03-02','YYYY-MM-DD'));\nINSERT INTO STUDENT VALUES (1010, '송지효', '통계학', 2, NULL, TO_DATE('2023-03-02','YYYY-MM-DD'));",
+    points: 10,
+  },
+];
+
+export default MEDIUM_PROBLEMS;
