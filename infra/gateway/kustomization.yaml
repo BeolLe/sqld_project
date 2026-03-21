@@ -7,3 +7,4 @@ resources:
   - cloudflared-deployment.yaml
   - gateway.yaml
   - httproute-frontend.yaml
+  - httproute-backend.yaml
