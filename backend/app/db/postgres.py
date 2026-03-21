@@ -26,7 +26,7 @@ def check_postgres():
 
 
 def get_connection():
-    return psycopg2.connect(
+    return psycopg.connect(
         host=os.getenv("POSTGRES_HOST"),
         port=os.getenv("POSTGRES_PORT"),
         dbname=os.getenv("POSTGRES_DB"),
