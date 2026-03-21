@@ -1,0 +1,8 @@
+.venv
+.env
+wallet
+__pycache__
+*.pyc
+.git
+.gitignore
+README.md
