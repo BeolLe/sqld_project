@@ -15,6 +15,7 @@ spec:
     repoURL: https://github.com/BeolLe/sqld_project
     targetRevision: main
     path: infra/backend
+    kustomize: {}
 
   destination:
     server: https://kubernetes.default.svc
