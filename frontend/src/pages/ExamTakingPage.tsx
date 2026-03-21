@@ -177,10 +177,10 @@ export default function ExamTakingPage() {
           {currentPage > 0 && (
             <button
               onClick={() => goToPage(currentPage - 1)}
-              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-14 z-20 w-10 h-20 flex items-center justify-center bg-slate-800/30 hover:bg-slate-800/70 text-white rounded-lg transition-all duration-200"
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-20 w-9 h-16 flex items-center justify-center bg-sqld-navy/20 hover:bg-sqld-navy/40 text-sqld-navy/60 hover:text-sqld-navy shadow-sm hover:shadow-md rounded-r-lg transition-all duration-200"
               aria-label="이전 페이지"
             >
-              <ChevronLeft className="w-6 h-6" />
+              <ChevronLeft className="w-5 h-5" />
             </button>
           )}
 
@@ -188,10 +188,10 @@ export default function ExamTakingPage() {
           {currentPage < totalPages - 1 && (
             <button
               onClick={() => goToPage(currentPage + 1)}
-              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-14 z-20 w-10 h-20 flex items-center justify-center bg-slate-800/30 hover:bg-slate-800/70 text-white rounded-lg transition-all duration-200"
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-20 w-9 h-16 flex items-center justify-center bg-sqld-navy/20 hover:bg-sqld-navy/40 text-sqld-navy/60 hover:text-sqld-navy shadow-sm hover:shadow-md rounded-l-lg transition-all duration-200"
               aria-label="다음 페이지"
             >
-              <ChevronRight className="w-6 h-6" />
+              <ChevronRight className="w-5 h-5" />
             </button>
           )}
 
