@@ -7,5 +7,3 @@ resources:
   - cloudflared-deployment.yaml
   - gateway.yaml
   - httproute-frontend.yaml
-  - grafana-route.yaml
-  - prom-route.yaml
