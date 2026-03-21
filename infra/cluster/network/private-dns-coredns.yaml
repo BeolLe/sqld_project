@@ -14,6 +14,8 @@ data:
         hosts {
             192.168.215.240 grafana.int.selfronny.com
             192.168.215.240 prom.int.selfronny.com
+            192.168.215.240 argocd.int.selfronny.com
+            192.168.215.240 airflow.int.selfronny.com
             fallthrough
         }
 

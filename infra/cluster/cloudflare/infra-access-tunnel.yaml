@@ -20,13 +20,15 @@ spec:
           image: cloudflare/cloudflared:latest
           args:
             - tunnel
+            - --protocol
+            - quic
             - --no-autoupdate
             - run
           env:
             - name: TUNNEL_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: tunnel-credentials
+                  name: tunnel-credentials-private
                   key: private-tunnel-token
           resources:
             requests:

@@ -1,0 +1,31 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Env / secrets
+.env
+.env.*
+wallet/
+*.pem
+*.key
+*.crt
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Test / cache
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Node
+node_modules/
