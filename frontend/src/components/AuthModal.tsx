@@ -21,12 +21,14 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
   const termsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setError('');
+    setSuccess('');
     setTermsScrolled(false);
     setTermsAgreed(false);
     setTermsOpen(false);
@@ -43,6 +45,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setSuccess('');
     if (!email || !password) {
       setError('이메일과 비밀번호를 입력해주세요.');
       return;
@@ -54,13 +57,21 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     try {
       setLoading(true);
       if (mode === 'login') {
-        await login(email, password);
+        const result = await login(email, password);
+        setSuccess(result.message);
+        window.setTimeout(() => {
+          onClose();
+        }, 600);
       } else {
-        await signup(email, password, nickname);
+        const result = await signup(email, password, nickname, termsAgreed);
+        setSuccess(result.message);
+        setPassword('');
+        window.setTimeout(() => {
+          onModeChange('login');
+        }, 900);
       }
-      onClose();
-    } catch {
-      setError('처리 중 오류가 발생했습니다.');
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : '처리 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -186,6 +197,11 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
           )}
 
           {error && <p className="text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg">{error}</p>}
+          {success && (
+            <p className="text-sm text-emerald-700 bg-emerald-50 px-4 py-2 rounded-lg">
+              {success}
+            </p>
+          )}
 
           <button
             type="submit"

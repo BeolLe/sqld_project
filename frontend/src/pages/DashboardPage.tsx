@@ -38,8 +38,16 @@ const RECENT_SQL = [
 ];
 
 export default function DashboardPage() {
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, isInitializing } = useAuth();
   const navigate = useNavigate();
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <p className="text-slate-500">인증 상태를 확인하는 중입니다.</p>
+      </div>
+    );
+  }
 
   if (!isLoggedIn) {
     return (
