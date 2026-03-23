@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr
 from jwt import ExpiredSignatureError, InvalidTokenError
 
+from app.db.logs import ensure_request_id, insert_auth_event
 from app.db.postgres import get_connection
 from app.core.security import (
     hash_password,
@@ -54,8 +55,21 @@ def get_current_user(
 
 
 @router.post("/register")
-def register(req: RegisterRequest):
+def register(req: RegisterRequest, request: Request):
+    request_id = ensure_request_id(request.headers.get("x-request-id"))
+    session_id = request.headers.get("x-session-id")
+
     if not req.terms_agreed:
+        insert_auth_event(
+            event_type="signup_failed",
+            success=False,
+            email=req.email,
+            session_id=session_id,
+            request_id=request_id,
+            page_path=str(request.url.path),
+            failure_code="terms_required",
+            failure_message="terms agreement is required",
+        )
         raise HTTPException(status_code=400, detail="terms agreement is required")
 
     hashed_password = hash_password(req.password)
@@ -78,7 +92,29 @@ def register(req: RegisterRequest):
                 )
                 user = cur.fetchone()
     except Exception as e:
+        insert_auth_event(
+            event_type="signup_failed",
+            success=False,
+            email=req.email,
+            session_id=session_id,
+            request_id=request_id,
+            page_path=str(request.url.path),
+            failure_code="signup_failed",
+            failure_message=str(e),
+            metadata={"nickname": req.nickname},
+        )
         raise HTTPException(status_code=400, detail=str(e))
+
+    insert_auth_event(
+        event_type="signup_succeeded",
+        success=True,
+        email=user[1],
+        user_id=str(user[0]),
+        session_id=session_id,
+        request_id=request_id,
+        page_path=str(request.url.path),
+        metadata={"nickname": user[2]},
+    )
 
     return {
         "message": "user created",
@@ -91,7 +127,10 @@ def register(req: RegisterRequest):
 
 
 @router.post("/login")
-def login(req: LoginRequest):
+def login(req: LoginRequest, request: Request):
+    request_id = ensure_request_id(request.headers.get("x-request-id"))
+    session_id = request.headers.get("x-session-id")
+
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -105,17 +144,49 @@ def login(req: LoginRequest):
             user = cur.fetchone()
 
     if not user:
+        insert_auth_event(
+            event_type="login_failed",
+            success=False,
+            email=req.email,
+            session_id=session_id,
+            request_id=request_id,
+            page_path=str(request.url.path),
+            failure_code="invalid_credentials",
+            failure_message="invalid credentials",
+        )
         raise HTTPException(status_code=401, detail="invalid credentials")
 
     user_id, email, nickname, password_hash = user
 
     if not verify_password(req.password, password_hash):
+        insert_auth_event(
+            event_type="login_failed",
+            success=False,
+            email=req.email,
+            user_id=str(user_id),
+            session_id=session_id,
+            request_id=request_id,
+            page_path=str(request.url.path),
+            failure_code="invalid_credentials",
+            failure_message="invalid credentials",
+        )
         raise HTTPException(status_code=401, detail="invalid credentials")
 
     access_token = create_access_token(
         user_id=str(user_id),
         email=email,
         nickname=nickname,
+    )
+
+    insert_auth_event(
+        event_type="login_succeeded",
+        success=True,
+        email=email,
+        user_id=str(user_id),
+        session_id=session_id,
+        request_id=request_id,
+        page_path=str(request.url.path),
+        metadata={"nickname": nickname},
     )
 
     return {
@@ -125,7 +196,21 @@ def login(req: LoginRequest):
 
 
 @router.get("/me")
-def me(current_user: dict = Depends(get_current_user)):
+def me(request: Request, current_user: dict = Depends(get_current_user)):
+    request_id = ensure_request_id(request.headers.get("x-request-id"))
+    session_id = request.headers.get("x-session-id")
+
+    insert_auth_event(
+        event_type="auth_restored",
+        success=True,
+        email=current_user["email"],
+        user_id=current_user["user_id"],
+        session_id=session_id,
+        request_id=request_id,
+        page_path=str(request.url.path),
+        metadata={"nickname": current_user["nickname"]},
+    )
+
     return {
         "user_id": current_user["user_id"],
         "email": current_user["email"],

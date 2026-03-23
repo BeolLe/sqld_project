@@ -45,13 +45,13 @@ ORDER BY AVG_SAL DESC`,
   },
 };
 
-async function executeSQL(query: string): Promise<SQLResult> {
+async function executeSQL(query: string, practiceId: string, action: 'execute' | 'submit'): Promise<SQLResult> {
   const response = await fetch(`${API_BASE_URL}/sql/execute`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, practice_id: practiceId, action }),
   });
 
   if (!response.ok) {
@@ -128,12 +128,12 @@ export default function SQLPracticePage() {
   const vOnMouseDown = useResizeDrag(vContainerRef, 'vertical', setVRatio, 0.2, 0.85);
 
   const handleExecute = useCallback(async () => {
-    if (!query.trim()) return;
+    if (!problem || !query.trim()) return;
     setLoading(true);
     setExecuteError('');
     logEvent('sql_execute', { problemId: id, query }, user?.id);
     try {
-      const nextResult = await executeSQL(query);
+      const nextResult = await executeSQL(query, problem.id, 'execute');
       setResult(nextResult);
     } catch (caughtError) {
       setResult(null);
@@ -143,7 +143,7 @@ export default function SQLPracticePage() {
     } finally {
       setLoading(false);
     }
-  }, [query, id, user?.id]);
+  }, [query, id, problem, user?.id]);
 
   // CodeMirror extensions (Ctrl+Enter 단축키 포함)
   const editorExtensions = useMemo(
@@ -169,7 +169,7 @@ export default function SQLPracticePage() {
     setLoading(true);
 
     try {
-      const nextResult = await executeSQL(query);
+      const nextResult = await executeSQL(query, problem.id, 'submit');
       setResult(nextResult);
 
       const isCorrect =
