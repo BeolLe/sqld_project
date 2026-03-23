@@ -11,4 +11,5 @@ dependencies = [
     "uvicorn>=0.42.0",
     "pwdlib[argon2]",
     "PyJWT",
+    "email-validator",
 ]

@@ -21,14 +21,15 @@ def verify_password(password: str, hashed_password: str) -> bool:
     return password_hash.verify(password, hashed_password)
 
 
-def create_access_token(user_id: str, username: str) -> str:
+def create_access_token(user_id: str, email: str, nickname: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES
     )
 
     payload = {
         "sub": user_id,
-        "username": username,
+        "email": email,
+        "nickname": nickname,
         "exp": expire,
     }
 

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from jwt import ExpiredSignatureError, InvalidTokenError
 
 from app.db.postgres import get_connection
@@ -16,13 +16,15 @@ bearer_scheme = HTTPBearer()
 
 
 class LoginRequest(BaseModel):
-    username: str
+    email: EmailStr
     password: str
 
 
 class RegisterRequest(BaseModel):
-    username: str
+    email: EmailStr
+    nickname: str
     password: str
+    terms_agreed: bool
 
 
 def get_current_user(
@@ -38,19 +40,24 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="invalid token")
 
     user_id = payload.get("sub")
-    username = payload.get("username")
+    email = payload.get("email")
+    nickname = payload.get("nickname")
 
-    if not user_id or not username:
+    if not user_id or not email or not nickname:
         raise HTTPException(status_code=401, detail="invalid token payload")
 
     return {
         "user_id": user_id,
-        "username": username,
+        "email": email,
+        "nickname": nickname,
     }
 
 
 @router.post("/register")
 def register(req: RegisterRequest):
+    if not req.terms_agreed:
+        raise HTTPException(status_code=400, detail="terms agreement is required")
+
     hashed_password = hash_password(req.password)
 
     try:
@@ -58,11 +65,16 @@ def register(req: RegisterRequest):
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO auth.users (username, password_hash)
-                    VALUES (%s, %s)
-                    RETURNING user_id, username
+                    INSERT INTO auth.users (
+                        email,
+                        nickname,
+                        password_hash,
+                        terms_agreed
+                    )
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING user_id, email, nickname
                     """,
-                    (req.username, hashed_password),
+                    (req.email, req.nickname, hashed_password, req.terms_agreed),
                 )
                 user = cur.fetchone()
     except Exception as e:
@@ -72,7 +84,8 @@ def register(req: RegisterRequest):
         "message": "user created",
         "user": {
             "user_id": str(user[0]),
-            "username": user[1],
+            "email": user[1],
+            "nickname": user[2],
         },
     }
 
@@ -83,23 +96,27 @@ def login(req: LoginRequest):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT user_id, username, password_hash
+                SELECT user_id, email, nickname, password_hash
                 FROM auth.users
-                WHERE username = %s
+                WHERE email = %s
                 """,
-                (req.username,),
+                (req.email,),
             )
             user = cur.fetchone()
 
     if not user:
         raise HTTPException(status_code=401, detail="invalid credentials")
 
-    user_id, username, password_hash = user
+    user_id, email, nickname, password_hash = user
 
     if not verify_password(req.password, password_hash):
         raise HTTPException(status_code=401, detail="invalid credentials")
 
-    access_token = create_access_token(user_id=str(user_id), username=username)
+    access_token = create_access_token(
+        user_id=str(user_id),
+        email=email,
+        nickname=nickname,
+    )
 
     return {
         "access_token": access_token,
@@ -111,5 +128,6 @@ def login(req: LoginRequest):
 def me(current_user: dict = Depends(get_current_user)):
     return {
         "user_id": current_user["user_id"],
-        "username": current_user["username"],
+        "email": current_user["email"],
+        "nickname": current_user["nickname"],
     }
