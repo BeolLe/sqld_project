@@ -1,10 +1,17 @@
 import hashlib
+import logging
 import uuid
 from typing import Any
 
 from psycopg.types.json import Jsonb
 
 from app.db.postgres import get_postgres_connection
+
+logger = logging.getLogger(__name__)
+
+
+def log_insert_error(operation: str, exc: Exception) -> None:
+    logger.exception("logs persistence failed during %s: %s", operation, exc)
 
 
 def ensure_request_id(request_id: str | None = None) -> str:
@@ -75,7 +82,8 @@ def insert_auth_event(
                         Jsonb(metadata or {}),
                     ),
                 )
-    except Exception:
+    except Exception as exc:
+        log_insert_error("insert_auth_event", exc)
         return
 
 
@@ -133,7 +141,8 @@ def insert_learning_event(
                         Jsonb(metadata or {}),
                     ),
                 )
-    except Exception:
+    except Exception as exc:
+        log_insert_error("insert_learning_event", exc)
         return
 
 
@@ -201,7 +210,8 @@ def insert_sql_request(
                 )
                 row = cur.fetchone()
                 return row[0] if row else None
-    except Exception:
+    except Exception as exc:
+        log_insert_error("insert_sql_request", exc)
         return None
 
 
@@ -217,7 +227,8 @@ def update_sql_request_status(request_id: str, status: str) -> None:
                     """,
                     (status, request_id),
                 )
-    except Exception:
+    except Exception as exc:
+        log_insert_error("update_sql_request_status", exc)
         return
 
 
@@ -275,5 +286,6 @@ def insert_sql_response(
                         Jsonb(metadata or {}),
                     ),
                 )
-    except Exception:
+    except Exception as exc:
+        log_insert_error("insert_sql_response", exc)
         return
