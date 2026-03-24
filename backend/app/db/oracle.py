@@ -10,6 +10,10 @@ def init_oracle_pool():
     if oracle_pool is not None:
         return oracle_pool
 
+    # Always Free ADB session budget is small enough that pool size must stay
+    # aligned with deployment concurrency. Current assumption:
+    # replicas=1, uvicorn workers=1, pool max=10 -> up to 10 DB sessions.
+    # If replicas or workers increase, lower this value or recalculate.
     oracle_pool = oracledb.create_pool(
         user=settings.ORACLE_USER,
         password=settings.ORACLE_PASSWORD,
@@ -18,7 +22,7 @@ def init_oracle_pool():
         wallet_location=settings.ORACLE_WALLET_PATH,
         wallet_password=settings.ORACLE_WALLET_PASSWORD,
         min=1,
-        max=4,
+        max=10,
         increment=1,
         getmode=oracledb.POOL_GETMODE_WAIT,
         timeout=300,
