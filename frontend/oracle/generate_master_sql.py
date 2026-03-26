@@ -50,10 +50,46 @@ def build_drop_block(table_names: list[str]) -> str:
     return "\n".join(lines).rstrip()
 
 
+def strip_inline_references(sql_text: str) -> str:
+    return re.sub(r"\s+REFERENCES\s+[^,\n]+", "", sql_text, flags=re.IGNORECASE)
+
+
+def adjust_emp_oracle_schema(sql_text: str) -> str:
+    adjusted = sql_text
+    adjusted = adjusted.replace("DEPTNO    NUMBER(2)     PRIMARY KEY", "DEPTNO    NUMBER(3)     PRIMARY KEY")
+    adjusted = adjusted.replace("DEPTNO    NUMBER(2)", "DEPTNO    NUMBER(3)")
+    return adjusted
+
+
+def build_emp_constraints() -> str:
+    return "\n".join(
+        [
+            "-- Add constraints after data load to avoid self-reference load failures",
+            "ALTER TABLE MASTER_EMP",
+            "    ADD CONSTRAINT MASTER_EMP_DEPTNO_FK",
+            "    FOREIGN KEY (DEPTNO) REFERENCES MASTER_DEPT(DEPTNO);",
+            "",
+            "ALTER TABLE MASTER_EMP",
+            "    ADD CONSTRAINT MASTER_EMP_MGR_FK",
+            "    FOREIGN KEY (MGR) REFERENCES MASTER_EMP(EMPNO);",
+            "",
+            "ALTER TABLE MASTER_SAL_HISTORY",
+            "    ADD CONSTRAINT MASTER_SAL_HIST_EMPNO_FK",
+            "    FOREIGN KEY (EMPNO) REFERENCES MASTER_EMP(EMPNO);",
+        ]
+    )
+
+
 def build_dataset_script(table_root: Path, dataset_id: str, table_names: list[str]) -> str:
     name_map = build_name_map(table_names)
     schema_sql = replace_table_names(read_sql(table_root, dataset_id, "schema.sql"), name_map)
     data_sql = replace_table_names(read_sql(table_root, dataset_id, "data.sql"), name_map)
+    post_load_sql = ""
+
+    if dataset_id == "emp":
+        schema_sql = strip_inline_references(schema_sql)
+        schema_sql = adjust_emp_oracle_schema(schema_sql)
+        post_load_sql = build_emp_constraints()
 
     sections = [
         f"-- Auto-generated Oracle seed script for dataset: {dataset_id}",
@@ -66,6 +102,8 @@ def build_dataset_script(table_root: Path, dataset_id: str, table_names: list[st
         "",
         "-- Insert seed data into MASTER tables",
         data_sql,
+        "",
+        post_load_sql,
         "",
         "COMMIT;",
     ]
