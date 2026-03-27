@@ -13,23 +13,47 @@ from app.db.logs import (
     update_sql_request_status,
 )
 from app.db.oracle import get_oracle_connection
+from app.db.sql_namespaces import (
+    delete_namespace,
+    get_namespace,
+    list_stale_namespaces,
+    touch_namespace,
+    upsert_namespace,
+)
 from app.core.security import decode_access_token
 from app.services.sql_workspace import (
     WorkspaceValidationError,
     build_workspace_context,
     classify_statement,
-    cleanup_workspace_tables,
-    ensure_workspace_tables,
-    extract_mutation_target_table,
-    extract_referenced_base_tables,
+    cleanup_namespace_by_prefix,
+    cleanup_namespace_tables,
+    enforce_namespace_limits,
+    extract_rename_target_object,
+    extract_target_object,
     is_read_only_statement,
-    reset_workspace_tables,
-    rewrite_query_for_workspace,
+    prepare_namespace,
+    rewrite_query_for_namespace,
+    validate_statement_shape,
+    validate_query_safety,
 )
 
 router = APIRouter(prefix="/api/sql", tags=["sql"])
 
-MAX_ROWS = 200
+MAX_ROWS = 50
+RESERVED_BASE_TABLES = {
+    "COURSE",
+    "CUSTOMER",
+    "DEPT",
+    "EMP",
+    "ENROLLMENT",
+    "ORDERS",
+    "ORDER_DETAIL",
+    "PRODUCT",
+    "PROFESSOR",
+    "SALGRADE",
+    "SAL_HISTORY",
+    "STUDENT",
+}
 
 
 class SQLExecuteRequest(BaseModel):
@@ -60,7 +84,9 @@ def validate_query(query: str) -> str:
         raise HTTPException(status_code=400, detail="only one query is allowed")
 
     try:
-        classify_statement(normalized)
+        statement_type = classify_statement(normalized)
+        validate_statement_shape(normalized, statement_type)
+        validate_query_safety(normalized)
     except WorkspaceValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -109,26 +135,70 @@ def resolve_workspace_scope(
     except WorkspaceValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return workspace, session_id, user_id
+    return workspace, session_id, user_id, scope_key
+
+
+def cleanup_stale_namespaces() -> None:
+    stale_records = list_stale_namespaces()
+    if not stale_records:
+        return
+
+    with get_oracle_connection() as conn:
+        for record in stale_records:
+            cleanup_namespace_by_prefix(conn, record.namespace_prefix)
+            delete_namespace(record.scope_key)
+
+
+def sync_namespace_lifecycle(
+    *,
+    conn,
+    workspace,
+    scope_key: str,
+    practice_id: str,
+    user_id: str | None,
+    session_id: str | None,
+) -> None:
+    existing = get_namespace(scope_key)
+    if existing and existing.practice_id != practice_id:
+        cleanup_namespace_by_prefix(conn, existing.namespace_prefix)
+        delete_namespace(scope_key)
+
+    prepare_namespace(conn, workspace)
+    upsert_namespace(
+        scope_key=scope_key,
+        practice_id=practice_id,
+        namespace_token=workspace.namespace_token,
+        namespace_prefix=workspace.namespace_prefix,
+        user_id=user_id,
+        session_id=session_id,
+    )
 
 
 @router.post("/workspace/init")
 def init_workspace(req: SQLWorkspaceRequest, request: Request):
     request_id = ensure_request_id(request.headers.get("x-request-id"))
-    workspace, session_id, user_id = resolve_workspace_scope(
+    workspace, session_id, user_id, scope_key = resolve_workspace_scope(
         request=request,
         practice_id=req.practice_id,
         request_id=request_id,
         require_persistent_scope=True,
     )
 
+    cleanup_stale_namespaces()
     with get_oracle_connection() as conn:
-        initialized_tables = ensure_workspace_tables(conn, workspace)
+        sync_namespace_lifecycle(
+            conn=conn,
+            workspace=workspace,
+            scope_key=scope_key,
+            practice_id=req.practice_id,
+            user_id=user_id,
+            session_id=session_id,
+        )
 
     return {
         "practiceId": workspace.practice_id,
-        "workspaceToken": workspace.workspace_token,
-        "tableCount": len(initialized_tables),
+        "workspaceToken": workspace.namespace_token,
+        "tableCount": 12,
         "sessionId": session_id,
         "userId": user_id,
     }
@@ -137,7 +207,7 @@ def init_workspace(req: SQLWorkspaceRequest, request: Request):
 @router.post("/workspace/cleanup")
 def cleanup_workspace(req: SQLWorkspaceRequest, request: Request):
     request_id = ensure_request_id(request.headers.get("x-request-id"))
-    workspace, session_id, user_id = resolve_workspace_scope(
+    workspace, session_id, user_id, scope_key = resolve_workspace_scope(
         request=request,
         practice_id=req.practice_id,
         request_id=request_id,
@@ -145,11 +215,12 @@ def cleanup_workspace(req: SQLWorkspaceRequest, request: Request):
     )
 
     with get_oracle_connection() as conn:
-        dropped_tables = cleanup_workspace_tables(conn, workspace)
+        dropped_tables = cleanup_namespace_tables(conn, workspace)
+    delete_namespace(scope_key)
 
     return {
         "practiceId": workspace.practice_id,
-        "workspaceToken": workspace.workspace_token,
+        "workspaceToken": workspace.namespace_token,
         "droppedTableCount": len(dropped_tables),
         "sessionId": session_id,
         "userId": user_id,
@@ -163,19 +234,12 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
     user_id = extract_user_id(request)
     action = req.action if req.action in {"execute", "submit"} else "execute"
     has_persistent_scope = bool(session_id or user_id)
-    referenced_tables: list[str] = []
 
     try:
         query = validate_query(req.query)
         statement_type = classify_statement(query)
-        referenced_tables = extract_referenced_base_tables(query)
-        if not is_read_only_statement(statement_type):
-            mutation_target_table = extract_mutation_target_table(query, statement_type)
-            if mutation_target_table not in referenced_tables:
-                raise HTTPException(
-                    status_code=400,
-                    detail="mutating queries must target a practice base table such as EMP or DEPT",
-                )
+        validate_statement_shape(query, statement_type)
+        validate_query_safety(query)
     except HTTPException as exc:
         insert_sql_request(
             request_id=request_id,
@@ -205,22 +269,51 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
 
     workspace = None
     executed_query = query
-    should_cleanup_workspace = False
-    should_reset_workspace = False
+    scope_key = None
 
+    cleanup_stale_namespaces()
     with get_oracle_connection() as conn:
         try:
-            if referenced_tables:
-                workspace, session_id, user_id = resolve_workspace_scope(
-                    request=request,
+            workspace, session_id, user_id, scope_key = resolve_workspace_scope(
+                request=request,
+                practice_id=req.practice_id,
+                request_id=request_id,
+            )
+
+            if has_persistent_scope:
+                sync_namespace_lifecycle(
+                    conn=conn,
+                    workspace=workspace,
+                    scope_key=scope_key,
                     practice_id=req.practice_id,
-                    request_id=request_id,
+                    user_id=user_id,
+                    session_id=session_id,
                 )
-                ensure_workspace_tables(conn, workspace, referenced_tables)
-                executed_query = rewrite_query_for_workspace(query, workspace)
-                should_cleanup_workspace = not has_persistent_scope
-                should_reset_workspace = has_persistent_scope and not is_read_only_statement(
-                    statement_type
+            else:
+                prepare_namespace(conn, workspace)
+
+            executed_query = rewrite_query_for_namespace(
+                query=query,
+                workspace=workspace,
+                statement_type=statement_type,
+            )
+
+            target_object = extract_target_object(query, statement_type)
+            rename_target_object = (
+                extract_rename_target_object(query) if statement_type == "RENAME" else None
+            )
+            if statement_type == "CREATE" and target_object in RESERVED_BASE_TABLES:
+                raise HTTPException(
+                    status_code=400,
+                    detail="cannot CREATE TABLE using a reserved base table name",
+                )
+            if statement_type == "RENAME" and (
+                target_object in RESERVED_BASE_TABLES
+                or rename_target_object in RESERVED_BASE_TABLES
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="cannot RENAME reserved base tables",
                 )
 
             with conn.cursor() as cur:
@@ -230,6 +323,7 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
                         rows = cur.fetchmany(MAX_ROWS)
                     else:
                         conn.commit()
+                        enforce_namespace_limits(conn, workspace)
                         rows = []
                 except Exception as exc:
                     elapsed_ms = round((time.perf_counter() - started_at) * 1000)
@@ -261,6 +355,9 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
                         "executionTimeMs": elapsed_ms,
                         "error": str(exc),
                     }
+
+                if has_persistent_scope and scope_key:
+                    touch_namespace(scope_key)
 
                 elapsed_ms = round((time.perf_counter() - started_at) * 1000)
                 columns = [desc[0] for desc in cur.description] if cur.description else []
@@ -300,7 +397,5 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
                 return response
         finally:
             if workspace is not None:
-                if should_cleanup_workspace:
-                    cleanup_workspace_tables(conn, workspace, referenced_tables)
-                elif should_reset_workspace:
-                    reset_workspace_tables(conn, workspace, referenced_tables)
+                if not has_persistent_scope:
+                    cleanup_namespace_tables(conn, workspace)
