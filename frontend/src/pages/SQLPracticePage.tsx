@@ -26,24 +26,23 @@ import type { SQLResult, Difficulty } from '../types';
 import { getPracticeProblemById } from '../data/practice';
 import { parseDDL, parseInserts } from '../utils/sqlParser';
 
-function executeMockSQL(query: string): SQLResult {
-  const normalized = query.trim().toUpperCase();
-  if (normalized.includes('ERROR') || normalized === '') {
-    return {
-      columns: [],
-      rows: [],
-      executionTimeMs: 12,
-      error: 'ORA-00942: table or view does not exist',
-    };
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+async function executeSQL(query: string, practiceId: string, action: 'execute' | 'submit'): Promise<SQLResult> {
+  const response = await fetch(`${API_BASE_URL}/sql/execute`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query, practice_id: practiceId, action }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(payload?.detail || 'SQL 실행 중 오류가 발생했습니다.');
   }
-  return {
-    columns: ['DEPTNO', 'AVG_SAL'],
-    rows: [
-      { DEPTNO: 20, AVG_SAL: 2875 },
-      { DEPTNO: 30, AVG_SAL: 2850 },
-    ],
-    executionTimeMs: Math.floor(Math.random() * 100) + 20,
-  };
+
+  return (await response.json()) as SQLResult;
 }
 
 /** 드래그 리사이즈 핸들러 훅 — state는 호출측에서 관리 */
@@ -129,6 +128,7 @@ export default function SQLPracticePage() {
   const [loading, setLoading] = useState(false);
   const [submitResult, setSubmitResult] = useState<'correct' | 'wrong' | null>(null);
   const [exitTarget, setExitTarget] = useState<string | null>(null);
+  const [executeError, setExecuteError] = useState('');
 
   // 리사이즈 state + refs — ESLint react-hooks/refs 호환을 위해 분리
   const [hRatio, setHRatio] = useState(0.42);
@@ -139,15 +139,23 @@ export default function SQLPracticePage() {
   const vContainerRef = useRef<HTMLDivElement>(null);
   const vOnMouseDown = useResizeDrag(vContainerRef, 'vertical', setVRatio, 0.2, 0.85);
 
-  const handleExecute = useCallback(() => {
-    if (!query.trim()) return;
+  const handleExecute = useCallback(async () => {
+    if (!problem || !query.trim()) return;
     setLoading(true);
+    setExecuteError('');
     logEvent('sql_execute', { problemId: id, query }, user?.id);
-    setTimeout(() => {
-      setResult(executeMockSQL(query));
+    try {
+      const nextResult = await executeSQL(query, problem.id, 'execute');
+      setResult(nextResult);
+    } catch (caughtError) {
+      setResult(null);
+      setExecuteError(
+        caughtError instanceof Error ? caughtError.message : 'SQL 실행 중 오류가 발생했습니다.'
+      );
+    } finally {
       setLoading(false);
-    }, 300);
-  }, [query, id, user?.id]);
+    }
+  }, [query, id, problem, user?.id]);
 
   // CodeMirror extensions (Ctrl+Enter 단축키 포함)
   const editorExtensions = useMemo(
@@ -167,18 +175,33 @@ export default function SQLPracticePage() {
     [handleExecute]
   );
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (!problem || !query.trim()) return;
-    // 정답 SQL의 핵심 키워드들을 추출하여 비교 (공백/줄바꿈 무시)
-    const normalize = (s: string) => s.trim().toUpperCase().replace(/\s+/g, ' ');
-    const userNorm = normalize(query);
-    const answerNorm = normalize(problem.answer);
-    const isCorrect = userNorm === answerNorm;
-    logEvent('sql_submit', { problemId: id, query, isCorrect }, user?.id);
-    if (isCorrect) {
-      logEvent('points_update', { userId: user?.id, delta: 10 }, user?.id);
+    setExecuteError('');
+    setLoading(true);
+
+    try {
+      const nextResult = await executeSQL(query, problem.id, 'submit');
+      setResult(nextResult);
+
+      // 정답 SQL과 정규화 비교 (공백/줄바꿈 무시)
+      const normalize = (s: string) => s.trim().toUpperCase().replace(/\s+/g, ' ');
+      const isCorrect = !nextResult.error && normalize(query) === normalize(problem.answer);
+
+      logEvent('sql_submit', { problemId: id, query, isCorrect }, user?.id);
+      if (isCorrect) {
+        logEvent('points_update', { userId: user?.id, delta: 10 }, user?.id);
+      }
+      setSubmitResult(isCorrect ? 'correct' : 'wrong');
+    } catch (caughtError) {
+      setResult(null);
+      setSubmitResult(null);
+      setExecuteError(
+        caughtError instanceof Error ? caughtError.message : 'SQL 실행 중 오류가 발생했습니다.'
+      );
+    } finally {
+      setLoading(false);
     }
-    setSubmitResult(isCorrect ? 'correct' : 'wrong');
   }, [query, problem, id, user?.id]);
 
   if (!problem) {
@@ -366,6 +389,13 @@ export default function SQLPracticePage() {
                 {problem.hint}
               </div>
             </CollapsibleSection>
+
+            {/* API 에러 표시 */}
+            {executeError && (
+              <div className="rounded-lg px-4 py-3 text-sm font-semibold bg-red-50 text-red-600 border border-red-200">
+                {executeError}
+              </div>
+            )}
 
             {/* 정답/오답 피드백 */}
             {submitResult && (

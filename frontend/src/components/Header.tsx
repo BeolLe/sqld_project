@@ -7,7 +7,7 @@ interface HeaderProps {
 }
 
 export default function Header({ onAuthClick }: HeaderProps) {
-  const { user, isLoggedIn, logout } = useAuth();
+  const { user, isLoggedIn, isInitializing, logout } = useAuth();
   const navigate = useNavigate();
 
   function handleLogout() {
@@ -46,17 +46,20 @@ export default function Header({ onAuthClick }: HeaderProps) {
 
         {/* 사용자 영역 */}
         <div className="flex items-center gap-3">
-          {isLoggedIn && user ? (
+          {isInitializing ? (
+            <span className="text-sm text-slate-400">인증 확인 중...</span>
+          ) : isLoggedIn && user ? (
             <>
               <span className="text-sm text-slate-300 hidden sm:block">
                 <span className="text-sqld-accent font-semibold">{user.nickname}</span>
-                <span className="ml-2 text-xs text-slate-400">{user.points}pt</span>
+                <span className="ml-2 text-slate-400">{user.email}</span>
               </span>
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-1 text-slate-400 hover:text-white text-sm transition-colors"
               >
                 <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">로그아웃</span>
               </button>
             </>
           ) : (
