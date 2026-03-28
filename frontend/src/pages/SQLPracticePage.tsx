@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Database,
@@ -156,6 +156,20 @@ export default function SQLPracticePage() {
       setLoading(false);
     }
   }, [query, id, problem, user?.id]);
+
+  const isMac = useMemo(() => /Mac|iPhone|iPad/.test(navigator.platform), []);
+
+  // 글로벌 키보드 단축키 — 에디터 밖에서도 Cmd/Ctrl+Enter로 실행 가능
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && (isMac ? e.metaKey : e.ctrlKey)) {
+        e.preventDefault();
+        handleExecute();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleExecute, isMac]);
 
   // CodeMirror extensions (Ctrl+Enter 단축키 포함)
   const editorExtensions = useMemo(
@@ -430,7 +444,7 @@ export default function SQLPracticePage() {
                   className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-md transition-colors"
                 >
                   <Play className="w-3 h-3" />
-                  실행 (Ctrl+Enter)
+                  실행 ({isMac ? '⌘' : 'Ctrl'}+Enter)
                 </button>
                 <button
                   onClick={handleSubmit}
