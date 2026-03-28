@@ -397,26 +397,7 @@ export default function SQLPracticePage() {
               </div>
             )}
 
-            {/* 정답/오답 피드백 */}
-            {submitResult && (
-              <div
-                className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold ${
-                  submitResult === 'correct'
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-red-50 text-red-600 border border-red-200'
-                }`}
-              >
-                {submitResult === 'correct' ? (
-                  <>
-                    <CheckCircle className="w-5 h-5" /> 정답입니다! +10pt 획득
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="w-5 h-5" /> 오답입니다. 다시 시도해보세요.
-                  </>
-                )}
-              </div>
-            )}
+            {/* 정답/오답 피드백은 중앙 모달로 표시 */}
           </div>
         </div>
 
@@ -548,6 +529,105 @@ export default function SQLPracticePage() {
           </div>
         </div>
       </div>
+
+      {/* 제출 결과 모달 */}
+      {submitResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden">
+            {/* 헤더 */}
+            <div
+              className={`px-6 py-5 flex items-center gap-3 ${
+                submitResult === 'correct'
+                  ? 'bg-emerald-50'
+                  : 'bg-red-50'
+              }`}
+            >
+              {submitResult === 'correct' ? (
+                <CheckCircle className="w-8 h-8 text-emerald-500" />
+              ) : (
+                <XCircle className="w-8 h-8 text-red-500" />
+              )}
+              <div>
+                <h3
+                  className={`text-lg font-bold ${
+                    submitResult === 'correct' ? 'text-emerald-700' : 'text-red-600'
+                  }`}
+                >
+                  {submitResult === 'correct' ? '정답입니다!' : '오답입니다'}
+                </h3>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  {submitResult === 'correct'
+                    ? '+10pt를 획득했습니다'
+                    : '다시 시도해보세요'}
+                </p>
+              </div>
+            </div>
+
+            {/* 쿼리 실행 결과 */}
+            {result && !result.error && (
+              <div className="px-6 py-4 border-t border-slate-100">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                  실행 결과 ({result.rows.length}행 · {result.executionTimeMs}ms)
+                </p>
+                <div className="rounded-lg border border-slate-200 overflow-x-auto max-h-48">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50 sticky top-0">
+                      <tr>
+                        {result.columns.map((col) => (
+                          <th key={col} className="text-left px-3 py-1.5 text-slate-500 font-semibold whitespace-nowrap">
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.rows.slice(0, 10).map((row, i) => (
+                        <tr key={i} className="border-t border-slate-100">
+                          {result.columns.map((col) => (
+                            <td key={col} className="px-3 py-1.5 font-mono text-slate-600 whitespace-nowrap">
+                              {row[col] === null ? (
+                                <span className="text-slate-400 italic">NULL</span>
+                              ) : (
+                                String(row[col])
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {result.rows.length > 10 && (
+                    <div className="px-3 py-1.5 text-[11px] text-slate-400 bg-slate-50 border-t border-slate-100 text-center">
+                      … 외 {result.rows.length - 10}행 더
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {result?.error && (
+              <div className="px-6 py-4 border-t border-slate-100">
+                <p className="text-sm text-red-600 font-mono bg-red-50 rounded-lg px-4 py-3">
+                  {result.error}
+                </p>
+              </div>
+            )}
+
+            {/* 닫기 버튼 */}
+            <div className="px-6 py-4 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setSubmitResult(null)}
+                className={`px-6 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors ${
+                  submitResult === 'correct'
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-primary-600 hover:bg-primary-700'
+                }`}
+              >
+                {submitResult === 'correct' ? '확인' : '다시 풀기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 이탈 확인 모달 */}
       {exitTarget && (
