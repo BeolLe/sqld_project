@@ -1,3 +1,4 @@
+// test: direct main push verification
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Terminal, Trophy, ChevronRight, CheckCircle } from 'lucide-react';
 
