@@ -60,20 +60,32 @@ export interface Exam {
   problems: Problem[];
 }
 
-// ─── 이벤트 로그 타입 (11개 트리거) ─────────────────────────────────────────
+// ─── 이벤트 로그 타입 ─────────────────────────────────────────────────────────
+// 택소노미: {category}_{object}_{action}  (docs/EVENT_TAXONOMY.md 참조)
 
 export type EventType =
-  | 'user_signup' // 1. 회원가입 성공
-  | 'user_login' // 1. 로그인 성공
-  | 'user_first_visit' // 1. 최초 접속
-  | 'sql_execute' // 2. SQL 실행
-  | 'sql_submit' // 2. SQL 제출 (정답 여부 포함)
-  | 'choice_select' // 3. 객관식 보기 선택
-  | 'exam_start' // 3. 모의고사 시작
-  | 'exam_submit' // 3. 모의고사 최종 제출
-  | 'notepad_update' // 4. 사이드 메모장 입력
-  | 'points_update' // 5. 포인트 업데이트
-  | 'stats_update'; // 6. 누적 통계 업데이트
+  // Common
+  | 'common_signup_succeeded'
+  | 'common_login_succeeded'
+  | 'common_auth_modal_viewed'
+  | 'system_first_visit'
+  // Exam
+  | 'exam_session_started'
+  | 'exam_answer_selected'
+  | 'exam_submit_confirmed'
+  | 'exam_result_viewed'
+  | 'exam_list_viewed'
+  | 'exam_card_clicked'
+  | 'exam_notepad_typed'
+  | 'exam_notepad_saved'
+  // SQL
+  | 'sql_query_executed'
+  | 'sql_answer_submitted'
+  | 'sql_list_viewed'
+  | 'sql_problem_clicked'
+  | 'sql_practice_viewed'
+  // System
+  | 'system_points_awarded';
 
 export interface EventLog {
   id: string;

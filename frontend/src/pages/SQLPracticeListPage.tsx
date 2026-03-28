@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ChevronRight, SlidersHorizontal } from 'lucide-react';
+import { logEvent } from '../utils/eventLogger';
 import type { Difficulty } from '../types';
 import { ALL_PRACTICE_PROBLEMS } from '../data/practice';
 
@@ -30,6 +31,10 @@ export default function SQLPracticeListPage() {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortKey>('default');
   const [diffFilter, setDiffFilter] = useState<Difficulty | 'all'>('all');
+
+  useEffect(() => {
+    logEvent('sql_list_viewed', { total_problems: SQL_PROBLEMS.length });
+  }, []);
 
   const filtered = useMemo(() => {
     let list = SQL_PROBLEMS.filter((p) => {
@@ -105,7 +110,10 @@ export default function SQLPracticeListPage() {
           {filtered.map((problem) => (
             <div
               key={problem.id}
-              onClick={() => navigate(`/sql-practice/${problem.id}`)}
+              onClick={() => {
+                logEvent('sql_problem_clicked', { problem_id: problem.id, difficulty: problem.difficulty, category: problem.category, correct_rate: problem.correctRate });
+                navigate(`/sql-practice/${problem.id}`);
+              }}
               className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between hover:border-primary-400 hover:shadow-md cursor-pointer transition-all"
             >
               <div className="flex items-center gap-3">

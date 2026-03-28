@@ -66,7 +66,7 @@ export default function ExamTakingPage() {
   const [sessionId] = useState(crypto.randomUUID());
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [started] = useState(() => {
-    logEvent('exam_start', { examId: id, sessionId }, user?.id);
+    logEvent('exam_session_started', { examId: id, sessionId }, user?.id);
     return true;
   });
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
@@ -92,7 +92,7 @@ export default function ExamTakingPage() {
     (problemId: string, val: string) => {
       setAnswers((prev) => {
         const next = { ...prev, [problemId]: val };
-        logEvent('choice_select', { problemId, selected: val, examId: id }, user?.id);
+        logEvent('exam_answer_selected', { problemId, selected: val, examId: id }, user?.id);
         return next;
       });
     },
@@ -104,8 +104,8 @@ export default function ExamTakingPage() {
       return answers[p.id] === p.answer ? acc + 2 : acc;
     }, 0); // 50문항 × 2점 = 100점 만점
 
-    logEvent('exam_submit', { examId: id, sessionId, answers, score }, user?.id);
-    logEvent('stats_update', { examId: id, userId: user?.id, score }, user?.id);
+    logEvent('exam_submit_confirmed', { examId: id, sessionId, answers, score }, user?.id);
+    logEvent('exam_result_viewed', { examId: id, userId: user?.id, score }, user?.id);
 
     navigate(`/exams/${id}/result`, {
       state: { score, answers, sessionId, problems },

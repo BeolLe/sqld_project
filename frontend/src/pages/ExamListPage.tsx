@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, FileText, ChevronRight } from 'lucide-react';
+import { logEvent } from '../utils/eventLogger';
 import type { Difficulty } from '../types';
 import { EXAM_LIST } from '../data/exams';
 
@@ -18,6 +20,10 @@ const DIFFICULTY_COLOR: Record<Difficulty, string> = {
 export default function ExamListPage() {
   const navigate = useNavigate();
 
+  useEffect(() => {
+    logEvent('exam_list_viewed', { exam_count: EXAM_LIST.length });
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-4xl mx-auto px-4 py-10">
@@ -32,7 +38,10 @@ export default function ExamListPage() {
             <div
               key={exam.id}
               className="bg-white border border-slate-200 rounded-xl p-5 hover:border-primary-400 hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
-              onClick={() => navigate(`/exams/${exam.id}/taking`)}
+              onClick={() => {
+                logEvent('exam_card_clicked', { exam_id: exam.id, exam_round: exam.round, difficulty: exam.avgDifficulty });
+                navigate(`/exams/${exam.id}/taking`);
+              }}
             >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-primary-50 border border-primary-100 flex items-center justify-center">

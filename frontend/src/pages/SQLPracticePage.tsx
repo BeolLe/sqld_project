@@ -108,6 +108,12 @@ export default function SQLPracticePage() {
       }
     : null;
 
+  useEffect(() => {
+    if (problem) {
+      logEvent('sql_practice_viewed', { problem_id: problem.id, difficulty: problem.difficulty, category: problem.category });
+    }
+  }, [problem?.id, problem?.difficulty, problem?.category]);
+
   // 파싱된 스키마 & 샘플 데이터 (메모이제이션)
   const schemas = useMemo(() => (problem ? parseDDL(problem.schema) : []), [problem?.schema]);
   const sampleTables = useMemo(() => {
@@ -143,7 +149,7 @@ export default function SQLPracticePage() {
     if (!problem || !query.trim()) return;
     setLoading(true);
     setExecuteError('');
-    logEvent('sql_execute', { problemId: id, query }, user?.id);
+    logEvent('sql_query_executed', { problemId: id, query }, user?.id);
     try {
       const nextResult = await executeSQL(query, problem.id, 'execute');
       setResult(nextResult);
@@ -202,9 +208,9 @@ export default function SQLPracticePage() {
       const normalize = (s: string) => s.trim().toUpperCase().replace(/\s+/g, ' ');
       const isCorrect = !nextResult.error && normalize(query) === normalize(problem.answer);
 
-      logEvent('sql_submit', { problemId: id, query, isCorrect }, user?.id);
+      logEvent('sql_answer_submitted', { problemId: id, query, isCorrect }, user?.id);
       if (isCorrect) {
-        logEvent('points_update', { userId: user?.id, delta: 10 }, user?.id);
+        logEvent('system_points_awarded', { userId: user?.id, delta: 10, problemId: id, source: 'sql' }, user?.id);
       }
       setSubmitResult(isCorrect ? 'correct' : 'wrong');
     } catch (caughtError) {

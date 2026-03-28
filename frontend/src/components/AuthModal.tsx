@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { logEvent } from '../utils/eventLogger';
 import type { AuthMode } from '../types';
 
 const TERMS_TEXT = `SolSQLD 서비스 이용약관\n\n제1조 (목적)\n본 약관은 SolSQLD(이하 "서비스")의 이용 조건 및 절차에 관한 사항을 규정합니다.\n\n제2조 (서비스 이용)\n이용자는 본 약관에 동의함으로써 서비스를 이용할 수 있습니다.\n\n제3조 (개인정보 보호)\n서비스는 이용자의 개인정보를 관련 법령에 따라 보호합니다.\n\n제4조 (지식재산권)\n서비스 내 모든 콘텐츠의 지식재산권은 SolSQLD에 귀속됩니다.\n\n제5조 (면책조항)\n서비스는 이용자의 귀책사유로 발생한 손해에 대해 책임지지 않습니다.\n\n[이하 약관 내용 생략]\n\n본 약관에 동의하시면 SolSQLD 서비스를 이용하실 수 있습니다.`;
@@ -27,6 +28,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   const termsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    logEvent('common_auth_modal_viewed', { mode });
     setError('');
     setSuccess('');
     setTermsScrolled(false);
