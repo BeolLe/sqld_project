@@ -21,7 +21,7 @@ interface AuthContextValue {
   isLoggedIn: boolean;
   isInitializing: boolean;
   login: (email: string, password: string) => Promise<AuthResult>;
-  signup: (email: string, password: string, nickname?: string, termsAgreed?: boolean) => Promise<AuthResult>;
+  signup: (email: string, password: string, nickname?: string, termsAgreed?: boolean, privacyAgreed?: boolean) => Promise<AuthResult>;
   logout: () => void;
 }
 
@@ -155,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { message: '로그인에 성공했습니다.' };
   }, [loadCurrentUser]);
 
-  const signup = useCallback(async (email: string, password: string, nickname?: string, termsAgreed = false) => {
+  const signup = useCallback(async (email: string, password: string, nickname?: string, termsAgreed = false, privacyAgreed = false) => {
     const resolvedNickname = nickname?.trim() || email.split('@')[0];
     const response = await request<RegisterResponse>('/auth/register', {
       method: 'POST',
@@ -164,6 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nickname: resolvedNickname,
         password,
         terms_agreed: termsAgreed,
+        privacy_agreed: privacyAgreed,
       }),
     });
 
