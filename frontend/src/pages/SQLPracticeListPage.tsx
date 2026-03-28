@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import type { Difficulty } from '../types';
+import { ALL_PRACTICE_PROBLEMS } from '../data/practice';
 
 const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   easy: '쉬움',
@@ -14,79 +15,13 @@ const DIFFICULTY_COLOR: Record<Difficulty, string> = {
   hard: 'bg-red-100 text-red-600',
 };
 
-// 목업 SQL 실습 문제
-const SQL_PROBLEMS = [
-  {
-    id: 'sql1',
-    title: 'EMP 테이블 전체 조회',
-    category: 'DML',
-    difficulty: 'easy' as Difficulty,
-    correctRate: 92,
-  },
-  {
-    id: 'sql2',
-    title: 'GROUP BY와 HAVING 절',
-    category: 'DML',
-    difficulty: 'medium' as Difficulty,
-    correctRate: 68,
-  },
-  {
-    id: 'sql3',
-    title: 'INNER JOIN 기본',
-    category: 'JOIN',
-    difficulty: 'medium' as Difficulty,
-    correctRate: 74,
-  },
-  {
-    id: 'sql4',
-    title: 'LEFT OUTER JOIN',
-    category: 'JOIN',
-    difficulty: 'medium' as Difficulty,
-    correctRate: 61,
-  },
-  {
-    id: 'sql5',
-    title: 'ROLLUP 함수 활용',
-    category: '집합연산',
-    difficulty: 'hard' as Difficulty,
-    correctRate: 38,
-  },
-  {
-    id: 'sql6',
-    title: 'RANK / DENSE_RANK 윈도우 함수',
-    category: '함수',
-    difficulty: 'hard' as Difficulty,
-    correctRate: 42,
-  },
-  {
-    id: 'sql7',
-    title: 'SUBSTR / INSTR 문자 함수',
-    category: '함수',
-    difficulty: 'easy' as Difficulty,
-    correctRate: 81,
-  },
-  {
-    id: 'sql8',
-    title: '서브쿼리 기본',
-    category: '서브쿼리',
-    difficulty: 'medium' as Difficulty,
-    correctRate: 55,
-  },
-  {
-    id: 'sql9',
-    title: 'EXISTS 서브쿼리',
-    category: '서브쿼리',
-    difficulty: 'hard' as Difficulty,
-    correctRate: 33,
-  },
-  {
-    id: 'sql10',
-    title: 'INSERT / UPDATE / DELETE',
-    category: 'DML',
-    difficulty: 'easy' as Difficulty,
-    correctRate: 88,
-  },
-];
+const SQL_PROBLEMS = ALL_PRACTICE_PROBLEMS.map((p) => ({
+  id: p.id,
+  title: p.title,
+  category: p.category,
+  difficulty: p.difficulty,
+  correctRate: p.correctRate,
+}));
 
 type SortKey = 'default' | 'difficulty_asc' | 'difficulty_desc' | 'rate_asc' | 'rate_desc';
 

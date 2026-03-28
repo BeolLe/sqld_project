@@ -8,6 +8,13 @@ import {
   Send,
   GripVertical,
   GripHorizontal,
+  Lightbulb,
+  ChevronDown,
+  ChevronRight,
+  Table2,
+  FileText,
+  BookOpen,
+  Key,
 } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
@@ -15,35 +22,11 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { keymap } from '@codemirror/view';
 import { logEvent } from '../utils/eventLogger';
 import { useAuth } from '../contexts/AuthContext';
-import type { SQLResult } from '../types';
+import type { SQLResult, Difficulty } from '../types';
+import { getPracticeProblemById } from '../data/practice';
+import { parseDDL, parseInserts } from '../utils/sqlParser';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-// 목업 SQL 문제 상세
-const SQL_PROBLEM_DETAIL: Record<
-  string,
-  {
-    id: string;
-    title: string;
-    description: string;
-    schema: string;
-    answer: string;
-    hint: string;
-  }
-> = {
-  sql2: {
-    id: 'sql2',
-    title: 'GROUP BY와 HAVING 절',
-    description: `아래 EMP 테이블에서 부서별 평균 급여가 2000을 초과하는 부서번호(DEPTNO)와 해당 부서의 평균 급여(AVG_SAL)를 조회하세요.\n\n- 평균 급여는 소수점 없이 반올림(ROUND)하여 출력\n- 결과는 평균 급여 내림차순 정렬`,
-    schema: `-- EMP 테이블\n-- EMPNO, ENAME, JOB, MGR, HIREDATE, SAL, COMM, DEPTNO`,
-    answer: `SELECT DEPTNO, ROUND(AVG(SAL)) AS AVG_SAL
-FROM EMP
-GROUP BY DEPTNO
-HAVING AVG(SAL) > 2000
-ORDER BY AVG_SAL DESC`,
-    hint: 'GROUP BY → HAVING 순서로 작성하고, 집계 함수(AVG)는 SELECT와 HAVING에서 사용할 수 있습니다.',
-  },
-};
 
 async function executeSQL(query: string, practiceId: string, action: 'execute' | 'submit'): Promise<SQLResult> {
   const response = await fetch(`${API_BASE_URL}/sql/execute`, {
@@ -109,12 +92,41 @@ export default function SQLPracticePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const problem = id ? SQL_PROBLEM_DETAIL[id] : null;
+  const problemData = id ? getPracticeProblemById(id) : null;
+  const problem = problemData
+    ? {
+        id: problemData.id,
+        title: problemData.title,
+        description: problemData.description,
+        schema: problemData.schemaSQL ?? '',
+        sampleData: problemData.sampleData ?? '',
+        answer: problemData.answer,
+        hint: problemData.explanation,
+        difficulty: problemData.difficulty,
+        category: problemData.category,
+        correctRate: problemData.correctRate,
+      }
+    : null;
+
+  // 파싱된 스키마 & 샘플 데이터 (메모이제이션)
+  const schemas = useMemo(() => (problem ? parseDDL(problem.schema) : []), [problem?.schema]);
+  const sampleTables = useMemo(() => {
+    if (!problem?.sampleData) return [];
+    const tables = parseInserts(problem.sampleData);
+    // INSERT에 컬럼 명시가 없으면 스키마에서 가져옴
+    return tables.map((t) => {
+      if (t.columns.length === 0) {
+        const s = schemas.find((sc) => sc.tableName === t.tableName);
+        if (s) return { ...t, columns: s.columns.map((c) => c.name) };
+      }
+      return t;
+    });
+  }, [problem?.sampleData, schemas]);
+
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<SQLResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitResult, setSubmitResult] = useState<'correct' | 'wrong' | null>(null);
-  const [showHint, setShowHint] = useState(false);
   const [exitTarget, setExitTarget] = useState<string | null>(null);
   const [executeError, setExecuteError] = useState('');
 
@@ -172,10 +184,9 @@ export default function SQLPracticePage() {
       const nextResult = await executeSQL(query, problem.id, 'submit');
       setResult(nextResult);
 
-      const isCorrect =
-        !nextResult.error &&
-        query.trim().toUpperCase().includes('AVG(SAL)') &&
-        query.trim().toUpperCase().includes('HAVING');
+      // 정답 SQL과 정규화 비교 (공백/줄바꿈 무시)
+      const normalize = (s: string) => s.trim().toUpperCase().replace(/\s+/g, ' ');
+      const isCorrect = !nextResult.error && normalize(query) === normalize(problem.answer);
 
       logEvent('sql_submit', { problemId: id, query, isCorrect }, user?.id);
       if (isCorrect) {
@@ -197,7 +208,7 @@ export default function SQLPracticePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <p className="text-slate-500 mb-4">문제를 찾을 수 없습니다. (현재 sql2 문제만 지원)</p>
+          <p className="text-slate-500 mb-4">문제를 찾을 수 없습니다.</p>
           <button
             onClick={() => navigate('/sql-practice')}
             className="text-primary-600 hover:underline"
@@ -244,42 +255,152 @@ export default function SQLPracticePage() {
       <div ref={hContainerRef} className="flex flex-1 min-h-0">
         {/* 좌: 문제 설명 */}
         <div
-          className="overflow-y-auto bg-white border-r border-slate-200"
+          className="overflow-y-auto bg-slate-50 border-r border-slate-200"
           style={{ width: `${hRatio * 100}%` }}
         >
-          <div className="p-6">
-            <h1 className="text-lg font-bold text-sqld-navy mb-4">{problem.title}</h1>
-            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line mb-4">
-              {problem.description}
-            </p>
-
-            <div className="bg-white border border-slate-800 rounded-lg p-4 mb-4">
-              <p className="text-xs text-slate-700 font-mono whitespace-pre-line">
-                {problem.schema}
-              </p>
+          <div className="p-6 space-y-5">
+            {/* 헤더: 제목 + 메타 뱃지 */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold tracking-wide uppercase ${
+                    ({ easy: 'bg-emerald-100 text-emerald-700', medium: 'bg-amber-100 text-amber-700', hard: 'bg-red-100 text-red-700' } as Record<Difficulty, string>)[problem.difficulty]
+                  }`}
+                >
+                  {({ easy: 'Easy', medium: 'Medium', hard: 'Hard' } as Record<Difficulty, string>)[problem.difficulty]}
+                </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded bg-primary-50 text-primary-700 text-[11px] font-semibold">
+                  {problem.category}
+                </span>
+                <span className="ml-auto text-[11px] text-slate-400">
+                  정답률 <span className="font-semibold text-slate-600">{problem.correctRate}%</span>
+                </span>
+              </div>
+              <h1 className="text-lg font-bold text-sqld-navy leading-snug">{problem.title}</h1>
             </div>
 
-            <button
-              onClick={() => setShowHint((v) => !v)}
-              className="text-xs text-primary-600 hover:underline"
-            >
-              {showHint ? '힌트 숨기기' : '힌트 보기'}
-            </button>
-            {showHint && (
-              <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-800 leading-relaxed">
-                {problem.hint}
-              </div>
+            {/* 테이블 구조 섹션 */}
+            {schemas.length > 0 && (
+              <section>
+                <SectionHeader icon={<Table2 className="w-3.5 h-3.5" />} title="테이블 구조" />
+                <div className="space-y-3 mt-2">
+                  {schemas.map((schema) => (
+                    <div key={schema.tableName}>
+                      <p className="text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                        <Database className="w-3 h-3 text-primary-500" />
+                        <code className="bg-primary-50 text-primary-700 px-1.5 py-0.5 rounded text-[11px]">{schema.tableName}</code>
+                      </p>
+                      <div className="rounded-lg border border-slate-200 overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-slate-100">
+                              <th className="text-left px-3 py-1.5 text-slate-500 font-semibold">Column</th>
+                              <th className="text-left px-3 py-1.5 text-slate-500 font-semibold">Type</th>
+                              <th className="text-center px-3 py-1.5 text-slate-500 font-semibold">Nullable</th>
+                              <th className="text-center px-3 py-1.5 text-slate-500 font-semibold">PK</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {schema.columns.map((col) => (
+                              <tr key={col.name} className="border-t border-slate-100 hover:bg-white transition-colors">
+                                <td className="px-3 py-1.5 font-mono font-medium text-slate-800">{col.name}</td>
+                                <td className="px-3 py-1.5 font-mono text-slate-500">{col.type}</td>
+                                <td className="px-3 py-1.5 text-center">
+                                  <span className={`text-[11px] font-medium ${col.nullable ? 'text-slate-400' : 'text-slate-600'}`}>
+                                    {col.nullable ? 'YES' : 'NO'}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-1.5 text-center">
+                                  {col.isPrimaryKey && <Key className="w-3 h-3 text-amber-500 mx-auto" />}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
             )}
 
+            {/* 문제 섹션 */}
+            <section>
+              <SectionHeader icon={<FileText className="w-3.5 h-3.5" />} title="문제" />
+              <div className="mt-2 text-sm text-slate-700 leading-relaxed">
+                <DescriptionRenderer text={problem.description} />
+              </div>
+            </section>
+
+            {/* 예시 데이터 섹션 */}
+            {sampleTables.length > 0 && (
+              <CollapsibleSection
+                icon={<BookOpen className="w-3.5 h-3.5" />}
+                title="예시 데이터"
+                defaultOpen
+              >
+                <div className="space-y-3">
+                  {sampleTables.map((table) => (
+                    <div key={table.tableName}>
+                      <p className="text-xs text-slate-500 mb-1.5">
+                        <code className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded text-[11px]">{table.tableName}</code>
+                        {' '}테이블 ({table.rows.length}행)
+                      </p>
+                      <div className="rounded-lg border border-slate-200 overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-slate-100">
+                              {table.columns.map((col) => (
+                                <th key={col} className="text-left px-3 py-1.5 text-slate-500 font-semibold whitespace-nowrap">{col}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {table.rows.slice(0, 8).map((row, i) => (
+                              <tr key={i} className="border-t border-slate-100 hover:bg-white transition-colors">
+                                {row.map((val, j) => (
+                                  <td key={j} className="px-3 py-1.5 font-mono text-slate-600 whitespace-nowrap">
+                                    {val === null ? <span className="text-slate-400 italic">NULL</span> : val}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {table.rows.length > 8 && (
+                          <div className="px-3 py-1.5 text-[11px] text-slate-400 bg-slate-50 border-t border-slate-100 text-center">
+                            … 외 {table.rows.length - 8}행 더
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleSection>
+            )}
+
+            {/* 힌트 섹션 */}
+            <CollapsibleSection
+              icon={<Lightbulb className="w-3.5 h-3.5" />}
+              title="힌트"
+              defaultOpen={false}
+            >
+              <div className="bg-amber-50/70 border border-amber-200/60 rounded-lg px-4 py-3 text-xs text-amber-800 leading-relaxed">
+                {problem.hint}
+              </div>
+            </CollapsibleSection>
+
+            {/* API 에러 표시 */}
             {executeError && (
-              <div className="mt-4 rounded-lg px-4 py-3 text-sm font-semibold bg-red-50 text-red-600 border border-red-200">
+              <div className="rounded-lg px-4 py-3 text-sm font-semibold bg-red-50 text-red-600 border border-red-200">
                 {executeError}
               </div>
             )}
 
+            {/* 정답/오답 피드백 */}
             {submitResult && (
               <div
-                className={`mt-4 flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold ${
+                className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold ${
                   submitResult === 'correct'
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                     : 'bg-red-50 text-red-600 border border-red-200'
@@ -454,4 +575,92 @@ export default function SQLPracticePage() {
       )}
     </div>
   );
+}
+
+// ─── 헬퍼 컴포넌트 ───────────────────────────────────────────────────────
+
+/** 섹션 라벨 */
+function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
+  return (
+    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
+      {icon}
+      {title}
+    </div>
+  );
+}
+
+/** 접이식 섹션 */
+function CollapsibleSection({
+  icon,
+  title,
+  defaultOpen = true,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider hover:text-slate-700 transition-colors w-full text-left"
+      >
+        {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        {icon}
+        {title}
+      </button>
+      {open && <div className="mt-2">{children}</div>}
+    </section>
+  );
+}
+
+/** description 내 마크다운 경량 렌더러 (**bold**, `code`, 줄바꿈) */
+function DescriptionRenderer({ text }: { text: string }) {
+  const lines = text.split('\n');
+  return (
+    <>
+      {lines.map((line, i) => (
+        <p key={i} className={i > 0 && line.trim() ? 'mt-2' : i > 0 ? 'mt-1' : ''}>
+          {renderInline(line)}
+        </p>
+      ))}
+    </>
+  );
+}
+
+function renderInline(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*(.+?)\*\*|`([^`]+)`)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    if (match[2]) {
+      parts.push(
+        <strong key={match.index} className="font-semibold text-slate-900">
+          {match[2]}
+        </strong>
+      );
+    } else if (match[3]) {
+      parts.push(
+        <code
+          key={match.index}
+          className="bg-slate-200 text-primary-700 px-1 py-0.5 rounded text-[12px] font-mono"
+        >
+          {match[3]}
+        </code>
+      );
+    }
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+  return parts;
 }
