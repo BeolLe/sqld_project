@@ -150,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     storeAccessToken(accessToken);
     const me = await loadCurrentUser(accessToken);
-    logEvent('user_login', { email: me.email }, me.id);
+    logEvent('common_login_succeeded', { email: me.email }, me.id);
 
     return { message: '로그인에 성공했습니다.' };
   }, [loadCurrentUser]);
@@ -167,8 +167,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }),
     });
 
-    logEvent('user_signup', { email, nickname: resolvedNickname }, email);
-    logEvent('user_first_visit', { email }, email);
+    logEvent('common_signup_succeeded', { email, nickname: resolvedNickname }, email);
+    logEvent('system_first_visit', { email }, email);
 
     return {
       message:

@@ -19,14 +19,14 @@ export default function Notepad({ examSessionId, userId }: NotepadProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
       localStorage.setItem(storageKey, content);
-      logEvent('notepad_update', { content, examSessionId }, userId);
+      logEvent('exam_notepad_typed', { content, examSessionId }, userId);
     }, 800);
     return () => clearTimeout(timer);
   }, [content, storageKey, examSessionId, userId]);
 
   const handleSave = useCallback(() => {
     localStorage.setItem(storageKey, content);
-    logEvent('notepad_update', { content, examSessionId }, userId);
+    logEvent('exam_notepad_saved', { content_length: content.length, examSessionId }, userId);
     setSaved(true);
     clearTimeout(savedTimer.current);
     savedTimer.current = setTimeout(() => setSaved(false), 1500);
