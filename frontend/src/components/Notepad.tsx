@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { StickyNote } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Save, StickyNote } from 'lucide-react';
 import { logEvent } from '../utils/eventLogger';
 
 const STORAGE_KEY = 'solsqld_notepad';
@@ -12,6 +12,8 @@ interface NotepadProps {
 export default function Notepad({ examSessionId, userId }: NotepadProps) {
   const storageKey = examSessionId ? `${STORAGE_KEY}_${examSessionId}` : STORAGE_KEY;
   const [content, setContent] = useState(() => localStorage.getItem(storageKey) ?? '');
+  const [saved, setSaved] = useState(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // 실시간 저장 + 이벤트 로그
   useEffect(() => {
@@ -22,12 +24,33 @@ export default function Notepad({ examSessionId, userId }: NotepadProps) {
     return () => clearTimeout(timer);
   }, [content, storageKey, examSessionId, userId]);
 
+  const handleSave = useCallback(() => {
+    localStorage.setItem(storageKey, content);
+    logEvent('notepad_update', { content, examSessionId }, userId);
+    setSaved(true);
+    clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setSaved(false), 1500);
+  }, [content, storageKey, examSessionId, userId]);
+
+  // cleanup timer on unmount
+  useEffect(() => () => clearTimeout(savedTimer.current), []);
+
   return (
     <div className="flex flex-col h-full bg-amber-50 border border-amber-200 rounded-xl shadow-md overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-2 bg-amber-100 border-b border-amber-200">
         <StickyNote className="w-4 h-4 text-amber-600" />
         <span className="text-sm font-semibold text-amber-800">메모장</span>
-        <span className="ml-auto text-xs text-amber-500">{content.length}자</span>
+        <button
+          onClick={handleSave}
+          className={`ml-auto flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded transition-colors ${
+            saved
+              ? 'bg-emerald-100 text-emerald-700'
+              : 'bg-amber-200 text-amber-700 hover:bg-amber-300'
+          }`}
+        >
+          <Save className="w-3 h-3" />
+          {saved ? '저장됨!' : '저장'}
+        </button>
       </div>
       <textarea
         value={content}
