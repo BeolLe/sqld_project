@@ -10,6 +10,7 @@ import type { Problem } from '../types';
 import { fetchExamProblems } from '../api/content';
 import {
   fetchExamSession,
+  persistExamSessionSnapshot,
   saveExamAnswer,
   saveExamMemo,
   submitExam,
@@ -133,6 +134,15 @@ export default function ExamTakingPage() {
     [id, totalPages, user]
   );
 
+  const persistSnapshot = useCallback(() => {
+    if (!id || !user || !attemptId) return;
+
+    void persistExamSessionSnapshot(id, {
+      currentPageNo: syncStateRef.current.currentPageNo,
+      remainingSeconds: syncStateRef.current.remainingSeconds,
+    });
+  }, [attemptId, id, user]);
+
   const handleSelect = useCallback(
     (problemId: string, val: string) => {
       setAnswers((prev) => {
@@ -188,10 +198,38 @@ export default function ExamTakingPage() {
         currentPageNo: syncStateRef.current.currentPageNo,
         remainingSeconds: syncStateRef.current.remainingSeconds,
       });
-    }, 15000);
+    }, 5000);
 
     return () => window.clearInterval(intervalId);
   }, [attemptId, id, user]);
+
+  useEffect(() => {
+    if (!attemptId) return;
+
+    const handlePageHide = () => {
+      persistSnapshot();
+    };
+
+    const handleBeforeUnload = () => {
+      persistSnapshot();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        persistSnapshot();
+      }
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [attemptId, persistSnapshot]);
 
   const answeredCount = Object.keys(answers).length;
   const unanswered = problems.length - answeredCount;
@@ -419,8 +457,8 @@ export default function ExamTakingPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full mx-4">
             <h3 className="text-lg font-bold text-sqld-navy mb-2">시험을 나가시겠습니까?</h3>
-            <p className="text-sm text-slate-500 mb-1">현재까지 선택한 답안과 메모는 저장되며,</p>
-            <p className="text-sm text-slate-500 mb-6">시험 시간은 계속 진행됩니다.</p>
+            <p className="text-sm text-slate-500 mb-1">현재까지 선택한 답안과 메모, 남은 시간은 저장되며,</p>
+            <p className="text-sm text-slate-500 mb-6">다시 들어오면 저장된 시점부터 이어집니다.</p>
             <div className="flex gap-3">
               <button
                 onClick={() => setExitTarget(null)}
@@ -429,7 +467,10 @@ export default function ExamTakingPage() {
                 계속 풀기
               </button>
               <button
-                onClick={() => navigate(exitTarget)}
+                onClick={() => {
+                  persistSnapshot();
+                  navigate(exitTarget);
+                }}
                 className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
               >
                 나가기

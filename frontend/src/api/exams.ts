@@ -78,6 +78,26 @@ export function syncExamSession(
   });
 }
 
+export function persistExamSessionSnapshot(
+  examId: string,
+  payload: { currentPageNo?: number; remainingSeconds?: number }
+) {
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+
+  return fetch(`${API_BASE_URL}/exams/${examId}/session`, {
+    method: 'PUT',
+    keepalive: true,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      current_page_no: payload.currentPageNo,
+      remaining_seconds: payload.remainingSeconds,
+    }),
+  }).catch(() => undefined);
+}
+
 export interface ExamSubmitResponse {
   attemptId: number;
   score: number;
