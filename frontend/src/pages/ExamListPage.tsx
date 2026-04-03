@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, FileText, ChevronRight } from 'lucide-react';
 import { logEvent } from '../utils/eventLogger';
 import type { Difficulty } from '../types';
-import { EXAM_LIST } from '../data/exams';
+import { fetchExamList, type ExamListItem } from '../api/content';
 
 const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   easy: '기본',
@@ -19,9 +19,26 @@ const DIFFICULTY_COLOR: Record<Difficulty, string> = {
 
 export default function ExamListPage() {
   const navigate = useNavigate();
+  const [exams, setExams] = useState<ExamListItem[]>([]);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    logEvent('exam_list_viewed', { exam_count: EXAM_LIST.length });
+    let mounted = true;
+
+    fetchExamList()
+      .then((data) => {
+        if (!mounted) return;
+        setExams(data);
+        logEvent('exam_list_viewed', { exam_count: data.length });
+      })
+      .catch((caughtError) => {
+        if (!mounted) return;
+        setError(caughtError instanceof Error ? caughtError.message : '모의고사 목록을 불러오지 못했습니다.');
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return (
@@ -34,7 +51,7 @@ export default function ExamListPage() {
         </p>
 
         <div className="grid gap-4">
-          {EXAM_LIST.map((exam) => (
+          {exams.map((exam) => (
             <div
               key={exam.id}
               className="bg-white border border-slate-200 rounded-xl p-5 hover:border-primary-400 hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
@@ -72,6 +89,11 @@ export default function ExamListPage() {
               <ChevronRight className="w-5 h-5 text-slate-400" />
             </div>
           ))}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-4 text-sm">
+              {error}
+            </div>
+          )}
         </div>
       </div>
     </div>

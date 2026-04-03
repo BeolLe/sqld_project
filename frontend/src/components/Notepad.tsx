@@ -2,35 +2,38 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Save, StickyNote } from 'lucide-react';
 import { logEvent } from '../utils/eventLogger';
 
-const STORAGE_KEY = 'solsqld_notepad';
-
 interface NotepadProps {
-  examSessionId?: string;
+  examId?: string;
+  initialContent?: string;
   userId?: string;
+  onSave?: (content: string) => Promise<void> | void;
 }
 
-export default function Notepad({ examSessionId, userId }: NotepadProps) {
-  const storageKey = examSessionId ? `${STORAGE_KEY}_${examSessionId}` : STORAGE_KEY;
-  const [content, setContent] = useState(() => localStorage.getItem(storageKey) ?? '');
+export default function Notepad({ examId, initialContent = '', userId, onSave }: NotepadProps) {
+  const [content, setContent] = useState(initialContent);
   const [saved, setSaved] = useState(false);
   const savedTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    setContent(initialContent);
+  }, [initialContent]);
 
   // 실시간 저장 + 이벤트 로그
   useEffect(() => {
     const timer = setTimeout(() => {
-      localStorage.setItem(storageKey, content);
-      logEvent('exam_notepad_typed', { content, examSessionId }, userId);
+      void onSave?.(content);
+      logEvent('exam_notepad_typed', { content, examId }, userId);
     }, 800);
     return () => clearTimeout(timer);
-  }, [content, storageKey, examSessionId, userId]);
+  }, [content, examId, userId, onSave]);
 
   const handleSave = useCallback(() => {
-    localStorage.setItem(storageKey, content);
-    logEvent('exam_notepad_saved', { content_length: content.length, examSessionId }, userId);
+    void onSave?.(content);
+    logEvent('exam_notepad_saved', { content_length: content.length, examId }, userId);
     setSaved(true);
     clearTimeout(savedTimer.current);
     savedTimer.current = setTimeout(() => setSaved(false), 1500);
-  }, [content, storageKey, examSessionId, userId]);
+  }, [content, examId, userId, onSave]);
 
   // cleanup timer on unmount
   useEffect(() => () => clearTimeout(savedTimer.current), []);

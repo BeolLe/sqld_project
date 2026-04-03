@@ -4,10 +4,15 @@ import { Clock } from 'lucide-react';
 interface CountdownTimerProps {
   totalSeconds: number;
   onExpire?: () => void;
+  onChangeRemaining?: (remaining: number) => void;
 }
 
-export default function CountdownTimer({ totalSeconds, onExpire }: CountdownTimerProps) {
+export default function CountdownTimer({ totalSeconds, onExpire, onChangeRemaining }: CountdownTimerProps) {
   const [remaining, setRemaining] = useState(totalSeconds);
+
+  useEffect(() => {
+    setRemaining(totalSeconds);
+  }, [totalSeconds]);
 
   const tick = useCallback(() => {
     setRemaining((prev) => {
@@ -24,6 +29,10 @@ export default function CountdownTimer({ totalSeconds, onExpire }: CountdownTime
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [tick, remaining]);
+
+  useEffect(() => {
+    onChangeRemaining?.(remaining);
+  }, [onChangeRemaining, remaining]);
 
   const h = Math.floor(remaining / 3600);
   const m = Math.floor((remaining % 3600) / 60);

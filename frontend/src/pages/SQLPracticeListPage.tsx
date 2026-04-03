@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { logEvent } from '../utils/eventLogger';
 import type { Difficulty } from '../types';
-import { ALL_PRACTICE_PROBLEMS } from '../data/practice';
+import { fetchSQLPracticeList, type SQLPracticeListItem } from '../api/content';
 
 const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   easy: '쉬움',
@@ -16,28 +16,37 @@ const DIFFICULTY_COLOR: Record<Difficulty, string> = {
   hard: 'bg-red-100 text-red-600',
 };
 
-const SQL_PROBLEMS = ALL_PRACTICE_PROBLEMS.map((p) => ({
-  id: p.id,
-  title: p.title,
-  category: p.category,
-  difficulty: p.difficulty,
-  correctRate: p.correctRate,
-}));
-
 type SortKey = 'default' | 'difficulty_asc' | 'difficulty_desc' | 'rate_asc' | 'rate_desc';
 
 export default function SQLPracticeListPage() {
   const navigate = useNavigate();
+  const [problems, setProblems] = useState<SQLPracticeListItem[]>([]);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortKey>('default');
   const [diffFilter, setDiffFilter] = useState<Difficulty | 'all'>('all');
 
   useEffect(() => {
-    logEvent('sql_list_viewed', { total_problems: SQL_PROBLEMS.length });
+    let mounted = true;
+
+    fetchSQLPracticeList()
+      .then((data) => {
+        if (!mounted) return;
+        setProblems(data);
+        logEvent('sql_list_viewed', { total_problems: data.length });
+      })
+      .catch((caughtError) => {
+        if (!mounted) return;
+        setError(caughtError instanceof Error ? caughtError.message : 'SQL 실습 목록을 불러오지 못했습니다.');
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const filtered = useMemo(() => {
-    let list = SQL_PROBLEMS.filter((p) => {
+    let list = problems.filter((p) => {
       const matchSearch = p.title.includes(search) || p.category.includes(search);
       const matchDiff = diffFilter === 'all' || p.difficulty === diffFilter;
       return matchSearch && matchDiff;
@@ -52,7 +61,7 @@ export default function SQLPracticeListPage() {
     if (sort === 'rate_desc') list = [...list].sort((a, b) => b.correctRate - a.correctRate);
 
     return list;
-  }, [search, sort, diffFilter]);
+  }, [search, sort, diffFilter, problems]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -138,7 +147,7 @@ export default function SQLPracticeListPage() {
           ))}
           {filtered.length === 0 && (
             <div className="text-center py-16 text-slate-400">
-              <p>검색 결과가 없습니다.</p>
+              <p>{error || '검색 결과가 없습니다.'}</p>
             </div>
           )}
         </div>

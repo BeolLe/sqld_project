@@ -98,7 +98,7 @@ export default function ExamResultPage() {
         {/* 버튼 */}
         <div className="flex gap-3">
           <button
-            onClick={() => navigate(`/exams/${id}`)}
+            onClick={() => navigate(`/exams/${id}/taking`)}
             className="flex items-center gap-2 flex-1 justify-center border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold py-3 rounded-xl transition-colors"
           >
             <RotateCcw className="w-4 h-4" />

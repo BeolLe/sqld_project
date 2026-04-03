@@ -23,8 +23,8 @@ import { keymap } from '@codemirror/view';
 import { logEvent } from '../utils/eventLogger';
 import { useAuth } from '../contexts/AuthContext';
 import type { SQLResult, Difficulty } from '../types';
-import { getPracticeProblemById } from '../data/practice';
 import { parseDDL, parseInserts } from '../utils/sqlParser';
+import { fetchSQLPractice } from '../api/content';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -91,22 +91,50 @@ export default function SQLPracticePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [problem, setProblem] = useState<{
+    id: string;
+    title: string;
+    description: string;
+    schema: string;
+    sampleData: string;
+    answer: string;
+    hint: string;
+    difficulty: Difficulty;
+    category: string;
+    correctRate: number;
+  } | null>(null);
+  const [loadError, setLoadError] = useState('');
 
-  const problemData = id ? getPracticeProblemById(id) : null;
-  const problem = problemData
-    ? {
-        id: problemData.id,
-        title: problemData.title,
-        description: problemData.description,
-        schema: problemData.schemaSQL ?? '',
-        sampleData: problemData.sampleData ?? '',
-        answer: problemData.answer,
-        hint: problemData.explanation,
-        difficulty: problemData.difficulty,
-        category: problemData.category,
-        correctRate: problemData.correctRate,
-      }
-    : null;
+  useEffect(() => {
+    if (!id) return;
+
+    let mounted = true;
+
+    fetchSQLPractice(id)
+      .then((problemData) => {
+        if (!mounted) return;
+        setProblem({
+          id: problemData.id,
+          title: problemData.title,
+          description: problemData.description,
+          schema: problemData.schemaSQL ?? '',
+          sampleData: problemData.sampleData ?? '',
+          answer: problemData.answer,
+          hint: problemData.explanation,
+          difficulty: problemData.difficulty,
+          category: problemData.category,
+          correctRate: problemData.correctRate,
+        });
+      })
+      .catch((caughtError) => {
+        if (!mounted) return;
+        setLoadError(caughtError instanceof Error ? caughtError.message : '문제를 불러오지 못했습니다.');
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [id]);
 
   useEffect(() => {
     if (problem) {
@@ -228,7 +256,7 @@ export default function SQLPracticePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <p className="text-slate-500 mb-4">문제를 찾을 수 없습니다.</p>
+          <p className="text-slate-500 mb-4">{loadError || '문제를 불러오는 중입니다.'}</p>
           <button
             onClick={() => navigate('/sql-practice')}
             className="text-primary-600 hover:underline"

@@ -26,6 +26,7 @@ class RegisterRequest(BaseModel):
     nickname: str
     password: str
     terms_agreed: bool
+    privacy_agreed: bool
 
 
 def get_current_user(
@@ -72,6 +73,19 @@ def register(req: RegisterRequest, request: Request):
         )
         raise HTTPException(status_code=400, detail="terms agreement is required")
 
+    if not req.privacy_agreed:
+        insert_auth_event(
+            event_type="signup_failed",
+            success=False,
+            email=req.email,
+            session_id=session_id,
+            request_id=request_id,
+            page_path=str(request.url.path),
+            failure_code="privacy_required",
+            failure_message="privacy agreement is required",
+        )
+        raise HTTPException(status_code=400, detail="privacy agreement is required")
+
     hashed_password = hash_password(req.password)
 
     try:
@@ -79,18 +93,72 @@ def register(req: RegisterRequest, request: Request):
             with conn.cursor() as cur:
                 cur.execute(
                     """
+                    WITH latest_consents AS (
+                        SELECT
+                            MAX(version) FILTER (WHERE consent_type = 'terms') AS terms_version,
+                            MAX(version) FILTER (WHERE consent_type = 'privacy_policy') AS privacy_version
+                        FROM auth.consent_versions
+                        WHERE is_active = true
+                    ),
                     INSERT INTO auth.users (
                         email,
                         nickname,
                         password_hash,
-                        terms_agreed
+                        terms_agreed,
+                        privacy_policy_agreed,
+                        terms_version,
+                        privacy_policy_version
                     )
-                    VALUES (%s, %s, %s, %s)
-                    RETURNING user_id, email, nickname
+                    SELECT
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        COALESCE(latest_consents.terms_version, '2026-04-03'),
+                        COALESCE(latest_consents.privacy_version, '2026-04-03')
+                    FROM latest_consents
+                    RETURNING user_id, email, nickname, created_at
                     """,
-                    (req.email, req.nickname, hashed_password, req.terms_agreed),
+                    (
+                        req.email,
+                        req.nickname,
+                        hashed_password,
+                        req.terms_agreed,
+                        req.privacy_agreed,
+                    ),
                 )
                 user = cur.fetchone()
+
+                cur.execute(
+                    """
+                    INSERT INTO auth.user_consents (
+                        user_id,
+                        consent_version_id,
+                        agreed,
+                        consented_at
+                    )
+                    SELECT
+                        %s,
+                        cv.id,
+                        true,
+                        COALESCE(%s::timestamptz, now())
+                    FROM auth.consent_versions cv
+                    WHERE cv.is_active = true
+                      AND cv.consent_type IN ('terms', 'privacy_policy')
+                    ON CONFLICT (user_id, consent_version_id) DO NOTHING
+                    """,
+                    (user[0], user[3]),
+                )
+
+                cur.execute(
+                    """
+                    INSERT INTO dashboard.user_stats (user_id)
+                    VALUES (%s)
+                    ON CONFLICT (user_id) DO NOTHING
+                    """,
+                    (user[0],),
+                )
     except Exception as e:
         insert_auth_event(
             event_type="signup_failed",

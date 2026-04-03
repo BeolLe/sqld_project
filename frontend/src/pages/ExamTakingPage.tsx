@@ -1,17 +1,22 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, ChevronLeft, ChevronRight, Database } from 'lucide-react';
 import CountdownTimer from '../components/CountdownTimer';
 import Notepad from '../components/Notepad';
 import { logEvent } from '../utils/eventLogger';
 import { useAuth } from '../contexts/AuthContext';
-import { getExamProblems } from '../data/exams';
 import DescriptionRenderer from '../components/DescriptionRenderer';
 import type { Problem } from '../types';
+import { fetchExamProblems } from '../api/content';
+import {
+  fetchExamSession,
+  saveExamAnswer,
+  saveExamMemo,
+  submitExam,
+  syncExamSession,
+} from '../api/exams';
 
 const PROBLEMS_PER_PAGE = 5;
-
-const EXAM_TIME_SECONDS = 90 * 60; // 90분
 
 function ChoiceProblem({
   problem,
@@ -61,12 +66,45 @@ export default function ExamTakingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const problems = getExamProblems(id ?? '1');
+  const [problems, setProblems] = useState<Problem[]>([]);
+  const [attemptId, setAttemptId] = useState<number | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const [error, setError] = useState('');
+  const [memoContent, setMemoContent] = useState('');
+  const syncStateRef = useRef({ currentPageNo: 1, remainingSeconds: 0 });
 
-  const [sessionId] = useState(crypto.randomUUID());
+  useEffect(() => {
+    if (!id || !user) return;
+
+    let mounted = true;
+
+    Promise.all([fetchExamProblems(id), fetchExamSession(id)])
+      .then(([problemData, session]) => {
+        if (!mounted) return;
+        setProblems(problemData);
+        setAttemptId(session.attemptId);
+        setAnswers(session.answers);
+        setMemoContent(session.memoContent);
+        setRemainingSeconds(session.remainingSeconds);
+        setCurrentPage(Math.max(0, session.currentPageNo - 1));
+        syncStateRef.current = {
+          currentPageNo: session.currentPageNo,
+          remainingSeconds: session.remainingSeconds,
+        };
+      })
+      .catch((caughtError) => {
+        if (!mounted) return;
+        setError(caughtError instanceof Error ? caughtError.message : '문제를 불러오지 못했습니다.');
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [id, user]);
+
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [started] = useState(() => {
-    logEvent('exam_session_started', { examId: id, sessionId }, user?.id);
+    logEvent('exam_session_started', { examId: id }, user?.id);
     return true;
   });
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
@@ -83,9 +121,16 @@ export default function ExamTakingPage() {
   const goToPage = useCallback(
     (page: number) => {
       setCurrentPage(Math.max(0, Math.min(page, totalPages - 1)));
+      syncStateRef.current.currentPageNo = Math.max(1, Math.min(page + 1, totalPages));
+      if (id && user) {
+        void syncExamSession(id, {
+          currentPageNo: Math.max(1, Math.min(page + 1, totalPages)),
+          remainingSeconds: syncStateRef.current.remainingSeconds,
+        });
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
-    [totalPages]
+    [id, totalPages, user]
   );
 
   const handleSelect = useCallback(
@@ -95,25 +140,106 @@ export default function ExamTakingPage() {
         logEvent('exam_answer_selected', { problemId, selected: val, examId: id }, user?.id);
         return next;
       });
+      if (id && user) {
+        void saveExamAnswer(id, {
+          problemId,
+          selectedAnswer: val,
+          currentPageNo: currentPage + 1,
+          remainingSeconds: syncStateRef.current.remainingSeconds,
+        });
+      }
     },
-    [id, user?.id]
+    [currentPage, id, user, user?.id]
   );
 
   const handleSubmit = useCallback(() => {
-    const score = problems.reduce((acc, p) => {
-      return answers[p.id] === p.answer ? acc + 2 : acc;
-    }, 0); // 50문항 × 2점 = 100점 만점
+    if (!id || !user) return;
 
-    logEvent('exam_submit_confirmed', { examId: id, sessionId, answers, score }, user?.id);
-    logEvent('exam_result_viewed', { examId: id, userId: user?.id, score }, user?.id);
+    void submitExam(id, {
+      currentPageNo: currentPage + 1,
+      remainingSeconds: syncStateRef.current.remainingSeconds,
+    }).then((result) => {
+      logEvent('exam_submit_confirmed', { examId: id, attemptId, answers: result.answers, score: result.score }, user.id);
+      logEvent('exam_result_viewed', { examId: id, userId: user.id, score: result.score }, user.id);
 
-    navigate(`/exams/${id}/result`, {
-      state: { score, answers, sessionId, problems },
+      navigate(`/exams/${id}/result`, {
+        state: { score: result.score, answers: result.answers, problems: result.problems },
+      });
+    }).catch((caughtError) => {
+      setError(caughtError instanceof Error ? caughtError.message : '시험 제출 중 오류가 발생했습니다.');
     });
-  }, [answers, id, sessionId, user, navigate, problems]);
+  }, [attemptId, currentPage, id, navigate, user]);
+
+  const handleMemoSave = useCallback(
+    async (content: string) => {
+      setMemoContent(content);
+      if (id && user) {
+        await saveExamMemo(id, content);
+      }
+    },
+    [id, user]
+  );
+
+  useEffect(() => {
+    if (!id || !user || !attemptId) return;
+
+    const intervalId = window.setInterval(() => {
+      void syncExamSession(id, {
+        currentPageNo: syncStateRef.current.currentPageNo,
+        remainingSeconds: syncStateRef.current.remainingSeconds,
+      });
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, [attemptId, id, user]);
 
   const answeredCount = Object.keys(answers).length;
   const unanswered = problems.length - answeredCount;
+
+  useEffect(() => {
+    if (remainingSeconds === null) return;
+    syncStateRef.current.remainingSeconds = remainingSeconds;
+  }, [remainingSeconds]);
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <p className="text-slate-500 mb-4">{error}</p>
+          <button
+            onClick={() => navigate('/exams')}
+            className="text-primary-600 hover:underline"
+          >
+            목록으로
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <p className="text-slate-500 mb-4">모의고사는 로그인 후 이용할 수 있습니다.</p>
+          <button
+            onClick={() => navigate('/exams')}
+            className="text-primary-600 hover:underline"
+          >
+            목록으로
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!problems.length) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <p className="text-slate-500">문제를 불러오는 중입니다.</p>
+      </div>
+    );
+  }
 
   if (!started) return null;
 
@@ -158,7 +284,11 @@ export default function ExamTakingPage() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <CountdownTimer totalSeconds={EXAM_TIME_SECONDS} onExpire={handleSubmit} />
+            <CountdownTimer
+              totalSeconds={remainingSeconds ?? 0}
+              onExpire={handleSubmit}
+              onChangeRemaining={setRemainingSeconds}
+            />
             <button
               onClick={() => setShowSubmitConfirm(true)}
               className="bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors"
@@ -250,7 +380,7 @@ export default function ExamTakingPage() {
 
         {/* 사이드 메모장 */}
         <div className="w-64 shrink-0 sticky top-32 self-start h-[600px]">
-          <Notepad examSessionId={sessionId} userId={user?.id} />
+          <Notepad examId={id} initialContent={memoContent} userId={user?.id} onSave={handleMemoSave} />
         </div>
       </div>
 
@@ -289,7 +419,7 @@ export default function ExamTakingPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full mx-4">
             <h3 className="text-lg font-bold text-sqld-navy mb-2">시험을 나가시겠습니까?</h3>
-            <p className="text-sm text-slate-500 mb-1">현재까지 선택한 답안은 저장되지 않으며,</p>
+            <p className="text-sm text-slate-500 mb-1">현재까지 선택한 답안과 메모는 저장되며,</p>
             <p className="text-sm text-slate-500 mb-6">시험 시간은 계속 진행됩니다.</p>
             <div className="flex gap-3">
               <button

@@ -2,6 +2,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.api.content.router import router as content_router
+from app.api.exams.router import router as exams_router
 from app.api.sql.router import router as sql_router
 from app.db.oracle import check_oracle, close_oracle_pool, init_oracle_pool
 from app.db.postgres import check_postgres
@@ -21,6 +23,8 @@ app = FastAPI(title="sqld-backend", lifespan=lifespan)
 
 
 app.include_router(auth_router)
+app.include_router(content_router)
+app.include_router(exams_router)
 app.include_router(sql_router)
 
 
