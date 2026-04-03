@@ -64,10 +64,10 @@ def list_exams():
             cur.execute(
                 """
                 SELECT
-                    exam_code,
-                    title,
-                    total_question_count,
-                    duration_seconds,
+                    e.exam_code,
+                    e.title,
+                    e.total_question_count,
+                    e.duration_seconds,
                     MAX(question_payload->>'avg_difficulty') AS avg_difficulty,
                     COALESCE(MAX((question_payload->>'round')::int), 0) AS round
                 FROM exam.exams e
