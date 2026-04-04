@@ -11,6 +11,7 @@ import ExamResultPage from './pages/ExamResultPage';
 import SQLPracticeListPage from './pages/SQLPracticeListPage';
 import SQLPracticePage from './pages/SQLPracticePage';
 import MyPage from './pages/MyPage';
+import FeedbackPage from './pages/FeedbackPage';
 import type { AuthMode } from './types';
 
 function AppShell() {
@@ -43,6 +44,7 @@ function AppShell() {
                   <Route path="/" element={<MainPage />} />
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/mypage" element={<MyPage />} />
+                  <Route path="/feedback" element={<FeedbackPage />} />
                   <Route path="/exams" element={<ExamListPage />} />
                   <Route path="/exams/:id" element={<ExamListPage />} />
                   <Route path="/exams/:id/result" element={<ExamResultPage />} />

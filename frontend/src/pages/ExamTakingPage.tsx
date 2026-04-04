@@ -1,8 +1,9 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, ChevronLeft, ChevronRight, Database } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Database, Flag } from 'lucide-react';
 import CountdownTimer from '../components/CountdownTimer';
 import Notepad from '../components/Notepad';
+import ReportErrorModal from '../components/ReportErrorModal';
 import { logEvent } from '../utils/eventLogger';
 import { useAuth } from '../contexts/AuthContext';
 import DescriptionRenderer from '../components/DescriptionRenderer';
@@ -72,6 +73,7 @@ export default function ExamTakingPage() {
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [memoContent, setMemoContent] = useState('');
+  const [showReportModal, setShowReportModal] = useState(false);
   const syncStateRef = useRef({ currentPageNo: 1, remainingSeconds: 0 });
 
   useEffect(() => {
@@ -328,6 +330,14 @@ export default function ExamTakingPage() {
               onChangeRemaining={setRemainingSeconds}
             />
             <button
+              onClick={() => setShowReportModal(true)}
+              className="flex items-center gap-1 text-slate-400 hover:text-amber-500 text-sm transition-colors"
+              title="문제 오류 제보"
+            >
+              <Flag className="w-4 h-4" />
+              <span className="hidden sm:inline">오류 제보</span>
+            </button>
+            <button
               onClick={() => setShowSubmitConfirm(true)}
               className="bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors"
             >
@@ -478,6 +488,17 @@ export default function ExamTakingPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 오류 제보 모달 */}
+      {showReportModal && (
+        <ReportErrorModal
+          type="exam_error"
+          examId={id}
+          totalProblems={problems.length}
+          currentProblemNo={currentPage * PROBLEMS_PER_PAGE + 1}
+          onClose={() => setShowReportModal(false)}
+        />
       )}
     </div>
   );

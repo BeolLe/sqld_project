@@ -15,8 +15,10 @@ import {
   FileText,
   BookOpen,
   Key,
+  Flag,
 } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
+import ReportErrorModal from '../components/ReportErrorModal';
 import { sql } from '@codemirror/lang-sql';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { keymap } from '@codemirror/view';
@@ -166,6 +168,7 @@ export default function SQLPracticePage() {
   const [submitResult, setSubmitResult] = useState<'correct' | 'wrong' | null>(null);
   const [exitTarget, setExitTarget] = useState<string | null>(null);
   const [executeError, setExecuteError] = useState('');
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // 리사이즈 state + refs — ESLint react-hooks/refs 호환을 위해 분리
   const [hRatio, setHRatio] = useState(0.42);
@@ -312,6 +315,14 @@ export default function SQLPracticePage() {
               className="hover:text-white transition-colors"
             >
               SQL 실습
+            </button>
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="flex items-center gap-1 text-slate-400 hover:text-amber-400 transition-colors"
+              title="문제 오류 제보"
+            >
+              <Flag className="w-4 h-4" />
+              <span>오류 제보</span>
             </button>
           </nav>
         </div>
@@ -720,6 +731,16 @@ export default function SQLPracticePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 오류 제보 모달 */}
+      {showReportModal && problem && (
+        <ReportErrorModal
+          type="sql_error"
+          practiceId={problem.id}
+          problemTitle={problem.title}
+          onClose={() => setShowReportModal(false)}
+        />
       )}
     </div>
   );

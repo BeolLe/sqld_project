@@ -42,6 +42,11 @@ export default function Header({ onAuthClick }: HeaderProps) {
               학습현황
             </Link>
           )}
+          {isLoggedIn && (
+            <Link to="/feedback" className="hover:text-white transition-colors">
+              피드백
+            </Link>
+          )}
         </nav>
 
         {/* 사용자 영역 */}

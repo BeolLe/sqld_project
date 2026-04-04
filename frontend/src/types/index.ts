@@ -152,6 +152,27 @@ export interface UserProfile {
   privacyAgreedAt: string | null;
 }
 
+// ─── 피드백 타입 ──────────────────────────────────────────────────────────────
+
+export type FeedbackType = 'suggestion' | 'bug' | 'exam_error' | 'sql_error';
+export type FeedbackStatus = 'pending' | 'reviewing' | 'resolved';
+export type ErrorSubtype = 'wrong_answer' | 'typo' | 'explanation_error' | 'other';
+
+export interface FeedbackTicket {
+  ticket_id: string;
+  type: FeedbackType;
+  status: FeedbackStatus;
+  title: string;
+  content: string;
+  related_exam_id?: string;
+  related_problem_id?: string;
+  related_problem_no?: number;
+  error_subtype?: ErrorSubtype;
+  admin_reply?: string;
+  replied_at?: string;
+  created_at: string;
+}
+
 // ─── UI 상태 타입 ────────────────────────────────────────────────────────────
 
 export type AuthMode = 'login' | 'signup';
