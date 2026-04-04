@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Database, User, LogOut } from 'lucide-react';
+import { Database, User, LogOut, Settings } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface HeaderProps {
@@ -54,6 +54,13 @@ export default function Header({ onAuthClick }: HeaderProps) {
                 <span className="text-sqld-accent font-semibold">{user.nickname}</span>
                 <span className="ml-1"> 님 환영합니다!</span>
               </span>
+              <Link
+                to="/mypage"
+                className="text-slate-400 hover:text-white transition-colors"
+                title="마이페이지"
+              >
+                <Settings className="w-4 h-4" />
+              </Link>
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-1 text-slate-400 hover:text-white text-sm transition-colors"

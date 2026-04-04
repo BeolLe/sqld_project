@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Eye, EyeOff } from 'lucide-react';
+import { X, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { logEvent } from '../utils/eventLogger';
+import { apiFetch } from '../utils/api';
 import type { AuthMode } from '../types';
+
+type ModalStep = 'auth' | 'find-email' | 'find-email-result' | 'reset-password' | 'reset-password-form' | 'reset-password-done';
 
 const TERMS_TEXT = `SolSQLD 서비스 이용약관
 
@@ -128,6 +131,14 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // 계정 찾기 step 상태
+  const [step, setStep] = useState<ModalStep>('auth');
+  const [findNickname, setFindNickname] = useState('');
+  const [findEmail, setFindEmail] = useState('');
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+
   const termsRef = useRef<HTMLDivElement>(null);
   const privacyRef = useRef<HTMLDivElement>(null);
 
@@ -141,6 +152,12 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     setPrivacyScrolled(false);
     setPrivacyAgreed(false);
     setPrivacyOpen(false);
+    setStep('auth');
+    setFindNickname('');
+    setFindEmail('');
+    setMaskedEmail('');
+    setResetNewPassword('');
+    setResetConfirmPassword('');
   }, [mode]);
 
   function handleTermsScroll() {
@@ -156,6 +173,80 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     if (!el) return;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) {
       setPrivacyScrolled(true);
+    }
+  }
+
+  function goBackToAuth() {
+    setStep('auth');
+    setError('');
+    setSuccess('');
+  }
+
+  async function handleFindEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (!findNickname.trim()) {
+      setError('닉네임을 입력해주세요.');
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await apiFetch<{ maskedEmail: string }>('/api/auth/find-email', {
+        method: 'POST',
+        body: JSON.stringify({ nickname: findNickname.trim() }),
+      });
+      setMaskedEmail(res.maskedEmail);
+      setStep('find-email-result');
+      logEvent('common_auth_modal_viewed', { step: 'find-email', found: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '계정을 찾을 수 없습니다.');
+      logEvent('common_auth_modal_viewed', { step: 'find-email', found: false });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResetPasswordVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (!findEmail.trim() || !findNickname.trim()) {
+      setError('이메일과 닉네임을 모두 입력해주세요.');
+      return;
+    }
+    // 닉네임 일치 확인을 위해 바로 새 비밀번호 설정 화면으로 이동
+    // 실제 검증은 reset-password API에서 수행
+    setStep('reset-password-form');
+    setError('');
+  }
+
+  async function handleResetPasswordSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (resetNewPassword.length < 8) {
+      setError('새 비밀번호는 8자 이상이어야 합니다.');
+      return;
+    }
+    if (resetNewPassword !== resetConfirmPassword) {
+      setError('새 비밀번호가 일치하지 않습니다.');
+      return;
+    }
+    try {
+      setLoading(true);
+      await apiFetch<{ message: string }>('/api/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: findEmail.trim(),
+          nickname: findNickname.trim(),
+          new_password: resetNewPassword,
+        }),
+      });
+      setStep('reset-password-done');
+      logEvent('common_auth_modal_viewed', { step: 'reset-password', success: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '비밀번호 재설정에 실패했습니다.');
+      logEvent('common_auth_modal_viewed', { step: 'reset-password', success: false });
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -208,6 +299,161 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
           <X className="w-5 h-5" />
         </button>
 
+        {/* ── 아이디 찾기 step ── */}
+        {step === 'find-email' && (
+          <>
+            <button onClick={goBackToAuth} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+              <ArrowLeft className="w-4 h-4" /> 로그인으로 돌아가기
+            </button>
+            <h2 className="text-2xl font-bold text-sqld-navy mb-1">아이디 찾기</h2>
+            <p className="text-sm text-slate-500 mb-6">가입 시 등록한 닉네임을 입력해주세요.</p>
+            <form onSubmit={handleFindEmail} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">닉네임</label>
+                <input
+                  type="text"
+                  value={findNickname}
+                  onChange={(e) => setFindNickname(e.target.value)}
+                  placeholder="닉네임 입력"
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  autoFocus
+                />
+              </div>
+              {error && <p className="text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg">{error}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
+              >
+                {loading ? '검색 중...' : '아이디 찾기'}
+              </button>
+            </form>
+          </>
+        )}
+
+        {/* ── 아이디 찾기 결과 ── */}
+        {step === 'find-email-result' && (
+          <>
+            <button onClick={goBackToAuth} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+              <ArrowLeft className="w-4 h-4" /> 로그인으로 돌아가기
+            </button>
+            <h2 className="text-2xl font-bold text-sqld-navy mb-1">아이디 찾기 결과</h2>
+            <p className="text-sm text-slate-500 mb-6">가입된 이메일을 확인해주세요.</p>
+            <div className="bg-slate-50 border border-slate-200 rounded-lg px-6 py-4 text-center mb-6">
+              <p className="text-lg font-semibold text-sqld-navy">{maskedEmail}</p>
+            </div>
+            <button
+              onClick={goBackToAuth}
+              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition-colors"
+            >
+              로그인하러 가기
+            </button>
+          </>
+        )}
+
+        {/* ── 비밀번호 재설정 - 본인 확인 ── */}
+        {step === 'reset-password' && (
+          <>
+            <button onClick={goBackToAuth} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+              <ArrowLeft className="w-4 h-4" /> 로그인으로 돌아가기
+            </button>
+            <h2 className="text-2xl font-bold text-sqld-navy mb-1">비밀번호 재설정</h2>
+            <p className="text-sm text-slate-500 mb-6">본인 확인을 위해 이메일과 닉네임을 입력해주세요.</p>
+            <form onSubmit={handleResetPasswordVerify} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">이메일</label>
+                <input
+                  type="email"
+                  value={findEmail}
+                  onChange={(e) => setFindEmail(e.target.value)}
+                  placeholder="example@email.com"
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">가입 시 등록한 닉네임</label>
+                <input
+                  type="text"
+                  value={findNickname}
+                  onChange={(e) => setFindNickname(e.target.value)}
+                  placeholder="닉네임 입력"
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              {error && <p className="text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg">{error}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
+              >
+                다음
+              </button>
+            </form>
+          </>
+        )}
+
+        {/* ── 비밀번호 재설정 - 새 비밀번호 입력 ── */}
+        {step === 'reset-password-form' && (
+          <>
+            <button onClick={() => { setStep('reset-password'); setError(''); }} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+              <ArrowLeft className="w-4 h-4" /> 이전 단계
+            </button>
+            <h2 className="text-2xl font-bold text-sqld-navy mb-1">새 비밀번호 설정</h2>
+            <p className="text-sm text-slate-500 mb-6">새로운 비밀번호를 입력해주세요.</p>
+            <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">새 비밀번호</label>
+                <input
+                  type="password"
+                  value={resetNewPassword}
+                  onChange={(e) => setResetNewPassword(e.target.value)}
+                  placeholder="8자 이상"
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">새 비밀번호 확인</label>
+                <input
+                  type="password"
+                  value={resetConfirmPassword}
+                  onChange={(e) => setResetConfirmPassword(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              {error && <p className="text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg">{error}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
+              >
+                {loading ? '처리 중...' : '비밀번호 재설정'}
+              </button>
+            </form>
+          </>
+        )}
+
+        {/* ── 비밀번호 재설정 완료 ── */}
+        {step === 'reset-password-done' && (
+          <>
+            <h2 className="text-2xl font-bold text-sqld-navy mb-1">비밀번호 재설정 완료</h2>
+            <p className="text-sm text-slate-500 mb-6">비밀번호가 성공적으로 변경되었습니다.</p>
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-3 rounded-lg mb-6">
+              새 비밀번호로 로그인해주세요.
+            </div>
+            <button
+              onClick={goBackToAuth}
+              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition-colors"
+            >
+              로그인하러 가기
+            </button>
+          </>
+        )}
+
+        {/* ── 기본 로그인/회원가입 폼 ── */}
+        {step === 'auth' && (
+        <>
         <h2 className="text-2xl font-bold text-sqld-navy mb-1">
           {mode === 'login' ? '로그인' : '회원가입'}
         </h2>
@@ -386,6 +632,24 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
           </button>
         </form>
 
+        {mode === 'login' && (
+          <div className="flex justify-center gap-3 mt-3 text-xs text-slate-400">
+            <button
+              onClick={() => { setStep('find-email'); setError(''); setFindNickname(''); }}
+              className="hover:text-primary-600 hover:underline transition-colors"
+            >
+              아이디를 잊으셨나요?
+            </button>
+            <span>|</span>
+            <button
+              onClick={() => { setStep('reset-password'); setError(''); setFindEmail(''); setFindNickname(''); }}
+              className="hover:text-primary-600 hover:underline transition-colors"
+            >
+              비밀번호를 잊으셨나요?
+            </button>
+          </div>
+        )}
+
         <p className="text-center text-sm text-slate-500 mt-4">
           {mode === 'login' ? (
             <>
@@ -409,6 +673,8 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
             </>
           )}
         </p>
+        </>
+        )}
       </div>
     </div>
   );

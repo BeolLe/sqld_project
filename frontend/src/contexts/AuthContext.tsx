@@ -24,6 +24,7 @@ interface AuthContextValue {
   signup: (email: string, password: string, nickname?: string, termsAgreed?: boolean, privacyAgreed?: boolean) => Promise<AuthResult>;
   logout: () => void;
   updatePoints: (points: number) => void;
+  updateNickname: (nickname: string) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -138,6 +139,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const updateNickname = useCallback((nickname: string) => {
+    setUser((previousUser) =>
+      previousUser
+        ? {
+            ...previousUser,
+            nickname,
+          }
+        : previousUser
+    );
+  }, []);
+
   const applyAuthenticatedUser = useCallback((me: MeResponse) => {
     const nextUser = toUser(me);
     setUser(nextUser);
@@ -216,7 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoggedIn: !!user, isInitializing, login, signup, logout, updatePoints }}
+      value={{ user, isLoggedIn: !!user, isInitializing, login, signup, logout, updatePoints, updateNickname }}
     >
       {children}
     </AuthContext.Provider>

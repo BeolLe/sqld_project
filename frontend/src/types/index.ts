@@ -141,6 +141,17 @@ export interface DashboardSummary {
   learningCalendar: LearningDay[]; // Amplitude ETL 데이터 기반, 미구현 시 빈 배열
 }
 
+// ─── 마이페이지 API 응답 타입 ─────────────────────────────────────────────────
+
+export interface UserProfile {
+  email: string;
+  nickname: string;
+  createdAt: string;
+  points: number;
+  termsAgreedAt: string | null;
+  privacyAgreedAt: string | null;
+}
+
 // ─── UI 상태 타입 ────────────────────────────────────────────────────────────
 
 export type AuthMode = 'login' | 'signup';
