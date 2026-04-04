@@ -9,8 +9,10 @@ from psycopg.rows import dict_row
 from app.db.logs import (
     ensure_request_id,
     insert_learning_event,
+    insert_sql_alert_once,
     insert_sql_request,
     insert_sql_response,
+    normalize_query_for_alert,
     update_sql_request_status,
 )
 from app.db.postgres import get_connection
@@ -24,6 +26,7 @@ from app.db.sql_namespaces import (
 )
 from app.core.security import decode_access_token
 from app.services.sql_grading import compare_result_sets
+from app.services.slack import send_slack_message
 from app.services.sql_workspace import (
     WorkspaceValidationError,
     build_workspace_context,
@@ -124,6 +127,8 @@ def fetch_expected_result(practice_code: str) -> dict | None:
                 """
                 SELECT
                     per.id,
+                    p.title,
+                    per.source_query,
                     per.result_columns,
                     per.result_rows,
                     per.row_count,
@@ -443,6 +448,76 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
                     "rows": serialized_rows,
                     "executionTimeMs": elapsed_ms,
                 }
+                if (
+                    action == "submit"
+                    and is_correct is True
+                    and expected_result is not None
+                ):
+                    normalized_submitted_query = normalize_query_for_alert(query)
+                    normalized_expected_query = normalize_query_for_alert(
+                        expected_result["source_query"]
+                    )
+                    if normalized_submitted_query != normalized_expected_query:
+                        alert_payload = {
+                            "practiceId": req.practice_id,
+                            "practiceTitle": expected_result["title"],
+                            "userId": user_id,
+                            "requestId": request_id,
+                            "comparisonMode": grading["comparisonMode"] if grading else None,
+                            "rowCount": grading["rowCount"] if grading else len(serialized_rows),
+                            "userHash": grading["userHash"] if grading else None,
+                            "expectedHash": grading["expectedHash"] if grading else None,
+                            "submittedQuery": query,
+                            "expectedQuery": expected_result["source_query"],
+                        }
+                        should_notify = insert_sql_alert_once(
+                            alert_type="alternative_correct_sql",
+                            practice_id=req.practice_id,
+                            normalized_query=normalized_submitted_query,
+                            user_id=user_id,
+                            request_id=request_id,
+                            payload=alert_payload,
+                        )
+                        if should_notify:
+                            send_slack_message(
+                                text=f"[SolSQLD] 대체 정답 SQL 감지: {req.practice_id}",
+                                blocks=[
+                                    {
+                                        "type": "section",
+                                        "text": {
+                                            "type": "mrkdwn",
+                                            "text": (
+                                                "*대체 정답 SQL 감지*\n"
+                                                f"- practice_id: `{req.practice_id}`\n"
+                                                f"- title: {expected_result['title']}\n"
+                                                f"- user_id: `{user_id or 'anonymous'}`\n"
+                                                f"- comparison_mode: `{grading['comparisonMode'] if grading else 'unknown'}`\n"
+                                                f"- row_count: `{grading['rowCount'] if grading else len(serialized_rows)}`"
+                                            ),
+                                        },
+                                    },
+                                    {
+                                        "type": "section",
+                                        "text": {
+                                            "type": "mrkdwn",
+                                            "text": (
+                                                "*submitted_sql*\n"
+                                                f"```{query[:1500]}```"
+                                            ),
+                                        },
+                                    },
+                                    {
+                                        "type": "section",
+                                        "text": {
+                                            "type": "mrkdwn",
+                                            "text": (
+                                                "*expected_sql*\n"
+                                                f"```{expected_result['source_query'][:1500]}```"
+                                            ),
+                                        },
+                                    },
+                                ],
+                            )
                 if not is_read_only_statement(statement_type):
                     response["affectedRows"] = cur.rowcount
                 if action == "submit":

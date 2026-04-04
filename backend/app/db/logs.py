@@ -22,6 +22,11 @@ def build_query_hash(query: str) -> str:
     return hashlib.sha256(query.encode("utf-8")).hexdigest()
 
 
+def normalize_query_for_alert(query: str) -> str:
+    normalized = " ".join((query or "").strip().rstrip(";").split())
+    return normalized.upper()
+
+
 def insert_auth_event(
     *,
     event_type: str,
@@ -289,3 +294,56 @@ def insert_sql_response(
     except Exception as exc:
         log_insert_error("insert_sql_response", exc)
         return
+
+
+def insert_sql_alert_once(
+    *,
+    alert_type: str,
+    practice_id: str,
+    normalized_query: str,
+    user_id: str | None = None,
+    request_id: str | None = None,
+    payload: dict[str, Any] | None = None,
+) -> bool:
+    try:
+        with get_postgres_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO logs.sql_alert_events (
+                        created_at,
+                        alert_type,
+                        practice_id,
+                        user_id,
+                        request_id,
+                        normalized_query,
+                        query_hash,
+                        payload
+                    )
+                    VALUES (
+                        NOW(),
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    )
+                    ON CONFLICT (alert_type, practice_id, query_hash) DO NOTHING
+                    RETURNING id
+                    """,
+                    (
+                        alert_type,
+                        practice_id,
+                        user_id,
+                        request_id,
+                        normalized_query,
+                        build_query_hash(normalized_query),
+                        Jsonb(payload or {}),
+                    ),
+                )
+                return cur.fetchone() is not None
+    except Exception as exc:
+        log_insert_error("insert_sql_alert_once", exc)
+        return False
