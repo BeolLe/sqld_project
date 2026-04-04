@@ -52,7 +52,7 @@ export default function Header({ onAuthClick }: HeaderProps) {
             <>
               <span className="text-sm text-slate-300 hidden sm:block">
                 <span className="text-sqld-accent font-semibold">{user.nickname}</span>
-                <span className="ml-2 text-slate-400">{user.email}</span>
+                <span className="ml-1"> 님 환영합니다!</span>
               </span>
               <button
                 onClick={handleLogout}
