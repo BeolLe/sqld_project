@@ -28,6 +28,7 @@ import type { SQLResult, Difficulty } from '../types';
 import { parseDDL, parseInserts } from '../utils/sqlParser';
 import { fetchSQLPractice } from '../api/content';
 import { getPracticeProblemById } from '../data/practice';
+import { getColumnDescription } from '../constants/columnDescriptions';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const ACCESS_TOKEN_KEY = 'solsqld_access_token';
@@ -375,6 +376,7 @@ export default function SQLPracticePage() {
                           <thead>
                             <tr className="bg-slate-100">
                               <th className="text-left px-3 py-1.5 text-slate-500 font-semibold">Column</th>
+                              <th className="text-left px-3 py-1.5 text-slate-500 font-semibold">설명</th>
                               <th className="text-left px-3 py-1.5 text-slate-500 font-semibold">Type</th>
                               <th className="text-center px-3 py-1.5 text-slate-500 font-semibold">Nullable</th>
                               <th className="text-center px-3 py-1.5 text-slate-500 font-semibold">PK</th>
@@ -384,6 +386,9 @@ export default function SQLPracticePage() {
                             {schema.columns.map((col) => (
                               <tr key={col.name} className="border-t border-slate-100 hover:bg-white transition-colors">
                                 <td className="px-3 py-1.5 font-mono font-medium text-slate-800">{col.name}</td>
+                                <td className="px-3 py-1.5 text-slate-500">
+                                  {getColumnDescription(schema.tableName, col.name) ?? ''}
+                                </td>
                                 <td className="px-3 py-1.5 font-mono text-slate-500">{col.type}</td>
                                 <td className="px-3 py-1.5 text-center">
                                   <span className={`text-[11px] font-medium ${col.nullable ? 'text-slate-400' : 'text-slate-600'}`}>

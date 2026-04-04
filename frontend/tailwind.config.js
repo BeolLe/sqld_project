@@ -20,7 +20,7 @@ export default {
       },
       fontFamily: {
         sans: ['Pretendard', 'Apple SD Gothic Neo', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+        mono: ['Pretendard Code', 'monospace'],
       },
       // A4 비율 레이아웃 (210mm × 297mm → 약 794px × 1123px)
       width: {
