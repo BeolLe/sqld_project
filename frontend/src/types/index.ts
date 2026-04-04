@@ -95,6 +95,52 @@ export interface EventLog {
   timestamp: string;
 }
 
+// ─── 대시보드(학습현황) API 응답 타입 ─────────────────────────────────────────
+
+export interface DashboardStats {
+  totalPoints: number;
+  totalMockExamAttemptCount: number;
+  totalLearningSeconds: number;
+  totalSolvedQuestionCount: number;
+}
+
+export interface SubjectStat {
+  subjectId: string;
+  subjectName: string;
+  solvedCount: number;
+  correctCount: number;
+  accuracyRate: number;
+}
+
+export interface RecentExamResult {
+  examId: string;
+  examTitle: string;
+  attemptNo: number;
+  scorePercent: number;
+  passed: boolean;
+  submittedAt: string;
+}
+
+export interface RecentSqlAttempt {
+  practiceId: string;
+  title: string;
+  isCorrect: boolean;
+  submittedAt: string;
+}
+
+export interface LearningDay {
+  date: string; // 'YYYY-MM-DD'
+  eventCount: number;
+}
+
+export interface DashboardSummary {
+  stats: DashboardStats;
+  subjectStats: SubjectStat[];
+  recentExamResults: RecentExamResult[];
+  recentSqlAttempts: RecentSqlAttempt[];
+  learningCalendar: LearningDay[]; // Amplitude ETL 데이터 기반, 미구현 시 빈 배열
+}
+
 // ─── UI 상태 타입 ────────────────────────────────────────────────────────────
 
 export type AuthMode = 'login' | 'signup';

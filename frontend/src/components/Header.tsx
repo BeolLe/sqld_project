@@ -39,7 +39,7 @@ export default function Header({ onAuthClick }: HeaderProps) {
           </Link>
           {isLoggedIn && (
             <Link to="/dashboard" className="hover:text-white transition-colors">
-              대시보드
+              학습현황
             </Link>
           )}
         </nav>
