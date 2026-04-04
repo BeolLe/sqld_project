@@ -6,6 +6,7 @@ from psycopg.rows import dict_row
 
 from app.api.auth.router import get_current_user
 from app.db.postgres import get_connection
+from app.services.amplitude import send_amplitude_event
 
 router = APIRouter(prefix="/api/exams", tags=["exams"])
 
@@ -618,6 +619,21 @@ def submit_exam(
                     total_question_count,
                 ),
             )
+
+    send_amplitude_event(
+        event_type="backend_exam_submit_succeeded",
+        user_id=current_user["user_id"],
+        event_properties={
+            "exam_id": exam_id,
+            "attempt_id": attempt["id"],
+            "score_percent": score_percent,
+            "passed": passed,
+            "correct_count": correct_count,
+            "total_question_count": total_question_count,
+            "failed_by_subject_cutoff": failed_by_subject_cutoff,
+        },
+        insert_id=f"exam-submit-{attempt['id']}",
+    )
 
     return {
         "attemptId": attempt["id"],

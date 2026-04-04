@@ -11,6 +11,7 @@ from app.core.security import (
     create_access_token,
     decode_access_token,
 )
+from app.services.amplitude import send_amplitude_event
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 bearer_scheme = HTTPBearer()
@@ -27,6 +28,10 @@ class RegisterRequest(BaseModel):
     password: str
     terms_agreed: bool
     privacy_agreed: bool
+
+
+def extract_email_domain(email: str) -> str:
+    return email.split("@", 1)[1].lower() if "@" in email else ""
 
 
 def get_current_user(
@@ -61,6 +66,14 @@ def register(req: RegisterRequest, request: Request):
     session_id = request.headers.get("x-session-id")
 
     if not req.terms_agreed:
+        send_amplitude_event(
+            event_type="backend_auth_signup_failed",
+            event_properties={
+                "failure_code": "terms_required",
+                "email_domain": extract_email_domain(req.email),
+            },
+            insert_id=request_id,
+        )
         insert_auth_event(
             event_type="signup_failed",
             success=False,
@@ -74,6 +87,14 @@ def register(req: RegisterRequest, request: Request):
         raise HTTPException(status_code=400, detail="terms agreement is required")
 
     if not req.privacy_agreed:
+        send_amplitude_event(
+            event_type="backend_auth_signup_failed",
+            event_properties={
+                "failure_code": "privacy_required",
+                "email_domain": extract_email_domain(req.email),
+            },
+            insert_id=request_id,
+        )
         insert_auth_event(
             event_type="signup_failed",
             success=False,
@@ -160,6 +181,14 @@ def register(req: RegisterRequest, request: Request):
                     (user[0],),
                 )
     except Exception as e:
+        send_amplitude_event(
+            event_type="backend_auth_signup_failed",
+            event_properties={
+                "failure_code": "signup_failed",
+                "email_domain": extract_email_domain(req.email),
+            },
+            insert_id=request_id,
+        )
         insert_auth_event(
             event_type="signup_failed",
             success=False,
@@ -173,6 +202,19 @@ def register(req: RegisterRequest, request: Request):
         )
         raise HTTPException(status_code=400, detail=str(e))
 
+    send_amplitude_event(
+        event_type="backend_auth_signup_succeeded",
+        user_id=str(user[0]),
+        event_properties={
+            "email_domain": extract_email_domain(user[1]),
+            "nickname_present": bool(user[2]),
+        },
+        user_properties={
+            "email": user[1],
+            "nickname": user[2],
+        },
+        insert_id=request_id,
+    )
     insert_auth_event(
         event_type="signup_succeeded",
         success=True,
@@ -212,6 +254,14 @@ def login(req: LoginRequest, request: Request):
             user = cur.fetchone()
 
     if not user:
+        send_amplitude_event(
+            event_type="backend_auth_login_failed",
+            event_properties={
+                "failure_code": "invalid_credentials",
+                "email_domain": extract_email_domain(req.email),
+            },
+            insert_id=request_id,
+        )
         insert_auth_event(
             event_type="login_failed",
             success=False,
@@ -227,6 +277,15 @@ def login(req: LoginRequest, request: Request):
     user_id, email, nickname, password_hash = user
 
     if not verify_password(req.password, password_hash):
+        send_amplitude_event(
+            event_type="backend_auth_login_failed",
+            user_id=str(user_id),
+            event_properties={
+                "failure_code": "invalid_credentials",
+                "email_domain": extract_email_domain(req.email),
+            },
+            insert_id=request_id,
+        )
         insert_auth_event(
             event_type="login_failed",
             success=False,
@@ -246,6 +305,18 @@ def login(req: LoginRequest, request: Request):
         nickname=nickname,
     )
 
+    send_amplitude_event(
+        event_type="backend_auth_login_succeeded",
+        user_id=str(user_id),
+        event_properties={
+            "email_domain": extract_email_domain(email),
+        },
+        user_properties={
+            "email": email,
+            "nickname": nickname,
+        },
+        insert_id=request_id,
+    )
     insert_auth_event(
         event_type="login_succeeded",
         success=True,
@@ -294,6 +365,16 @@ def me(request: Request, current_user: dict = Depends(get_current_user)):
             if row and row[0] is not None:
                 points = int(row[0])
 
+    send_amplitude_event(
+        event_type="backend_auth_restored",
+        user_id=current_user["user_id"],
+        event_properties={"points": points},
+        user_properties={
+            "email": current_user["email"],
+            "nickname": current_user["nickname"],
+        },
+        insert_id=request_id,
+    )
     return {
         "user_id": current_user["user_id"],
         "email": current_user["email"],

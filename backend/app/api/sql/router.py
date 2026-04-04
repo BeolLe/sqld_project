@@ -27,6 +27,7 @@ from app.db.sql_namespaces import (
 )
 from app.core.security import decode_access_token
 from app.services.sql_grading import compare_result_sets
+from app.services.amplitude import send_amplitude_event
 from app.services.slack import send_slack_message
 from app.services.sql_workspace import (
     WorkspaceValidationError,
@@ -422,6 +423,17 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
         validate_statement_shape(query, statement_type)
         validate_query_safety(query)
     except HTTPException as exc:
+        if action == "submit":
+            send_amplitude_event(
+                event_type="backend_sql_submit_failed",
+                user_id=user_id,
+                event_properties={
+                    "practice_id": req.practice_id,
+                    "failure_stage": "validation",
+                    "detail": str(exc.detail),
+                },
+                insert_id=request_id,
+            )
         insert_sql_request(
             request_id=request_id,
             user_id=user_id,
@@ -508,6 +520,19 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
                         rows = []
                 except Exception as exc:
                     elapsed_ms = round((time.perf_counter() - started_at) * 1000)
+                    if action == "submit":
+                        send_amplitude_event(
+                            event_type="backend_sql_submit_failed",
+                            user_id=user_id,
+                            event_properties={
+                                "practice_id": req.practice_id,
+                                "failure_stage": "execution",
+                                "statement_type": statement_type,
+                                "oracle_error_code": extract_oracle_error_code(str(exc)),
+                                "execution_time_ms": elapsed_ms,
+                            },
+                            insert_id=request_id,
+                        )
                     if sql_request_id is not None:
                         insert_sql_response(
                             sql_request_id=sql_request_id,
@@ -686,6 +711,21 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
                     response["grading"] = grading
                     response["awardedPoints"] = awarded_points
                     response["totalPoints"] = total_points
+                    send_amplitude_event(
+                        event_type="backend_sql_submit_succeeded",
+                        user_id=user_id,
+                        event_properties={
+                            "practice_id": req.practice_id,
+                            "is_correct": is_correct,
+                            "reason": grading["reason"] if grading else None,
+                            "comparison_mode": grading["comparisonMode"] if grading else None,
+                            "row_count": len(serialized_rows),
+                            "execution_time_ms": elapsed_ms,
+                            "awarded_points": awarded_points,
+                            "total_points": total_points,
+                        },
+                        insert_id=request_id,
+                    )
 
                 return response
         finally:

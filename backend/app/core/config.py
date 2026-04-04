@@ -19,6 +19,12 @@ class Settings:
     POSTGRES_USER = os.getenv("POSTGRES_USER", "")
     POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
 
+    AMPLITUDE_API_KEY = os.getenv("AMPLITUDE_API_KEY", "")
+    AMPLITUDE_API_URL = os.getenv(
+        "AMPLITUDE_API_URL",
+        "https://api2.amplitude.com/2/httpapi",
+    )
+
     SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 
 
