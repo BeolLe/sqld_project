@@ -153,8 +153,8 @@ export default function DashboardPage() {
       .then((result) => {
         if (!cancelled) setData(result);
       })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'API 호출 실패');
+      .catch(() => {
+        if (!cancelled) setError('학습현황 API가 아직 준비되지 않았습니다.');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

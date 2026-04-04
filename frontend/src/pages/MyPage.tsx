@@ -269,7 +269,7 @@ export default function MyPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setProfileError(err instanceof Error ? err.message : '프로필을 불러오지 못했습니다.');
+          setProfileError('프로필 API가 아직 준비되지 않았습니다.');
         }
       } finally {
         if (!cancelled) setProfileLoading(false);
@@ -399,7 +399,7 @@ export default function MyPage() {
         {/* 프로필 로딩 에러 배너 */}
         {profileError && (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-lg">
-            {profileError} (기본 정보로 표시 중)
+            {profileError} 기본 정보로 표시 중입니다.
           </div>
         )}
 
