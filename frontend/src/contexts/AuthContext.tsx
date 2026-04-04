@@ -23,6 +23,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<AuthResult>;
   signup: (email: string, password: string, nickname?: string, termsAgreed?: boolean, privacyAgreed?: boolean) => Promise<AuthResult>;
   logout: () => void;
+  updatePoints: (points: number) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -44,6 +45,7 @@ interface MeResponse {
   user_id: string;
   email: string;
   nickname: string;
+  points: number;
 }
 
 function toUser(me: MeResponse): User {
@@ -51,7 +53,7 @@ function toUser(me: MeResponse): User {
     id: me.user_id,
     email: me.email,
     nickname: me.nickname,
-    points: 0,
+    points: me.points ?? 0,
     createdAt: new Date().toISOString(),
   };
 }
@@ -101,6 +103,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearStoredAccessToken();
     setUser(null);
     resetAmplitudeUserId();
+  }, []);
+
+  const updatePoints = useCallback((points: number) => {
+    setUser((previousUser) =>
+      previousUser
+        ? {
+            ...previousUser,
+            points,
+          }
+        : previousUser
+    );
   }, []);
 
   const applyAuthenticatedUser = useCallback((me: MeResponse) => {
@@ -181,7 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoggedIn: !!user, isInitializing, login, signup, logout }}
+      value={{ user, isLoggedIn: !!user, isInitializing, login, signup, logout, updatePoints }}
     >
       {children}
     </AuthContext.Provider>

@@ -27,12 +27,15 @@ import { parseDDL, parseInserts } from '../utils/sqlParser';
 import { fetchSQLPractice } from '../api/content';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const ACCESS_TOKEN_KEY = 'solsqld_access_token';
 
 async function executeSQL(query: string, practiceId: string, action: 'execute' | 'submit'): Promise<SQLResult> {
+  const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
   const response = await fetch(`${API_BASE_URL}/sql/execute`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: JSON.stringify({ query, practice_id: practiceId, action }),
   });
@@ -90,7 +93,7 @@ function useResizeDrag(
 export default function SQLPracticePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, updatePoints } = useAuth();
   const [problem, setProblem] = useState<{
     id: string;
     title: string;
@@ -240,8 +243,20 @@ export default function SQLPracticePage() {
       }
 
       logEvent('sql_answer_submitted', { problemId: id, query, isCorrect }, user?.id);
-      if (isCorrect) {
-        logEvent('system_points_awarded', { userId: user?.id, delta: 10, problemId: id, source: 'sql' }, user?.id);
+      if (typeof nextResult.totalPoints === 'number') {
+        updatePoints(nextResult.totalPoints);
+      }
+      if (isCorrect && (nextResult.awardedPoints ?? 0) > 0) {
+        logEvent(
+          'system_points_awarded',
+          {
+            userId: user?.id,
+            delta: nextResult.awardedPoints,
+            problemId: id,
+            source: 'sql',
+          },
+          user?.id
+        );
       }
       setSubmitResult(isCorrect ? 'correct' : 'wrong');
     } catch (caughtError) {
@@ -608,7 +623,9 @@ export default function SQLPracticePage() {
                 </h3>
                 <p className="text-sm text-slate-500 mt-0.5">
                   {submitResult === 'correct'
-                    ? '+10pt를 획득했습니다'
+                    ? (result?.awardedPoints ?? 0) > 0
+                      ? `+${result?.awardedPoints ?? 0}pt를 획득했습니다`
+                      : '이미 포인트를 획득한 문제입니다'
                     : '다시 시도해보세요'}
                 </p>
               </div>

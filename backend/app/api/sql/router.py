@@ -5,6 +5,7 @@ from decimal import Decimal
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 from app.db.logs import (
     ensure_request_id,
@@ -144,6 +145,154 @@ def fetch_expected_result(practice_code: str) -> dict | None:
                 (practice_code,),
             )
             return cur.fetchone()
+
+
+def fetch_practice_for_submission(practice_code: str) -> dict | None:
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    practice_code,
+                    title,
+                    prompt_payload
+                FROM practice.sql_practices
+                WHERE practice_code = %s
+                  AND is_active = true
+                """,
+                (practice_code,),
+            )
+            return cur.fetchone()
+
+
+def record_sql_submission_and_award_points(
+    *,
+    practice_code: str,
+    user_id: str | None,
+    query: str,
+    columns: list[str],
+    rows: list[dict],
+    execution_time_ms: int,
+    is_correct: bool | None,
+    grading: dict | None,
+) -> tuple[int, int | None]:
+    if not user_id:
+        return 0, None
+
+    practice = fetch_practice_for_submission(practice_code)
+    if not practice:
+        return 0, None
+
+    prompt_payload = practice.get("prompt_payload") or {}
+    default_points = 10
+    try:
+        awarded_points = int(prompt_payload.get("points", default_points) or default_points)
+    except (TypeError, ValueError):
+        awarded_points = default_points
+
+    submission_payload = {"source": "submit"}
+    result_payload = {
+        "columns": columns,
+        "rowCount": len(rows),
+        "executionTimeMs": execution_time_ms,
+        "grading": grading,
+    }
+
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM practice.sql_practice_attempts
+                    WHERE practice_id = %s
+                      AND user_id = %s::uuid
+                      AND is_correct = true
+                ) AS already_correct
+                """,
+                (practice["id"], user_id),
+            )
+            row = cur.fetchone()
+            already_correct = bool(row["already_correct"]) if row else False
+
+            cur.execute(
+                """
+                INSERT INTO practice.sql_practice_attempts (
+                    practice_id,
+                    user_id,
+                    status,
+                    submitted_at,
+                    completed_at,
+                    end_reason,
+                    time_spent_seconds,
+                    submitted_sql,
+                    submitted_payload,
+                    result_payload,
+                    is_correct
+                )
+                VALUES (
+                    %s,
+                    %s::uuid,
+                    'completed',
+                    now(),
+                    now(),
+                    'submitted',
+                    0,
+                    %s,
+                    %s,
+                    %s,
+                    %s
+                )
+                """,
+                (
+                    practice["id"],
+                    user_id,
+                    query,
+                    Jsonb(submission_payload),
+                    Jsonb(result_payload),
+                    is_correct,
+                ),
+            )
+
+            if is_correct is True and not already_correct:
+                cur.execute(
+                    """
+                    INSERT INTO dashboard.user_stats (
+                        user_id,
+                        total_points,
+                        total_sql_practice_count,
+                        last_sql_practice_at
+                    )
+                    VALUES (%s::uuid, %s, 1, now())
+                    ON CONFLICT (user_id) DO UPDATE
+                    SET total_points = dashboard.user_stats.total_points + EXCLUDED.total_points,
+                        total_sql_practice_count = dashboard.user_stats.total_sql_practice_count + 1,
+                        last_sql_practice_at = now()
+                    RETURNING total_points
+                    """,
+                    (user_id, awarded_points),
+                )
+                updated_row = cur.fetchone()
+                return awarded_points, (
+                    int(updated_row["total_points"]) if updated_row else awarded_points
+                )
+
+            cur.execute(
+                """
+                INSERT INTO dashboard.user_stats (
+                    user_id,
+                    last_sql_practice_at
+                )
+                VALUES (%s::uuid, now())
+                ON CONFLICT (user_id) DO UPDATE
+                SET last_sql_practice_at = now()
+                RETURNING total_points
+                """,
+                (user_id,),
+            )
+            updated_row = cur.fetchone()
+            return 0, (int(updated_row["total_points"]) if updated_row else None)
 
 
 def resolve_workspace_scope(
@@ -410,6 +559,8 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
                     update_sql_request_status(request_id, "succeeded")
                 is_correct = None
                 grading = None
+                awarded_points = 0
+                total_points = None
 
                 if action == "submit":
                     expected_result = fetch_expected_result(req.practice_id)
@@ -426,6 +577,16 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
                             "reason": "missing_expected_result",
                             "comparisonMode": None,
                         }
+                    awarded_points, total_points = record_sql_submission_and_award_points(
+                        practice_code=req.practice_id,
+                        user_id=user_id,
+                        query=query,
+                        columns=columns,
+                        rows=serialized_rows,
+                        execution_time_ms=elapsed_ms,
+                        is_correct=is_correct,
+                        grading=grading,
+                    )
 
                 insert_learning_event(
                     event_type="sql_submitted" if action == "submit" else "sql_executed",
@@ -523,6 +684,8 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
                 if action == "submit":
                     response["isCorrect"] = is_correct
                     response["grading"] = grading
+                    response["awardedPoints"] = awarded_points
+                    response["totalPoints"] = total_points
 
                 return response
         finally:

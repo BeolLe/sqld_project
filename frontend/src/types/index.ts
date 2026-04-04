@@ -110,6 +110,8 @@ export interface SQLResult {
   executionTimeMs: number;
   error?: string;
   isCorrect?: boolean | null;
+  awardedPoints?: number;
+  totalPoints?: number | null;
   grading?: {
     reason?: string;
     comparisonMode?: 'ordered' | 'unordered' | null;

@@ -279,8 +279,24 @@ def me(request: Request, current_user: dict = Depends(get_current_user)):
         metadata={"nickname": current_user["nickname"]},
     )
 
+    points = 0
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT total_points
+                FROM dashboard.user_stats
+                WHERE user_id = %s
+                """,
+                (current_user["user_id"],),
+            )
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                points = int(row[0])
+
     return {
         "user_id": current_user["user_id"],
         "email": current_user["email"],
         "nickname": current_user["nickname"],
+        "points": points,
     }
