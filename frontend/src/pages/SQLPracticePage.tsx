@@ -231,10 +231,13 @@ export default function SQLPracticePage() {
     try {
       const nextResult = await executeSQL(query, problem.id, 'submit');
       setResult(nextResult);
+      const isCorrect = nextResult.isCorrect === true;
 
-      // 정답 SQL과 정규화 비교 (공백/줄바꿈 무시)
-      const normalize = (s: string) => s.trim().toUpperCase().replace(/\s+/g, ' ');
-      const isCorrect = !nextResult.error && normalize(query) === normalize(problem.answer);
+      if (nextResult.isCorrect == null) {
+        setSubmitResult(null);
+        setExecuteError('채점 기준 결과셋이 아직 준비되지 않았습니다.');
+        return;
+      }
 
       logEvent('sql_answer_submitted', { problemId: id, query, isCorrect }, user?.id);
       if (isCorrect) {

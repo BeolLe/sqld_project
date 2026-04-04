@@ -109,4 +109,12 @@ export interface SQLResult {
   rows: Record<string, string | number | null>[];
   executionTimeMs: number;
   error?: string;
+  isCorrect?: boolean | null;
+  grading?: {
+    reason?: string;
+    comparisonMode?: 'ordered' | 'unordered' | null;
+    userHash?: string;
+    expectedHash?: string;
+    rowCount?: number;
+  } | null;
 }

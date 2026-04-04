@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+from psycopg.rows import dict_row
 
 from app.db.logs import (
     ensure_request_id,
@@ -12,6 +13,7 @@ from app.db.logs import (
     insert_sql_response,
     update_sql_request_status,
 )
+from app.db.postgres import get_connection
 from app.db.oracle import get_oracle_connection
 from app.db.sql_namespaces import (
     delete_namespace,
@@ -21,6 +23,7 @@ from app.db.sql_namespaces import (
     upsert_namespace,
 )
 from app.core.security import decode_access_token
+from app.services.sql_grading import compare_result_sets
 from app.services.sql_workspace import (
     WorkspaceValidationError,
     build_workspace_context,
@@ -112,6 +115,30 @@ def extract_oracle_error_code(message: str) -> str | None:
     if ":" not in message:
         return None
     return message.split(":", 1)[0].strip()
+
+
+def fetch_expected_result(practice_code: str) -> dict | None:
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT
+                    per.id,
+                    per.result_columns,
+                    per.result_rows,
+                    per.row_count,
+                    per.result_hash,
+                    per.comparison_mode
+                FROM practice.sql_practice_expected_results per
+                JOIN practice.sql_practices p
+                  ON p.id = per.practice_id
+                WHERE p.practice_code = %s
+                  AND p.is_active = true
+                  AND per.is_active = true
+                """,
+                (practice_code,),
+            )
+            return cur.fetchone()
 
 
 def resolve_workspace_scope(
@@ -354,6 +381,7 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
                         "rows": [],
                         "executionTimeMs": elapsed_ms,
                         "error": str(exc),
+                        "isCorrect": False if action == "submit" else None,
                     }
 
                 if has_persistent_scope and scope_key:
@@ -375,6 +403,25 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
                         metadata={"action": action, "columns": columns, "statementType": statement_type},
                     )
                     update_sql_request_status(request_id, "succeeded")
+                is_correct = None
+                grading = None
+
+                if action == "submit":
+                    expected_result = fetch_expected_result(req.practice_id)
+                    if expected_result:
+                        is_correct, grading = compare_result_sets(
+                            user_columns=columns,
+                            user_rows=serialized_rows,
+                            expected_columns=expected_result["result_columns"],
+                            expected_rows=expected_result["result_rows"],
+                            comparison_mode=expected_result["comparison_mode"],
+                        )
+                    else:
+                        grading = {
+                            "reason": "missing_expected_result",
+                            "comparisonMode": None,
+                        }
+
                 insert_learning_event(
                     event_type="sql_submitted" if action == "submit" else "sql_executed",
                     content_type="practice",
@@ -383,7 +430,12 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
                     session_id=session_id,
                     request_id=request_id,
                     duration_ms=elapsed_ms,
-                    metadata={"success": True, "row_count": len(serialized_rows)},
+                    is_correct=is_correct,
+                    metadata={
+                        "success": True,
+                        "row_count": len(serialized_rows),
+                        "grading": grading,
+                    },
                 )
 
                 response = {
@@ -393,6 +445,9 @@ def execute_sql(req: SQLExecuteRequest, request: Request):
                 }
                 if not is_read_only_statement(statement_type):
                     response["affectedRows"] = cur.rowcount
+                if action == "submit":
+                    response["isCorrect"] = is_correct
+                    response["grading"] = grading
 
                 return response
         finally:
