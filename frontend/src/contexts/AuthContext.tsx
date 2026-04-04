@@ -70,10 +70,32 @@ function clearStoredAccessToken() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
 }
 
+const ERROR_MESSAGE_MAP: Record<string, string> = {
+  'Email already registered': '이미 가입된 이메일입니다.',
+  'email already registered': '이미 가입된 이메일입니다.',
+  'Invalid credentials': '이메일 또는 비밀번호가 올바르지 않습니다.',
+  'invalid credentials': '이메일 또는 비밀번호가 올바르지 않습니다.',
+  'User not found': '등록되지 않은 사용자입니다.',
+  'user not found': '등록되지 않은 사용자입니다.',
+  'Invalid email or password': '이메일 또는 비밀번호가 올바르지 않습니다.',
+  'Terms must be agreed': '서비스 이용약관에 동의해주세요.',
+  'Privacy policy must be agreed': '개인정보 수집 및 이용에 동의해주세요.',
+  'Password too short': '비밀번호가 너무 짧습니다.',
+  'Invalid email format': '올바른 이메일 형식이 아닙니다.',
+  'Unauthorized': '인증이 만료되었습니다. 다시 로그인해주세요.',
+  'Token expired': '인증이 만료되었습니다. 다시 로그인해주세요.',
+  'Internal server error': '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+};
+
+function translateErrorMessage(message: string): string {
+  return ERROR_MESSAGE_MAP[message] ?? message;
+}
+
 async function parseErrorMessage(response: Response) {
   try {
     const payload = (await response.json()) as ApiErrorPayload;
-    return payload.detail || payload.message || '요청 처리 중 오류가 발생했습니다.';
+    const raw = payload.detail || payload.message || '요청 처리 중 오류가 발생했습니다.';
+    return translateErrorMessage(raw);
   } catch {
     return '요청 처리 중 오류가 발생했습니다.';
   }

@@ -369,10 +369,20 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
+            disabled={loading || (mode === 'signup' && (!termsAgreed || !privacyAgreed))}
+            className={`w-full font-semibold py-3 rounded-lg transition-colors ${
+              mode === 'signup' && (!termsAgreed || !privacyAgreed)
+                ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                : 'bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white'
+            }`}
           >
-            {loading ? '처리 중...' : mode === 'login' ? '로그인' : '회원가입'}
+            {loading
+              ? '처리 중...'
+              : mode === 'login'
+                ? '로그인'
+                : !termsAgreed || !privacyAgreed
+                  ? '약관에 모두 동의해주세요'
+                  : '회원가입'}
           </button>
         </form>
 
