@@ -34,6 +34,11 @@ class Settings:
     SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
     SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
     MAIL_FROM = os.getenv("MAIL_FROM", "")
+    FEEDBACK_ADMIN_USER_IDS = [
+        user_id.strip()
+        for user_id in os.getenv("FEEDBACK_ADMIN_USER_IDS", "").split(",")
+        if user_id.strip()
+    ]
 
 
 settings = Settings()

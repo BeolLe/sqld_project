@@ -495,6 +495,11 @@ export default function ExamTakingPage() {
         <ReportErrorModal
           type="exam_error"
           examId={id}
+          examProblems={problems.map((problem, index) => ({
+            no: index + 1,
+            id: problem.id,
+            title: problem.title,
+          }))}
           totalProblems={problems.length}
           currentProblemNo={currentPage * PROBLEMS_PER_PAGE + 1}
           onClose={() => setShowReportModal(false)}

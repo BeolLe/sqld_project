@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.api.content.router import router as content_router
 from app.api.exams.router import router as exams_router
 from app.api.sql.router import router as sql_router
+from app.api.feedback.router import router as feedback_router
 from app.db.oracle import check_oracle, close_oracle_pool, init_oracle_pool
 from app.db.postgres import check_postgres
 from app.api.auth.router import router as auth_router
@@ -26,6 +27,7 @@ app.include_router(auth_router)
 app.include_router(content_router)
 app.include_router(exams_router)
 app.include_router(sql_router)
+app.include_router(feedback_router)
 
 
 @app.get("/api/health")

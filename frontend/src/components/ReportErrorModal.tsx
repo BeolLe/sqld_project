@@ -14,9 +14,11 @@ interface ReportErrorModalProps {
   type: FeedbackType;
   examId?: string;
   practiceId?: string;
+  problemId?: string;
   problemTitle?: string;
   totalProblems?: number;
   currentProblemNo?: number;
+  examProblems?: Array<{ no: number; id: string; title: string }>;
   onClose: () => void;
 }
 
@@ -24,9 +26,11 @@ export default function ReportErrorModal({
   type,
   examId,
   practiceId,
+  problemId,
   problemTitle,
   totalProblems,
   currentProblemNo,
+  examProblems,
   onClose,
 }: ReportErrorModalProps) {
   const isExam = type === 'exam_error';
@@ -36,6 +40,15 @@ export default function ReportErrorModal({
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const selectedExamProblem = isExam
+    ? examProblems?.find((problem) => problem.no === problemNo)
+    : null;
+  const resolvedProblemTitle = isExam
+    ? selectedExamProblem?.title ?? problemTitle
+    : problemTitle;
+  const resolvedProblemId = isExam
+    ? selectedExamProblem?.id ?? problemId
+    : practiceId;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,7 +71,7 @@ export default function ReportErrorModal({
           title,
           content: content.trim(),
           related_exam_id: examId ?? null,
-          related_problem_id: practiceId ?? null,
+          related_problem_id: resolvedProblemId ?? null,
           related_problem_no: isExam ? problemNo : null,
           error_subtype: subtype,
         }),
@@ -99,7 +112,10 @@ export default function ReportErrorModal({
           <>
             <h2 className="text-xl font-bold text-sqld-navy mb-1">문제 오류 제보</h2>
             {isExam && examId && (
-              <p className="text-sm text-slate-500 mb-4">모의고사 {examId}회</p>
+              <div className="text-sm text-slate-500 mb-4 space-y-1">
+                <p>모의고사 {examId}회 {problemNo}번 문항</p>
+                {resolvedProblemTitle && <p className="text-slate-600">"{resolvedProblemTitle}"</p>}
+              </div>
             )}
             {!isExam && problemTitle && (
               <p className="text-sm text-slate-500 mb-4">{problemTitle}</p>

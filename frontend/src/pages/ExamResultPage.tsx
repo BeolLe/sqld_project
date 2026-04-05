@@ -1,6 +1,8 @@
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Trophy, XCircle, CheckCircle, RotateCcw } from 'lucide-react';
+import { useState } from 'react';
+import { Trophy, XCircle, CheckCircle, RotateCcw, Flag } from 'lucide-react';
 import type { Problem } from '../types';
+import ReportErrorModal from '../components/ReportErrorModal';
 
 interface ResultState {
   score: number;
@@ -28,6 +30,7 @@ export default function ExamResultPage() {
 
   const { score, answers, problems } = state;
   const isPassed = score >= 60;
+  const [reportTarget, setReportTarget] = useState<Problem | null>(null);
 
   const correctList = problems.filter((p) => answers[p.id] === p.answer);
   const wrongList = problems.filter((p) => answers[p.id] !== p.answer);
@@ -85,6 +88,13 @@ export default function ExamResultPage() {
                       <span className="text-emerald-600 font-semibold">정답:</span> {problem.answer}
                       번) {problem.options?.[Number(problem.answer) - 1]}
                     </p>
+                    <button
+                      onClick={() => setReportTarget(problem)}
+                      className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium mt-2"
+                    >
+                      <Flag className="w-3.5 h-3.5" />
+                      오류 제보
+                    </button>
                     <p className="mt-2 text-slate-600 leading-relaxed border-l-2 border-primary-300 pl-3">
                       {problem.explanation}
                     </p>
@@ -112,6 +122,17 @@ export default function ExamResultPage() {
           </button>
         </div>
       </div>
+
+      {reportTarget && (
+        <ReportErrorModal
+          type="exam_error"
+          examId={id}
+          problemId={reportTarget.id}
+          problemTitle={reportTarget.title}
+          currentProblemNo={problems.findIndex((problem) => problem.id === reportTarget.id) + 1}
+          onClose={() => setReportTarget(null)}
+        />
+      )}
     </div>
   );
 }
