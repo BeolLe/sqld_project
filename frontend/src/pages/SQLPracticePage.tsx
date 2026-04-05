@@ -409,6 +409,37 @@ export default function SQLPracticePage() {
                 </span>
               </div>
               <h1 className="text-lg font-bold text-sqld-navy leading-snug">{problem.title}</h1>
+              {(schemas.length > 0 || sampleTables.length > 0) && (
+                <div className="mt-3">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    사용 테이블
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(schemas.length > 0 ? schemas : sampleTables).map((table) => {
+                      const matchedSample = sampleTables.find(
+                        (sampleTable) => sampleTable.tableName === table.tableName
+                      );
+                      const columnCount =
+                        'columns' in table && Array.isArray(table.columns) ? table.columns.length : 0;
+                      const rowCount = matchedSample?.rows.length ?? 0;
+
+                      return (
+                        <div
+                          key={table.tableName}
+                          className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-xs"
+                        >
+                          <Database className="h-3.5 w-3.5 text-primary-600" />
+                          <span className="font-semibold text-primary-800">{table.tableName}</span>
+                          <span className="text-primary-600">
+                            {columnCount}컬럼
+                            {matchedSample ? ` · ${rowCount}행` : ''}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 테이블 구조 섹션 */}
