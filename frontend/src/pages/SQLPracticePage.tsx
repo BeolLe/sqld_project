@@ -27,7 +27,6 @@ import { useAuth } from '../contexts/AuthContext';
 import type { SQLResult, Difficulty } from '../types';
 import { parseDDL, parseInserts } from '../utils/sqlParser';
 import { fetchSQLPractice } from '../api/content';
-import { getPracticeProblemById } from '../data/practice';
 import { getColumnDescription } from '../constants/columnDescriptions';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -155,14 +154,12 @@ export default function SQLPracticePage() {
     fetchSQLPractice(id)
       .then((problemData) => {
         if (!mounted) return;
-        // API에서 schemaSQL/sampleData가 비어있으면 로컬 데이터에서 보충
-        const local = getPracticeProblemById(id);
         setProblem({
           id: problemData.id,
           title: problemData.title,
           description: problemData.description,
-          schema: problemData.schemaSQL || local?.schemaSQL || '',
-          sampleData: problemData.sampleData || local?.sampleData || '',
+          schema: problemData.schemaSQL || '',
+          sampleData: problemData.sampleData || '',
           answer: problemData.answer,
           hint: problemData.explanation,
           difficulty: problemData.difficulty,

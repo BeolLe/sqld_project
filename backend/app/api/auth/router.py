@@ -665,14 +665,77 @@ def delete_account(
             deleted_suffix = current_user["user_id"][:8]
             cur.execute(
                 """
+                INSERT INTO auth.archived_users (
+                    user_id,
+                    email,
+                    nickname,
+                    password_hash,
+                    created_at,
+                    updated_at,
+                    last_login_at,
+                    terms_agreed,
+                    terms_version,
+                    privacy_policy_agreed,
+                    privacy_policy_version,
+                    email_verified,
+                    email_verified_at,
+                    deactivated_at,
+                    archived_at,
+                    archive_reason
+                )
+                SELECT
+                    user_id,
+                    email,
+                    nickname,
+                    password_hash,
+                    created_at,
+                    updated_at,
+                    last_login_at,
+                    terms_agreed,
+                    terms_version,
+                    privacy_policy_agreed,
+                    privacy_policy_version,
+                    email_verified,
+                    email_verified_at,
+                    now(),
+                    now(),
+                    'user_requested_deletion'
+                FROM auth.users
+                WHERE user_id = %s
+                ON CONFLICT (user_id) DO UPDATE
+                SET
+                    email = EXCLUDED.email,
+                    nickname = EXCLUDED.nickname,
+                    password_hash = EXCLUDED.password_hash,
+                    updated_at = EXCLUDED.updated_at,
+                    last_login_at = EXCLUDED.last_login_at,
+                    terms_agreed = EXCLUDED.terms_agreed,
+                    terms_version = EXCLUDED.terms_version,
+                    privacy_policy_agreed = EXCLUDED.privacy_policy_agreed,
+                    privacy_policy_version = EXCLUDED.privacy_policy_version,
+                    email_verified = EXCLUDED.email_verified,
+                    email_verified_at = EXCLUDED.email_verified_at,
+                    deactivated_at = EXCLUDED.deactivated_at,
+                    archived_at = EXCLUDED.archived_at,
+                    archive_reason = EXCLUDED.archive_reason
+                """,
+                (current_user["user_id"],),
+            )
+            cur.execute(
+                """
                 UPDATE auth.users
                 SET
                     is_active = false,
                     deactivated_at = now(),
+                    archived_at = now(),
                     email = %s,
                     nickname = %s,
-                    password_hash = %s
+                    password_hash = %s,
+                    email_verified = false,
+                    email_verified_at = null,
+                    updated_at = now()
                 WHERE user_id = %s
+                RETURNING archived_at
                 """,
                 (
                     f"deleted+{deleted_suffix}@solsqld.local",
@@ -681,6 +744,7 @@ def delete_account(
                     current_user["user_id"],
                 ),
             )
+            cur.fetchone()
 
     return {"message": "account deactivated"}
 

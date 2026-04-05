@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException
@@ -7,11 +8,70 @@ from app.db.postgres import get_connection
 
 router = APIRouter(prefix="/api/content", tags=["content"])
 
+TABLE_REFERENCE_PATTERN = re.compile(
+    r"\b(?:FROM|JOIN|INTO|UPDATE|DELETE\s+FROM|MERGE\s+INTO|TRUNCATE\s+TABLE)\s+([A-Za-z0-9_#$]+)",
+    re.IGNORECASE,
+)
+CREATE_TABLE_PATTERN = re.compile(
+    r"^\s*CREATE\s+TABLE\s+([A-Za-z0-9_#$]+)",
+    re.IGNORECASE,
+)
+INSERT_TABLE_PATTERN = re.compile(
+    r"^\s*INSERT\s+(?:INTO\s+)?([A-Za-z0-9_#$]+)",
+    re.IGNORECASE,
+)
+
 
 def normalize_decimal(value):
     if isinstance(value, Decimal):
         return float(value)
     return value
+
+
+def extract_referenced_tables(query: str) -> set[str]:
+    if not query:
+        return set()
+    return {match.group(1).upper() for match in TABLE_REFERENCE_PATTERN.finditer(query)}
+
+
+def split_sql_statements(sql_text: str) -> list[str]:
+    if not sql_text:
+        return []
+    return [statement.strip() for statement in sql_text.split(";") if statement.strip()]
+
+
+def filter_schema_sql(schema_sql: str, referenced_tables: set[str]) -> str:
+    statements = split_sql_statements(schema_sql)
+    if not statements or not referenced_tables:
+        return schema_sql
+
+    filtered_statements: list[str] = []
+    for statement in statements:
+        match = CREATE_TABLE_PATTERN.match(statement)
+        if not match:
+            continue
+        table_name = match.group(1).upper()
+        if table_name in referenced_tables:
+            filtered_statements.append(f"{statement};")
+
+    return "\n".join(filtered_statements) if filtered_statements else schema_sql
+
+
+def filter_sample_data(sample_data: str, referenced_tables: set[str]) -> str:
+    statements = split_sql_statements(sample_data)
+    if not statements or not referenced_tables:
+        return sample_data
+
+    filtered_statements: list[str] = []
+    for statement in statements:
+        match = INSERT_TABLE_PATTERN.match(statement)
+        if not match:
+            continue
+        table_name = match.group(1).upper()
+        if table_name in referenced_tables:
+            filtered_statements.append(f"{statement};")
+
+    return "\n".join(filtered_statements) if filtered_statements else sample_data
 
 
 def build_exam_problem_payload(row: dict) -> dict:
@@ -38,6 +98,9 @@ def build_exam_problem_payload(row: dict) -> dict:
 def build_practice_problem_payload(row: dict) -> dict:
     prompt_payload = row["prompt_payload"] or {}
     answer_payload = row["answer_payload"] or {}
+    referenced_tables = extract_referenced_tables(row["expected_answer"] or "")
+    schema_sql = filter_schema_sql(prompt_payload.get("schemaSQL") or "", referenced_tables)
+    sample_data = filter_sample_data(prompt_payload.get("sampleData") or "", referenced_tables)
 
     return {
         "id": row["practice_code"],
@@ -51,8 +114,8 @@ def build_practice_problem_payload(row: dict) -> dict:
         else normalize_decimal(row["seed_correct_rate"]),
         "answer": row["expected_answer"],
         "explanation": answer_payload.get("explanation") or row["description"] or "",
-        "schemaSQL": "",
-        "sampleData": "",
+        "schemaSQL": schema_sql,
+        "sampleData": sample_data,
         "points": prompt_payload.get("points", 10),
     }
 
