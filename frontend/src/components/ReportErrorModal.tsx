@@ -64,7 +64,7 @@ export default function ReportErrorModal({
     try {
       setLoading(true);
       setError('');
-      await apiFetch('/api/feedback', {
+      await apiFetch('/feedback', {
         method: 'POST',
         body: JSON.stringify({
           type,

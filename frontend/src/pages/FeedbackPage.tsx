@@ -58,7 +58,7 @@ export default function FeedbackPage() {
     setListLoading(true);
     setListError('');
 
-    apiFetch<{ total: number; items: FeedbackTicket[] }>('/api/feedback')
+    apiFetch<{ total: number; items: FeedbackTicket[] }>('/feedback')
       .then((res) => {
         if (!cancelled) setTickets(res.items);
       })
@@ -87,7 +87,7 @@ export default function FeedbackPage() {
 
     try {
       setSubmitLoading(true);
-      await apiFetch('/api/feedback', {
+      await apiFetch('/feedback', {
         method: 'POST',
         body: JSON.stringify({
           type: feedbackType,

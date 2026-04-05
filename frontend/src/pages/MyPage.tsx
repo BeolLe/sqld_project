@@ -265,7 +265,7 @@ export default function MyPage() {
 
     async function loadProfile() {
       try {
-        const data = await apiFetch<UserProfile>('/api/auth/profile');
+        const data = await apiFetch<UserProfile>('/auth/profile');
         if (!cancelled) {
           setProfile(data);
           setProfileError('');
@@ -307,7 +307,7 @@ export default function MyPage() {
 
     try {
       setNicknameLoading(true);
-      const res = await apiFetch<{ message: string; nickname: string }>('/api/auth/nickname', {
+      const res = await apiFetch<{ message: string; nickname: string }>('/auth/nickname', {
         method: 'PUT',
         body: JSON.stringify({ nickname: trimmed }),
       });
@@ -342,7 +342,7 @@ export default function MyPage() {
 
     try {
       setPasswordLoading(true);
-      await apiFetch<{ message: string }>('/api/auth/password', {
+      await apiFetch<{ message: string }>('/auth/password', {
         method: 'PUT',
         body: JSON.stringify({
           current_password: currentPassword,
@@ -364,7 +364,7 @@ export default function MyPage() {
   async function handleDeleteAccount(password: string) {
     try {
       setDeleteLoading(true);
-      await apiFetch<{ message: string }>('/api/auth/account', {
+      await apiFetch<{ message: string }>('/auth/account', {
         method: 'DELETE',
         body: JSON.stringify({ password }),
       });
@@ -390,7 +390,7 @@ export default function MyPage() {
         message: string;
         deliveryMode?: 'email' | 'inline_token';
         verificationToken?: string;
-      }>('/api/auth/email-verification/send', {
+      }>('/auth/email-verification/send', {
         method: 'POST',
       });
 
@@ -415,7 +415,7 @@ export default function MyPage() {
     try {
       setVerificationLoading(true);
       setVerificationMessage(null);
-      await apiFetch<{ message: string }>('/api/auth/email-verification/confirm', {
+      await apiFetch<{ message: string }>('/auth/email-verification/confirm', {
         method: 'POST',
         body: JSON.stringify({ token }),
       });
