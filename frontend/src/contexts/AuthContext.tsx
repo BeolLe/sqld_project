@@ -86,6 +86,7 @@ const ERROR_MESSAGE_MAP: Record<string, string> = {
   'Unauthorized': '인증이 만료되었습니다. 다시 로그인해주세요.',
   'Token expired': '인증이 만료되었습니다. 다시 로그인해주세요.',
   'Internal server error': '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+  'deactivated account': '비활성화된 계정입니다.',
 };
 
 function translateErrorMessage(message: string): string {

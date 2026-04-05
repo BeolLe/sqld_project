@@ -1,8 +1,13 @@
+from datetime import datetime, timedelta, timezone
+import hashlib
+import secrets
+
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr
 from jwt import ExpiredSignatureError, InvalidTokenError
 
+from app.core.config import settings
 from app.db.logs import ensure_request_id, insert_auth_event
 from app.db.postgres import get_connection
 from app.core.security import (
@@ -12,6 +17,7 @@ from app.core.security import (
     decode_access_token,
 )
 from app.services.amplitude import send_amplitude_event
+from app.services.mailer import send_email
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 bearer_scheme = HTTPBearer()
@@ -28,6 +34,23 @@ class RegisterRequest(BaseModel):
     password: str
     terms_agreed: bool
     privacy_agreed: bool
+
+
+class NicknameUpdateRequest(BaseModel):
+    nickname: str
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str
+
+
+class EmailVerificationConfirmRequest(BaseModel):
+    token: str
 
 
 def extract_email_domain(email: str) -> str:
@@ -47,17 +70,83 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="invalid token")
 
     user_id = payload.get("sub")
-    email = payload.get("email")
-    nickname = payload.get("nickname")
 
-    if not user_id or not email or not nickname:
+    if not user_id:
         raise HTTPException(status_code=401, detail="invalid token payload")
 
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT user_id, email, nickname, is_active, email_verified, email_verified_at
+                FROM auth.users
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            user = cur.fetchone()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="invalid token payload")
+
+    if not user[3]:
+        raise HTTPException(status_code=403, detail="deactivated account")
+
     return {
-        "user_id": user_id,
-        "email": email,
-        "nickname": nickname,
+        "user_id": str(user[0]),
+        "email": user[1],
+        "nickname": user[2],
+        "email_verified": bool(user[4]),
+        "email_verified_at": user[5].isoformat() if user[5] else None,
     }
+
+
+def hash_verification_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def create_email_verification(
+    *,
+    cur,
+    user_id: str,
+    email: str,
+    purpose: str = "signup_verify",
+) -> tuple[str, datetime]:
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hash_verification_token(raw_token)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+
+    cur.execute(
+        """
+        UPDATE auth.email_verifications
+        SET used_at = now()
+        WHERE user_id = %s
+          AND email = %s
+          AND purpose = %s
+          AND used_at IS NULL
+        """,
+        (user_id, email, purpose),
+    )
+    cur.execute(
+        """
+        INSERT INTO auth.email_verifications (
+            user_id,
+            email,
+            purpose,
+            token_hash,
+            expires_at
+        )
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        (user_id, email, purpose, token_hash, expires_at),
+    )
+    return raw_token, expires_at
+
+
+def build_verification_url(token: str) -> str | None:
+    if not settings.APP_PUBLIC_BASE_URL:
+        return None
+    return f"{settings.APP_PUBLIC_BASE_URL}/mypage?verifyToken={token}"
 
 
 @router.post("/register")
@@ -108,6 +197,10 @@ def register(req: RegisterRequest, request: Request):
         raise HTTPException(status_code=400, detail="privacy agreement is required")
 
     hashed_password = hash_password(req.password)
+
+    verification_token: str | None = None
+    verification_url: str | None = None
+    verification_email_sent = False
 
     try:
         with get_connection() as conn:
@@ -180,6 +273,12 @@ def register(req: RegisterRequest, request: Request):
                     """,
                     (user[0],),
                 )
+                verification_token, _ = create_email_verification(
+                    cur=cur,
+                    user_id=str(user[0]),
+                    email=user[1],
+                )
+                verification_url = build_verification_url(verification_token)
     except Exception as e:
         send_amplitude_event(
             event_type="backend_auth_signup_failed",
@@ -226,6 +325,21 @@ def register(req: RegisterRequest, request: Request):
         metadata={"nickname": user[2]},
     )
 
+    if verification_token:
+        email_body_lines = [
+            "SolSQLD 이메일 인증을 완료해주세요.",
+            "",
+            f"인증 링크: {verification_url}" if verification_url else "",
+            f"인증 토큰: {verification_token}",
+            "",
+            "링크 또는 토큰은 24시간 동안 유효합니다.",
+        ]
+        verification_email_sent = send_email(
+            to_email=user[1],
+            subject="[SolSQLD] 이메일 인증을 완료해주세요",
+            text_content="\n".join(line for line in email_body_lines if line),
+        )
+
     return {
         "message": "user created",
         "user": {
@@ -233,6 +347,16 @@ def register(req: RegisterRequest, request: Request):
             "email": user[1],
             "nickname": user[2],
         },
+        "email_verification_required": True,
+        "delivery_mode": "email" if verification_email_sent else "inline_token",
+        **(
+            {
+                "verification_token": verification_token,
+                "verification_url": verification_url,
+            }
+            if verification_token and not verification_email_sent
+            else {}
+        ),
     }
 
 
@@ -245,7 +369,7 @@ def login(req: LoginRequest, request: Request):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT user_id, email, nickname, password_hash
+                SELECT user_id, email, nickname, password_hash, is_active
                 FROM auth.users
                 WHERE email = %s
                 """,
@@ -274,7 +398,10 @@ def login(req: LoginRequest, request: Request):
         )
         raise HTTPException(status_code=401, detail="invalid credentials")
 
-    user_id, email, nickname, password_hash = user
+    user_id, email, nickname, password_hash, is_active = user
+
+    if not is_active:
+        raise HTTPException(status_code=403, detail="deactivated account")
 
     if not verify_password(req.password, password_hash):
         send_amplitude_event(
@@ -351,19 +478,28 @@ def me(request: Request, current_user: dict = Depends(get_current_user)):
     )
 
     points = 0
+    email_verified = current_user["email_verified"]
+    email_verified_at = current_user["email_verified_at"]
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT total_points
-                FROM dashboard.user_stats
-                WHERE user_id = %s
+                SELECT
+                    COALESCE(ds.total_points, 0) AS total_points,
+                    u.email_verified,
+                    u.email_verified_at
+                FROM auth.users u
+                LEFT JOIN dashboard.user_stats ds
+                  ON ds.user_id = u.user_id
+                WHERE u.user_id = %s
                 """,
                 (current_user["user_id"],),
             )
             row = cur.fetchone()
-            if row and row[0] is not None:
-                points = int(row[0])
+            if row:
+                points = int(row[0] or 0)
+                email_verified = bool(row[1])
+                email_verified_at = row[2].isoformat() if row[2] else None
 
     send_amplitude_event(
         event_type="backend_auth_restored",
@@ -380,4 +516,267 @@ def me(request: Request, current_user: dict = Depends(get_current_user)):
         "email": current_user["email"],
         "nickname": current_user["nickname"],
         "points": points,
+        "emailVerified": email_verified,
+        "emailVerifiedAt": email_verified_at,
+    }
+
+
+@router.get("/profile")
+def get_profile(current_user: dict = Depends(get_current_user)):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    u.email,
+                    u.nickname,
+                    u.created_at,
+                    COALESCE(ds.total_points, 0) AS total_points,
+                    MAX(uc.consented_at) FILTER (WHERE cv.consent_type = 'terms') AS terms_agreed_at,
+                    MAX(uc.consented_at) FILTER (WHERE cv.consent_type = 'privacy_policy') AS privacy_agreed_at,
+                    u.email_verified,
+                    u.email_verified_at
+                FROM auth.users u
+                LEFT JOIN dashboard.user_stats ds
+                  ON ds.user_id = u.user_id
+                LEFT JOIN auth.user_consents uc
+                  ON uc.user_id = u.user_id AND uc.agreed = true
+                LEFT JOIN auth.consent_versions cv
+                  ON cv.id = uc.consent_version_id
+                WHERE u.user_id = %s
+                GROUP BY
+                    u.email,
+                    u.nickname,
+                    u.created_at,
+                    ds.total_points,
+                    u.email_verified,
+                    u.email_verified_at
+                """,
+                (current_user["user_id"],),
+            )
+            row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="profile not found")
+
+    return {
+        "email": row[0],
+        "nickname": row[1],
+        "createdAt": row[2].isoformat() if row[2] else None,
+        "points": int(row[3] or 0),
+        "termsAgreedAt": row[4].isoformat() if row[4] else None,
+        "privacyAgreedAt": row[5].isoformat() if row[5] else None,
+        "emailVerified": bool(row[6]),
+        "emailVerifiedAt": row[7].isoformat() if row[7] else None,
+    }
+
+
+@router.put("/nickname")
+def update_nickname(
+    req: NicknameUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    nickname = req.nickname.strip()
+    if not nickname:
+        raise HTTPException(status_code=400, detail="닉네임을 입력해주세요.")
+    if len(nickname) > 20:
+        raise HTTPException(status_code=400, detail="닉네임은 20자 이내로 입력해주세요.")
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE auth.users
+                    SET nickname = %s
+                    WHERE user_id = %s
+                    RETURNING nickname
+                    """,
+                    (nickname, current_user["user_id"]),
+                )
+                row = cur.fetchone()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if not row:
+        raise HTTPException(status_code=404, detail="user not found")
+
+    return {
+        "message": "nickname updated",
+        "nickname": row[0],
+    }
+
+
+@router.put("/password")
+def update_password(
+    req: PasswordChangeRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="새 비밀번호는 8자 이상이어야 합니다.")
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT password_hash
+                FROM auth.users
+                WHERE user_id = %s
+                """,
+                (current_user["user_id"],),
+            )
+            row = cur.fetchone()
+
+            if not row or not verify_password(req.current_password, row[0]):
+                raise HTTPException(status_code=401, detail="현재 비밀번호가 올바르지 않습니다.")
+
+            cur.execute(
+                """
+                UPDATE auth.users
+                SET password_hash = %s
+                WHERE user_id = %s
+                """,
+                (hash_password(req.new_password), current_user["user_id"]),
+            )
+
+    return {"message": "password updated"}
+
+
+@router.delete("/account")
+def delete_account(
+    req: DeleteAccountRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT password_hash
+                FROM auth.users
+                WHERE user_id = %s
+                """,
+                (current_user["user_id"],),
+            )
+            row = cur.fetchone()
+
+            if not row or not verify_password(req.password, row[0]):
+                raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
+
+            deleted_suffix = current_user["user_id"][:8]
+            cur.execute(
+                """
+                UPDATE auth.users
+                SET
+                    is_active = false,
+                    deactivated_at = now(),
+                    email = %s,
+                    nickname = %s,
+                    password_hash = %s
+                WHERE user_id = %s
+                """,
+                (
+                    f"deleted+{deleted_suffix}@solsqld.local",
+                    f"deleted_{deleted_suffix}",
+                    hash_password(secrets.token_urlsafe(24)),
+                    current_user["user_id"],
+                ),
+            )
+
+    return {"message": "account deactivated"}
+
+
+@router.post("/email-verification/send")
+def send_email_verification(current_user: dict = Depends(get_current_user)):
+    if current_user["email_verified"]:
+        return {
+            "message": "이미 이메일 인증이 완료되었습니다.",
+            "emailVerified": True,
+        }
+
+    verification_token: str | None = None
+    verification_url: str | None = None
+    email_sent = False
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            verification_token, _ = create_email_verification(
+                cur=cur,
+                user_id=current_user["user_id"],
+                email=current_user["email"],
+            )
+            verification_url = build_verification_url(verification_token)
+
+    if verification_token:
+        email_body_lines = [
+            "SolSQLD 이메일 인증을 완료해주세요.",
+            "",
+            f"인증 링크: {verification_url}" if verification_url else "",
+            f"인증 토큰: {verification_token}",
+            "",
+            "링크 또는 토큰은 24시간 동안 유효합니다.",
+        ]
+        email_sent = send_email(
+            to_email=current_user["email"],
+            subject="[SolSQLD] 이메일 인증을 완료해주세요",
+            text_content="\n".join(line for line in email_body_lines if line),
+        )
+
+    return {
+        "message": "인증 메일이 준비되었습니다." if email_sent else "개발 환경용 인증 토큰이 발급되었습니다.",
+        "emailVerified": False,
+        "deliveryMode": "email" if email_sent else "inline_token",
+        **(
+            {
+                "verificationToken": verification_token,
+                "verificationUrl": verification_url,
+            }
+            if verification_token and not email_sent
+            else {}
+        ),
+    }
+
+
+@router.post("/email-verification/confirm")
+def confirm_email_verification(req: EmailVerificationConfirmRequest):
+    token_hash = hash_verification_token(req.token.strip())
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT user_id, email
+                FROM auth.email_verifications
+                WHERE token_hash = %s
+                  AND used_at IS NULL
+                  AND expires_at > now()
+                """,
+                (token_hash,),
+            )
+            row = cur.fetchone()
+
+            if not row:
+                raise HTTPException(status_code=400, detail="유효하지 않거나 만료된 인증 토큰입니다.")
+
+            cur.execute(
+                """
+                UPDATE auth.email_verifications
+                SET used_at = now()
+                WHERE token_hash = %s
+                """,
+                (token_hash,),
+            )
+            cur.execute(
+                """
+                UPDATE auth.users
+                SET email_verified = true,
+                    email_verified_at = now()
+                WHERE user_id = %s
+                """,
+                (row[0],),
+            )
+
+    return {
+        "message": "이메일 인증이 완료되었습니다.",
+        "email": row[1],
+        "emailVerified": True,
     }

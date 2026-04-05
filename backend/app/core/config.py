@@ -6,6 +6,7 @@ class Settings:
     APP_ENV = os.getenv("APP_ENV", "local")
     APP_HOST = os.getenv("APP_HOST", "0.0.0.0")
     APP_PORT = int(os.getenv("APP_PORT", "8000"))
+    APP_PUBLIC_BASE_URL = os.getenv("APP_PUBLIC_BASE_URL", "").rstrip("/")
 
     ORACLE_USER = os.getenv("ORACLE_USER", "")
     ORACLE_PASSWORD = os.getenv("ORACLE_PASSWORD", "")
@@ -26,6 +27,13 @@ class Settings:
     )
 
     SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
+
+    SMTP_HOST = os.getenv("SMTP_HOST", "")
+    SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
+    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+    SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
+    MAIL_FROM = os.getenv("MAIL_FROM", "")
 
 
 settings = Settings()

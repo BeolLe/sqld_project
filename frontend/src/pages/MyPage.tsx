@@ -232,6 +232,9 @@ export default function MyPage() {
   const [newNickname, setNewNickname] = useState('');
   const [nicknameLoading, setNicknameLoading] = useState(false);
   const [nicknameMessage, setNicknameMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [verificationLoading, setVerificationLoading] = useState(false);
+  const [verificationToken, setVerificationToken] = useState('');
+  const [verificationMessage, setVerificationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // 비밀번호 변경
   const [currentPassword, setCurrentPassword] = useState('');
@@ -278,6 +281,16 @@ export default function MyPage() {
 
     loadProfile();
     return () => { cancelled = true; };
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const params = new URLSearchParams(window.location.search);
+    const tokenFromUrl = params.get('verifyToken');
+    if (tokenFromUrl) {
+      setVerificationToken(tokenFromUrl);
+      window.history.replaceState({}, '', '/mypage');
+    }
   }, [isLoggedIn]);
 
   // 닉네임 변경
@@ -369,6 +382,61 @@ export default function MyPage() {
     }
   }
 
+  async function handleSendVerification() {
+    try {
+      setVerificationLoading(true);
+      setVerificationMessage(null);
+      const res = await apiFetch<{
+        message: string;
+        deliveryMode?: 'email' | 'inline_token';
+        verificationToken?: string;
+      }>('/api/auth/email-verification/send', {
+        method: 'POST',
+      });
+
+      if (res.verificationToken) {
+        setVerificationToken(res.verificationToken);
+      }
+      setVerificationMessage({ type: 'success', text: res.message });
+    } catch (err) {
+      setVerificationMessage({ type: 'error', text: err instanceof Error ? err.message : '인증 메일 재발송에 실패했습니다.' });
+    } finally {
+      setVerificationLoading(false);
+    }
+  }
+
+  async function handleConfirmVerification(tokenOverride?: string) {
+    const token = (tokenOverride ?? verificationToken).trim();
+    if (!token) {
+      setVerificationMessage({ type: 'error', text: '인증 토큰을 입력해주세요.' });
+      return;
+    }
+
+    try {
+      setVerificationLoading(true);
+      setVerificationMessage(null);
+      await apiFetch<{ message: string }>('/api/auth/email-verification/confirm', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+      });
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              emailVerified: true,
+              emailVerifiedAt: new Date().toISOString(),
+            }
+          : prev
+      );
+      setVerificationToken('');
+      setVerificationMessage({ type: 'success', text: '이메일 인증이 완료되었습니다.' });
+    } catch (err) {
+      setVerificationMessage({ type: 'error', text: err instanceof Error ? err.message : '이메일 인증에 실패했습니다.' });
+    } finally {
+      setVerificationLoading(false);
+    }
+  }
+
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -386,6 +454,8 @@ export default function MyPage() {
   const displayPoints = profile?.points ?? user.points;
   const displayTermsAgreedAt = profile?.termsAgreedAt ?? null;
   const displayPrivacyAgreedAt = profile?.privacyAgreedAt ?? null;
+  const displayEmailVerified = profile?.emailVerified ?? false;
+  const displayEmailVerifiedAt = profile?.emailVerifiedAt ?? null;
 
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4">
@@ -417,6 +487,55 @@ export default function MyPage() {
                 <dt className="w-28 text-slate-500 font-medium">이메일</dt>
                 <dd className="text-slate-800">{displayEmail}</dd>
               </div>
+              <div className="flex items-center gap-3">
+                <dt className="w-28 text-slate-500 font-medium">이메일 인증</dt>
+                <dd className={displayEmailVerified ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>
+                  {displayEmailVerified ? '인증 완료' : '미인증'}
+                </dd>
+                {!displayEmailVerified && (
+                  <button
+                    onClick={handleSendVerification}
+                    disabled={verificationLoading}
+                    className="text-sm text-primary-600 hover:text-primary-700 disabled:opacity-50"
+                  >
+                    {verificationLoading ? '처리 중...' : '인증 메일 재발송'}
+                  </button>
+                )}
+              </div>
+              {displayEmailVerifiedAt && (
+                <div className="flex items-center">
+                  <dt className="w-28 text-slate-500 font-medium">인증 완료일</dt>
+                  <dd className="text-slate-800">{formatDate(displayEmailVerifiedAt)}</dd>
+                </div>
+              )}
+              {!displayEmailVerified && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-sm text-amber-800">
+                    아직 이메일 인증이 완료되지 않았습니다. 메일이 오지 않는 환경에서는 아래 토큰으로 직접 인증할 수 있습니다.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      type="text"
+                      value={verificationToken}
+                      onChange={(e) => setVerificationToken(e.target.value)}
+                      placeholder="인증 토큰 입력"
+                      className="flex-1 border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                    <button
+                      onClick={() => handleConfirmVerification()}
+                      disabled={verificationLoading}
+                      className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg"
+                    >
+                      인증 완료
+                    </button>
+                  </div>
+                </div>
+              )}
+              {verificationMessage && (
+                <p className={`text-sm px-3 py-2 rounded-lg ${verificationMessage.type === 'success' ? 'text-emerald-700 bg-emerald-50' : 'text-red-600 bg-red-50'}`}>
+                  {verificationMessage.text}
+                </p>
+              )}
               <div className="flex items-center gap-2">
                 <dt className="w-28 text-slate-500 font-medium">닉네임</dt>
                 {editingNickname ? (
