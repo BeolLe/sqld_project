@@ -213,7 +213,7 @@ def register(req: RegisterRequest, request: Request):
                             MAX(version) FILTER (WHERE consent_type = 'privacy_policy') AS privacy_version
                         FROM auth.consent_versions
                         WHERE is_active = true
-                    ),
+                    )
                     INSERT INTO auth.users (
                         email,
                         nickname,
