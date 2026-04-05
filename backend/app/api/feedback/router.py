@@ -9,6 +9,7 @@ from app.api.auth.router import get_current_user
 from app.core.config import settings
 from app.db.postgres import get_connection
 from app.services.amplitude import send_amplitude_event
+from app.services.slack import send_slack_message
 
 router = APIRouter(prefix="/api", tags=["feedback"])
 
@@ -52,6 +53,85 @@ def serialize_ticket(row: tuple) -> dict:
 def ensure_feedback_admin(current_user: dict) -> None:
     if current_user["user_id"] not in settings.FEEDBACK_ADMIN_USER_IDS:
         raise HTTPException(status_code=403, detail="admin access required")
+
+
+def build_feedback_admin_url(ticket_id: str) -> str | None:
+    if not settings.APP_PUBLIC_BASE_URL:
+        return None
+    return f"{settings.APP_PUBLIC_BASE_URL}/admin/feedback?ticket_id={ticket_id}"
+
+
+def notify_feedback_slack(
+    *,
+    ticket_id: str,
+    current_user: dict,
+    req: FeedbackCreateRequest,
+) -> None:
+    webhook_url = settings.FEEDBACK_SLACK_WEBHOOK_URL
+    if not webhook_url:
+        return
+
+    admin_url = build_feedback_admin_url(ticket_id)
+    info_lines = [
+        f"*유형* `{req.type}`",
+        f"*사용자* `{current_user['nickname']}` <{current_user['email']}>",
+        f"*제목* {req.title.strip()}",
+    ]
+    if req.error_subtype:
+        info_lines.append(f"*오류 유형* `{req.error_subtype}`")
+    if req.related_exam_id:
+        info_lines.append(f"*모의고사* `{req.related_exam_id}`")
+    if req.related_problem_id:
+        info_lines.append(f"*문제 ID* `{req.related_problem_id}`")
+    if req.related_problem_no is not None:
+        info_lines.append(f"*문항 번호* `{req.related_problem_no}`")
+
+    blocks: list[dict] = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "새 피드백이 접수되었습니다"},
+        },
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "\n".join(info_lines)},
+        },
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"*내용*\n{req.content.strip()}"},
+        },
+    ]
+
+    if admin_url:
+        blocks.append(
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "관리자 페이지 열기"},
+                        "url": admin_url,
+                    }
+                ],
+            }
+        )
+    else:
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "관리자 페이지 링크는 아직 연결되지 않았습니다. `/admin/feedback` 플레이스홀더만 준비된 상태입니다.",
+                    }
+                ],
+            }
+        )
+
+    send_slack_message(
+        text=f"[피드백] {req.type} - {req.title.strip()}",
+        blocks=blocks,
+        webhook_url=webhook_url,
+    )
 
 
 @router.post("/feedback", status_code=201)
@@ -113,6 +193,11 @@ def create_feedback(
             "nickname": current_user["nickname"],
         },
         insert_id=str(ticket_id),
+    )
+    notify_feedback_slack(
+        ticket_id=str(ticket_id),
+        current_user=current_user,
+        req=req,
     )
 
     return {

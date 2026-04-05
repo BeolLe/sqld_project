@@ -27,6 +27,7 @@ class Settings:
     )
 
     SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
+    FEEDBACK_SLACK_WEBHOOK_URL = os.getenv("FEEDBACK_SLACK_WEBHOOK_URL", "")
 
     SMTP_HOST = os.getenv("SMTP_HOST", "")
     SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))

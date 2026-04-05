@@ -10,9 +10,14 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
-def send_slack_message(*, text: str, blocks: list[dict[str, Any]] | None = None) -> bool:
-    webhook_url = settings.SLACK_WEBHOOK_URL
-    if not webhook_url:
+def send_slack_message(
+    *,
+    text: str,
+    blocks: list[dict[str, Any]] | None = None,
+    webhook_url: str | None = None,
+) -> bool:
+    target_webhook_url = webhook_url or settings.SLACK_WEBHOOK_URL
+    if not target_webhook_url:
         logger.info("slack webhook not configured; skipping notification")
         return False
 
@@ -22,7 +27,7 @@ def send_slack_message(*, text: str, blocks: list[dict[str, Any]] | None = None)
 
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = request.Request(
-        webhook_url,
+        target_webhook_url,
         data=data,
         headers={"Content-Type": "application/json; charset=utf-8"},
         method="POST",
