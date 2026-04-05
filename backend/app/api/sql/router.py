@@ -2,11 +2,12 @@ import time
 from datetime import date, datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from app.api.auth.router import get_current_user
 from app.db.logs import (
     ensure_request_id,
     insert_learning_event,
@@ -296,6 +297,29 @@ def record_sql_submission_and_award_points(
             return 0, (int(updated_row["total_points"]) if updated_row else None)
 
 
+def fetch_latest_submitted_query(*, practice_code: str, user_id: str) -> str | None:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT spa.submitted_sql
+                FROM practice.sql_practice_attempts spa
+                JOIN practice.sql_practices sp
+                  ON sp.id = spa.practice_id
+                WHERE sp.practice_code = %s
+                  AND spa.user_id = %s::uuid
+                  AND spa.submitted_sql IS NOT NULL
+                  AND btrim(spa.submitted_sql) <> ''
+                ORDER BY COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at) DESC,
+                         spa.id DESC
+                LIMIT 1
+                """,
+                (practice_code, user_id),
+            )
+            row = cur.fetchone()
+            return str(row[0]) if row and row[0] else None
+
+
 def resolve_workspace_scope(
     request: Request,
     practice_id: str,
@@ -357,7 +381,11 @@ def sync_namespace_lifecycle(
 
 
 @router.post("/workspace/init")
-def init_workspace(req: SQLWorkspaceRequest, request: Request):
+def init_workspace(
+    req: SQLWorkspaceRequest,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
     request_id = ensure_request_id(request.headers.get("x-request-id"))
     workspace, session_id, user_id, scope_key = resolve_workspace_scope(
         request=request,
@@ -387,7 +415,11 @@ def init_workspace(req: SQLWorkspaceRequest, request: Request):
 
 
 @router.post("/workspace/cleanup")
-def cleanup_workspace(req: SQLWorkspaceRequest, request: Request):
+def cleanup_workspace(
+    req: SQLWorkspaceRequest,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
     request_id = ensure_request_id(request.headers.get("x-request-id"))
     workspace, session_id, user_id, scope_key = resolve_workspace_scope(
         request=request,
@@ -409,8 +441,24 @@ def cleanup_workspace(req: SQLWorkspaceRequest, request: Request):
     }
 
 
+@router.get("/practices/{practice_id}/latest-submission")
+def get_latest_submission(practice_id: str, current_user: dict = Depends(get_current_user)):
+    submitted_sql = fetch_latest_submitted_query(
+        practice_code=practice_id,
+        user_id=current_user["user_id"],
+    )
+    return {
+        "practiceId": practice_id,
+        "submittedSql": submitted_sql or "",
+    }
+
+
 @router.post("/execute")
-def execute_sql(req: SQLExecuteRequest, request: Request):
+def execute_sql(
+    req: SQLExecuteRequest,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
     request_id = ensure_request_id(request.headers.get("x-request-id"))
     session_id = request.headers.get("x-session-id")
     user_id = extract_user_id(request)

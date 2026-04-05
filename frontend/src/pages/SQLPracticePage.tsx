@@ -33,6 +33,24 @@ import { getColumnDescription } from '../constants/columnDescriptions';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const ACCESS_TOKEN_KEY = 'solsqld_access_token';
 
+async function fetchLatestSubmittedQuery(practiceId: string): Promise<string> {
+  const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+  const response = await fetch(`${API_BASE_URL}/sql/practices/${practiceId}/latest-submission`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(payload?.detail || '마지막 제출 쿼리를 불러오지 못했습니다.');
+  }
+
+  const payload = (await response.json()) as { submittedSql?: string };
+  return payload.submittedSql ?? '';
+}
+
 async function executeSQL(query: string, practiceId: string, action: 'execute' | 'submit'): Promise<SQLResult> {
   const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
   const response = await fetch(`${API_BASE_URL}/sql/execute`, {
@@ -111,6 +129,23 @@ export default function SQLPracticePage() {
     correctRate: number;
   } | null>(null);
   const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    if (!id || !user) return;
+
+    let mounted = true;
+
+    fetchLatestSubmittedQuery(id)
+      .then((submittedSql) => {
+        if (!mounted || !submittedSql.trim()) return;
+        setQuery(submittedSql);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      mounted = false;
+    };
+  }, [id, user]);
 
   useEffect(() => {
     if (!id) return;
@@ -282,6 +317,22 @@ export default function SQLPracticePage() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <p className="text-slate-500 mb-4">{loadError || '문제를 불러오는 중입니다.'}</p>
+          <button
+            onClick={() => navigate('/sql-practice')}
+            className="text-primary-600 hover:underline"
+          >
+            목록으로
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <p className="text-slate-500 mb-4">SQL 실습은 로그인 후 이용할 수 있습니다.</p>
           <button
             onClick={() => navigate('/sql-practice')}
             className="text-primary-600 hover:underline"
