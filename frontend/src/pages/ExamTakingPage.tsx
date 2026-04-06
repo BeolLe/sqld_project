@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, ChevronLeft, ChevronRight, Database, Flag } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Database, Flag, StickyNote, X } from 'lucide-react';
 import CountdownTimer from '../components/CountdownTimer';
 import Notepad from '../components/Notepad';
 import ReportErrorModal from '../components/ReportErrorModal';
@@ -113,6 +113,7 @@ export default function ExamTakingPage() {
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [exitTarget, setExitTarget] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
+  const [showMobileNotepad, setShowMobileNotepad] = useState(false);
 
   const totalPages = Math.ceil(problems.length / PROBLEMS_PER_PAGE);
   const pageProblems = useMemo(
@@ -316,14 +317,14 @@ export default function ExamTakingPage() {
 
       {/* 시험 정보 바 */}
       <div className="sticky top-12 z-30 bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="text-sm font-semibold text-sqld-navy">
-            SQLD 모의고사 {id}회 &nbsp;
+        <div className="max-w-6xl mx-auto px-2 md:px-4 h-12 md:h-14 flex items-center justify-between">
+          <div className="text-xs md:text-sm font-semibold text-sqld-navy truncate">
+            SQLD {id}회 &nbsp;
             <span className="text-slate-400 font-normal">
-              {answeredCount}/{problems.length}문제 답변
+              {answeredCount}/{problems.length}
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3 shrink-0">
             <CountdownTimer
               totalSeconds={remainingSeconds ?? 0}
               onExpire={handleSubmit}
@@ -339,7 +340,7 @@ export default function ExamTakingPage() {
             </button>
             <button
               onClick={() => setShowSubmitConfirm(true)}
-              className="bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors"
+              className="bg-primary-600 hover:bg-primary-700 text-white text-xs md:text-sm font-bold px-3 md:px-5 py-1.5 md:py-2 rounded-lg transition-colors"
             >
               최종 제출
             </button>
@@ -348,37 +349,36 @@ export default function ExamTakingPage() {
       </div>
 
       {/* A4 스케일 레이아웃 + 사이드 메모장 */}
-      <div className="max-w-6xl mx-auto px-4 mt-6 flex gap-5">
+      <div className="max-w-6xl mx-auto px-2 md:px-4 mt-4 md:mt-6 flex gap-5 pb-20 md:pb-6">
         {/* A4 영역 + 좌우 네비게이션 */}
         <div className="flex-1 min-w-0 relative">
-          {/* 왼쪽 페이지 넘기기 버튼 */}
+          {/* 좌우 페이지 넘기기 버튼 — 데스크탑만 */}
           {currentPage > 0 && (
             <button
               onClick={() => goToPage(currentPage - 1)}
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-20 w-9 h-16 flex items-center justify-center bg-sqld-navy/20 hover:bg-sqld-navy/40 text-sqld-navy/60 hover:text-sqld-navy shadow-sm hover:shadow-md rounded-r-lg transition-all duration-200"
+              className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-20 w-9 h-16 items-center justify-center bg-sqld-navy/20 hover:bg-sqld-navy/40 text-sqld-navy/60 hover:text-sqld-navy shadow-sm hover:shadow-md rounded-r-lg transition-all duration-200"
               aria-label="이전 페이지"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
           )}
 
-          {/* 오른쪽 페이지 넘기기 버튼 */}
           {currentPage < totalPages - 1 && (
             <button
               onClick={() => goToPage(currentPage + 1)}
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-20 w-9 h-16 flex items-center justify-center bg-sqld-navy/20 hover:bg-sqld-navy/40 text-sqld-navy/60 hover:text-sqld-navy shadow-sm hover:shadow-md rounded-l-lg transition-all duration-200"
+              className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-20 w-9 h-16 items-center justify-center bg-sqld-navy/20 hover:bg-sqld-navy/40 text-sqld-navy/60 hover:text-sqld-navy shadow-sm hover:shadow-md rounded-l-lg transition-all duration-200"
               aria-label="다음 페이지"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
           )}
 
-          <div className="w-a4 min-h-a4 bg-white shadow-xl mx-auto p-12 rounded-sm border border-slate-300">
+          <div className="w-full md:w-a4 min-h-0 md:min-h-a4 bg-white shadow-xl mx-auto p-5 md:p-12 rounded-sm border border-slate-300">
             {/* 헤더는 첫 페이지에만 */}
             {currentPage === 0 && (
-              <div className="text-center mb-8 pb-4 border-b-2 border-sqld-navy">
-                <h1 className="text-xl font-bold text-sqld-navy">SQLD 모의고사 {id}회</h1>
-                <p className="text-sm text-slate-500 mt-1">
+              <div className="text-center mb-6 md:mb-8 pb-4 border-b-2 border-sqld-navy">
+                <h1 className="text-lg md:text-xl font-bold text-sqld-navy">SQLD 모의고사 {id}회</h1>
+                <p className="text-xs md:text-sm text-slate-500 mt-1">
                   총 {problems.length}문항 · 제한시간 90분 · 60점 이상 합격
                 </p>
               </div>
@@ -386,7 +386,7 @@ export default function ExamTakingPage() {
 
             {/* 페이지 상단 번호 표시 (2페이지부터) */}
             {currentPage > 0 && (
-              <div className="text-right text-xs text-slate-400 mb-6">
+              <div className="text-right text-xs text-slate-400 mb-4 md:mb-6">
                 {pageStartIndex + 1}~{Math.min(pageStartIndex + PROBLEMS_PER_PAGE, problems.length)}
                 번 문제
               </div>
@@ -403,11 +403,11 @@ export default function ExamTakingPage() {
             ))}
 
             {/* 페이지 하단 인디케이터 */}
-            <div className="mt-8 pt-4 border-t border-slate-200 flex items-center justify-between">
+            <div className="mt-6 md:mt-8 pt-4 border-t border-slate-200 flex items-center justify-between">
               <span className="text-xs text-slate-400">
                 {currentPage + 1} / {totalPages} 페이지
               </span>
-              <div className="flex gap-1.5">
+              <div className="flex gap-1.5 flex-wrap">
                 {Array.from({ length: totalPages }, (_, i) => (
                   <button
                     key={i}
@@ -426,11 +426,66 @@ export default function ExamTakingPage() {
           </div>
         </div>
 
-        {/* 사이드 메모장 */}
-        <div className="w-64 shrink-0 sticky top-32 self-start h-[600px]">
+        {/* 사이드 메모장 — 데스크탑만 */}
+        <div className="hidden md:block w-64 shrink-0 sticky top-32 self-start h-[600px]">
           <Notepad examId={id} initialContent={memoContent} userId={user?.id} onSave={handleMemoSave} />
         </div>
       </div>
+
+      {/* 모바일 하단 고정 네비게이션 */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 shadow-lg">
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <button
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={currentPage <= 0}
+            className="flex items-center gap-1 text-sm font-medium text-slate-600 disabled:opacity-30 transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            이전
+          </button>
+          <span className="text-xs text-slate-500">
+            {currentPage + 1} / {totalPages}
+          </span>
+          <button
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage >= totalPages - 1}
+            className="flex items-center gap-1 text-sm font-medium text-slate-600 disabled:opacity-30 transition-colors"
+          >
+            다음
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* 모바일 메모장 플로팅 버튼 */}
+      <button
+        onClick={() => setShowMobileNotepad(true)}
+        className="md:hidden fixed bottom-16 right-4 z-30 w-12 h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg flex items-center justify-center transition-colors"
+        aria-label="메모장 열기"
+      >
+        <StickyNote className="w-5 h-5" />
+      </button>
+
+      {/* 모바일 메모장 오버레이 */}
+      {showMobileNotepad && (
+        <div className="md:hidden fixed inset-0 z-50 flex flex-col">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowMobileNotepad(false)} />
+          <div className="relative mt-auto bg-white rounded-t-2xl shadow-2xl h-[70vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+              <span className="text-sm font-semibold text-sqld-navy">메모장</span>
+              <button
+                onClick={() => setShowMobileNotepad(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <Notepad examId={id} initialContent={memoContent} userId={user?.id} onSave={handleMemoSave} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 제출 확인 모달 */}
       {showSubmitConfirm && (

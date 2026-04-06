@@ -343,6 +343,26 @@ export default function SQLPracticePage() {
 
   return (
     <div className="h-screen flex flex-col bg-slate-900">
+      {/* 모바일 PC 안내 */}
+      <div className="md:hidden flex-1 flex items-center justify-center bg-slate-50 p-6">
+        <div className="text-center max-w-xs">
+          <Database className="w-12 h-12 text-primary-500 mx-auto mb-4" />
+          <h2 className="text-lg font-bold text-sqld-navy mb-2">PC에서 이용해주세요</h2>
+          <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+            SQL 실습은 코드 에디터와 결과 테이블을 동시에 사용하는 기능으로, PC 환경에서 최적화되어 있습니다.
+          </p>
+          <button
+            onClick={() => navigate('/sql-practice')}
+            className="bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition-colors"
+          >
+            목록으로 돌아가기
+          </button>
+        </div>
+      </div>
+
+      {/* 데스크탑 레이아웃 — md 이상에서만 표시 */}
+      <div className="hidden md:flex flex-col flex-1">
+
       {/* 상단 네비게이션 */}
       <div className="shrink-0 bg-sqld-navy border-b border-slate-700 shadow-lg">
         <div className="px-4 h-12 flex items-center justify-between">
@@ -829,6 +849,8 @@ export default function SQLPracticePage() {
           onClose={() => setShowReportModal(false)}
         />
       )}
+
+      </div>{/* end 데스크탑 레이아웃 */}
     </div>
   );
 }
