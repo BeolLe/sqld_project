@@ -5,6 +5,7 @@ export interface User {
   email: string;
   nickname: string;
   points: number;
+  isAdmin: boolean;
   createdAt: string;
 }
 
@@ -162,6 +163,9 @@ export type ErrorSubtype = 'wrong_answer' | 'typo' | 'explanation_error' | 'othe
 
 export interface FeedbackTicket {
   ticket_id: string;
+  user_id?: string;
+  user_nickname?: string;
+  user_email?: string;
   type: FeedbackType;
   status: FeedbackStatus;
   title: string;
@@ -173,6 +177,29 @@ export interface FeedbackTicket {
   admin_reply?: string;
   replied_at?: string;
   created_at: string;
+}
+
+// ─── 관리자 페이지 타입 ──────────────────────────────────────────────────────
+
+export type AdminFeedbackTab = 'all' | 'service' | 'sql' | 'exam';
+
+export interface AdminFeedbackListResponse {
+  total: number;
+  items: FeedbackTicket[];
+}
+
+export interface AdminUserItem {
+  user_id: string;
+  email: string;
+  nickname: string;
+  points: number;
+  is_admin: boolean;
+  created_at: string;
+}
+
+export interface AdminUserListResponse {
+  total: number;
+  items: AdminUserItem[];
 }
 
 // ─── UI 상태 타입 ────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Database, User, LogOut, Settings } from 'lucide-react';
+import { Database, User, LogOut, Settings, Shield } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface HeaderProps {
@@ -45,6 +45,12 @@ export default function Header({ onAuthClick }: HeaderProps) {
           {isLoggedIn && (
             <Link to="/feedback" className="hover:text-white transition-colors">
               피드백
+            </Link>
+          )}
+          {isLoggedIn && user?.isAdmin && (
+            <Link to="/admin" className="flex items-center gap-1 text-primary-400 hover:text-primary-300 transition-colors">
+              <Shield className="w-3.5 h-3.5" />
+              관리자
             </Link>
           )}
         </nav>
