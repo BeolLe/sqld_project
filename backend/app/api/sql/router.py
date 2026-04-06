@@ -1,3 +1,4 @@
+import logging
 import time
 from datetime import date, datetime
 from decimal import Decimal
@@ -48,6 +49,7 @@ from app.services.sql_workspace import (
 )
 
 router = APIRouter(prefix="/api/sql", tags=["sql"])
+logger = logging.getLogger(__name__)
 
 MAX_ROWS = 50
 RESERVED_BASE_TABLES = {
@@ -499,6 +501,7 @@ def execute_sql(
         raise
 
     started_at = time.perf_counter()
+    timing_marks: dict[str, int] = {}
     sql_request_id = insert_sql_request(
         request_id=request_id,
         user_id=user_id,
@@ -523,6 +526,7 @@ def execute_sql(
                 practice_id=req.practice_id,
                 request_id=request_id,
             )
+            timing_marks["scopeResolvedMs"] = round((time.perf_counter() - started_at) * 1000)
 
             if has_persistent_scope:
                 with namespace_advisory_lock(scope_key):
@@ -536,12 +540,16 @@ def execute_sql(
                     )
             else:
                 prepare_namespace(conn, workspace)
+            timing_marks["workspacePreparedMs"] = round(
+                (time.perf_counter() - started_at) * 1000
+            )
 
             executed_query = rewrite_query_for_namespace(
                 query=query,
                 workspace=workspace,
                 statement_type=statement_type,
             )
+            timing_marks["queryRewrittenMs"] = round((time.perf_counter() - started_at) * 1000)
 
             target_object = extract_target_object(query, statement_type)
             rename_target_object = (
@@ -564,14 +572,29 @@ def execute_sql(
             with conn.cursor() as cur:
                 try:
                     cur.execute(executed_query)
+                    timing_marks["oracleExecutedMs"] = round(
+                        (time.perf_counter() - started_at) * 1000
+                    )
                     if is_read_only_statement(statement_type):
                         rows = cur.fetchmany(MAX_ROWS)
                     else:
                         conn.commit()
                         enforce_namespace_limits(conn, workspace)
                         rows = []
+                    timing_marks["rowsFetchedMs"] = round(
+                        (time.perf_counter() - started_at) * 1000
+                    )
                 except Exception as exc:
                     elapsed_ms = round((time.perf_counter() - started_at) * 1000)
+                    logger.warning(
+                        "sql_execute failed request_id=%s practice_id=%s action=%s scope_key=%s timings=%s error=%s",
+                        request_id,
+                        req.practice_id,
+                        action,
+                        scope_key,
+                        timing_marks,
+                        str(exc),
+                    )
                     if action == "submit":
                         send_amplitude_event(
                             event_type="backend_sql_submit_failed",
@@ -641,6 +664,9 @@ def execute_sql(
 
                 if action == "submit":
                     expected_result = fetch_expected_result(req.practice_id)
+                    timing_marks["expectedResultLoadedMs"] = round(
+                        (time.perf_counter() - started_at) * 1000
+                    )
                     if expected_result:
                         is_correct, grading = compare_result_sets(
                             user_columns=columns,
@@ -654,6 +680,9 @@ def execute_sql(
                             "reason": "missing_expected_result",
                             "comparisonMode": None,
                         }
+                    timing_marks["gradingCompletedMs"] = round(
+                        (time.perf_counter() - started_at) * 1000
+                    )
                     awarded_points, total_points = record_sql_submission_and_award_points(
                         practice_code=req.practice_id,
                         user_id=user_id,
@@ -663,6 +692,9 @@ def execute_sql(
                         execution_time_ms=elapsed_ms,
                         is_correct=is_correct,
                         grading=grading,
+                    )
+                    timing_marks["submissionRecordedMs"] = round(
+                        (time.perf_counter() - started_at) * 1000
                     )
 
                 insert_learning_event(
@@ -679,6 +711,19 @@ def execute_sql(
                         "row_count": len(serialized_rows),
                         "grading": grading,
                     },
+                )
+                timing_marks["learningEventRecordedMs"] = round(
+                    (time.perf_counter() - started_at) * 1000
+                )
+                logger.info(
+                    "sql_execute completed request_id=%s practice_id=%s action=%s statement_type=%s scope_key=%s row_count=%s timings=%s",
+                    request_id,
+                    req.practice_id,
+                    action,
+                    statement_type,
+                    scope_key,
+                    len(serialized_rows),
+                    timing_marks,
                 )
 
                 response = {
