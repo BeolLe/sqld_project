@@ -53,6 +53,10 @@ class EmailVerificationConfirmRequest(BaseModel):
     token: str
 
 
+class FindEmailRequest(BaseModel):
+    nickname: str
+
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 
@@ -885,6 +889,67 @@ def confirm_email_verification(req: EmailVerificationConfirmRequest):
         "email": row[1],
         "emailVerified": True,
     }
+
+
+@router.post("/find-email")
+def request_find_email(req: FindEmailRequest):
+    not_found_message = "입력하신 정보에 맞는 계정이 없습니다."
+    sent_message = "입력하신 정보에 등록된 이메일로 안내를 보냈습니다."
+    delivery_mode = "email"
+    recovered_email: str | None = None
+
+    nickname = req.nickname.strip()
+    if not nickname:
+        raise HTTPException(status_code=400, detail="닉네임을 입력해주세요.")
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT user_id, email, nickname
+                FROM auth.users
+                WHERE nickname = %s
+                  AND is_active = true
+                ORDER BY created_at ASC
+                LIMIT 1
+                """,
+                (nickname,),
+            )
+            user = cur.fetchone()
+
+    if not user:
+        return {
+            "found": False,
+            "message": not_found_message,
+            "deliveryMode": delivery_mode,
+        }
+
+    sent = send_email(
+        to_email=user[1],
+        subject="[SolSQLD] 아이디 찾기 안내",
+        text_content="\n".join(
+            [
+                "SolSQLD에서 아이디 찾기 요청이 접수되었습니다.",
+                "",
+                f"가입된 아이디(이메일): {user[1]}",
+                f"닉네임: {user[2]}",
+                "",
+                "본인이 요청하지 않았다면 이 메일을 무시해주세요.",
+            ]
+        ),
+    )
+    if not sent:
+        delivery_mode = "inline_email"
+        recovered_email = user[1]
+
+    response = {
+        "found": True,
+        "message": sent_message,
+        "deliveryMode": delivery_mode,
+    }
+    if recovered_email:
+        response["recoveredEmail"] = recovered_email
+    return response
 
 
 @router.post("/password-reset/request")
