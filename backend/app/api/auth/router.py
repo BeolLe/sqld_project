@@ -53,6 +53,15 @@ class EmailVerificationConfirmRequest(BaseModel):
     token: str
 
 
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    new_password: str
+
+
 def extract_email_domain(email: str) -> str:
     return email.split("@", 1)[1].lower() if "@" in email else ""
 
@@ -147,6 +156,38 @@ def build_verification_url(token: str) -> str | None:
     if not settings.APP_PUBLIC_BASE_URL:
         return None
     return f"{settings.APP_PUBLIC_BASE_URL}/mypage?verifyToken={token}"
+
+
+def create_password_reset_token(*, cur, user_id: str, email: str) -> tuple[str, datetime]:
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hash_verification_token(raw_token)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+
+    cur.execute(
+        """
+        UPDATE auth.email_verifications
+        SET used_at = now()
+        WHERE user_id = %s
+          AND email = %s
+          AND purpose = 'reset_password'
+          AND used_at IS NULL
+        """,
+        (user_id, email),
+    )
+    cur.execute(
+        """
+        INSERT INTO auth.email_verifications (
+            user_id,
+            email,
+            purpose,
+            token_hash,
+            expires_at
+        )
+        VALUES (%s, %s, 'reset_password', %s, %s)
+        """,
+        (user_id, email, token_hash, expires_at),
+    )
+    return raw_token, expires_at
 
 
 @router.post("/register")
@@ -844,3 +885,128 @@ def confirm_email_verification(req: EmailVerificationConfirmRequest):
         "email": row[1],
         "emailVerified": True,
     }
+
+
+@router.post("/password-reset/request")
+def request_password_reset(req: PasswordResetRequest):
+    generic_message = "입력하신 이메일로 비밀번호 재설정 안내를 보냈습니다."
+    delivery_mode = "email"
+    reset_token: str | None = None
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT user_id, email
+                FROM auth.users
+                WHERE email = %s
+                  AND is_active = true
+                """,
+                (req.email,),
+            )
+            user = cur.fetchone()
+
+            if not user:
+                return {"message": generic_message, "deliveryMode": delivery_mode}
+
+            cur.execute(
+                """
+                SELECT 1
+                FROM auth.email_verifications
+                WHERE user_id = %s
+                  AND email = %s
+                  AND purpose = 'reset_password'
+                  AND used_at IS NULL
+                  AND created_at > now() - interval '3 minutes'
+                LIMIT 1
+                """,
+                (user[0], user[1]),
+            )
+            rate_limited = cur.fetchone() is not None
+
+            if not rate_limited:
+                reset_token, _ = create_password_reset_token(
+                    cur=cur,
+                    user_id=str(user[0]),
+                    email=user[1],
+                )
+
+    if reset_token:
+        sent = send_email(
+            to_email=req.email,
+            subject="[SolSQLD] 비밀번호 재설정 안내",
+            text_content="\n".join(
+                [
+                    "SolSQLD 비밀번호 재설정을 요청하셨습니다.",
+                    "",
+                    f"재설정 토큰: {reset_token}",
+                    "",
+                    "토큰은 5분 동안 유효하며 1회만 사용할 수 있습니다.",
+                    "본인이 요청하지 않았다면 이 메일을 무시해주세요.",
+                ]
+            ),
+        )
+        if not sent:
+            delivery_mode = "inline_token"
+
+    response = {"message": generic_message, "deliveryMode": delivery_mode}
+    if reset_token and delivery_mode == "inline_token":
+        response["resetToken"] = reset_token
+    return response
+
+
+@router.post("/password-reset/confirm")
+def confirm_password_reset(req: PasswordResetConfirmRequest):
+    token = req.token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="인증 토큰을 입력해주세요.")
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="새 비밀번호는 8자 이상이어야 합니다.")
+
+    token_hash = hash_verification_token(token)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT user_id, email
+                FROM auth.email_verifications
+                WHERE token_hash = %s
+                  AND purpose = 'reset_password'
+                  AND used_at IS NULL
+                  AND expires_at > now()
+                """,
+                (token_hash,),
+            )
+            row = cur.fetchone()
+
+            if not row:
+                raise HTTPException(status_code=400, detail="유효하지 않거나 만료된 인증 토큰입니다.")
+
+            cur.execute(
+                """
+                UPDATE auth.users
+                SET password_hash = %s,
+                    updated_at = now()
+                WHERE user_id = %s
+                  AND is_active = true
+                """,
+                (hash_password(req.new_password), row[0]),
+            )
+
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=400, detail="비밀번호를 재설정할 수 없는 계정입니다.")
+
+            cur.execute(
+                """
+                UPDATE auth.email_verifications
+                SET used_at = now()
+                WHERE user_id = %s
+                  AND email = %s
+                  AND purpose = 'reset_password'
+                  AND used_at IS NULL
+                """,
+                (row[0], row[1]),
+            )
+
+    return {"message": "비밀번호가 재설정되었습니다."}

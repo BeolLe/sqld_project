@@ -136,6 +136,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   const [findNickname, setFindNickname] = useState('');
   const [findEmail, setFindEmail] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [resetConfirmPassword, setResetConfirmPassword] = useState('');
 
@@ -156,6 +157,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     setFindNickname('');
     setFindEmail('');
     setMaskedEmail('');
+    setResetToken('');
     setResetNewPassword('');
     setResetConfirmPassword('');
   }, [mode]);
@@ -209,14 +211,31 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   async function handleResetPasswordVerify(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (!findEmail.trim() || !findNickname.trim()) {
-      setError('이메일과 닉네임을 모두 입력해주세요.');
+    setSuccess('');
+    if (!findEmail.trim()) {
+      setError('이메일을 입력해주세요.');
       return;
     }
-    // 닉네임 일치 확인을 위해 바로 새 비밀번호 설정 화면으로 이동
-    // 실제 검증은 reset-password API에서 수행
-    setStep('reset-password-form');
-    setError('');
+    try {
+      setLoading(true);
+      const res = await apiFetch<{ message: string; resetToken?: string }>('/auth/password-reset/request', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: findEmail.trim(),
+        }),
+      });
+      if (res.resetToken) {
+        setResetToken(res.resetToken);
+      }
+      setSuccess(res.message);
+      setStep('reset-password-form');
+      logEvent('common_auth_modal_viewed', { step: 'password-reset-request', success: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '비밀번호 재설정 요청에 실패했습니다.');
+      logEvent('common_auth_modal_viewed', { step: 'password-reset-request', success: false });
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleResetPasswordSubmit(e: React.FormEvent) {
@@ -230,13 +249,16 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
       setError('새 비밀번호가 일치하지 않습니다.');
       return;
     }
+    if (!resetToken.trim()) {
+      setError('이메일로 받은 인증 토큰을 입력해주세요.');
+      return;
+    }
     try {
       setLoading(true);
-      await apiFetch<{ message: string }>('/auth/reset-password', {
+      await apiFetch<{ message: string }>('/auth/password-reset/confirm', {
         method: 'POST',
         body: JSON.stringify({
-          email: findEmail.trim(),
-          nickname: findNickname.trim(),
+          token: resetToken.trim(),
           new_password: resetNewPassword,
         }),
       });
@@ -358,7 +380,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
               <ArrowLeft className="w-4 h-4" /> 로그인으로 돌아가기
             </button>
             <h2 className="text-2xl font-bold text-sqld-navy mb-1">비밀번호 재설정</h2>
-            <p className="text-sm text-slate-500 mb-6">본인 확인을 위해 이메일과 닉네임을 입력해주세요.</p>
+            <p className="text-sm text-slate-500 mb-6">가입한 이메일을 입력하면 재설정 토큰을 보내드립니다.</p>
             <form onSubmit={handleResetPasswordVerify} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">이메일</label>
@@ -371,23 +393,14 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                   autoFocus
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">가입 시 등록한 닉네임</label>
-                <input
-                  type="text"
-                  value={findNickname}
-                  onChange={(e) => setFindNickname(e.target.value)}
-                  placeholder="닉네임 입력"
-                  className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
+              {success && <p className="text-sm text-emerald-700 bg-emerald-50 px-4 py-2 rounded-lg">{success}</p>}
               {error && <p className="text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg">{error}</p>}
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
               >
-                다음
+                {loading ? '처리 중...' : '재설정 요청'}
               </button>
             </form>
           </>
@@ -400,8 +413,19 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
               <ArrowLeft className="w-4 h-4" /> 이전 단계
             </button>
             <h2 className="text-2xl font-bold text-sqld-navy mb-1">새 비밀번호 설정</h2>
-            <p className="text-sm text-slate-500 mb-6">새로운 비밀번호를 입력해주세요.</p>
+            <p className="text-sm text-slate-500 mb-6">이메일로 받은 토큰과 새로운 비밀번호를 입력해주세요.</p>
             <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">인증 토큰</label>
+                <input
+                  type="text"
+                  value={resetToken}
+                  onChange={(e) => setResetToken(e.target.value)}
+                  placeholder="이메일로 받은 토큰"
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  autoFocus
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">새 비밀번호</label>
                 <input
@@ -410,7 +434,6 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                   onChange={(e) => setResetNewPassword(e.target.value)}
                   placeholder="8자 이상"
                   className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  autoFocus
                 />
               </div>
               <div>
