@@ -89,14 +89,14 @@ function LearningCalendar({
         </div>
       ) : (
         <>
-          <div className="flex gap-1 overflow-x-auto">
+          <div className="grid grid-flow-col auto-cols-fr gap-1.5 w-full">
             {weeks.map((week, wi) => (
-              <div key={wi} className="flex flex-col gap-1">
+              <div key={wi} className="grid grid-rows-7 gap-1.5">
                 {week.map((day) => (
                   <div
                     key={day.date}
                     title={`${day.date}: ${day.count}건`}
-                    className={`w-3 h-3 rounded-sm ${LEVEL_COLORS[day.level]}`}
+                    className={`w-full aspect-square rounded-[3px] ${LEVEL_COLORS[day.level]}`}
                   />
                 ))}
               </div>
@@ -105,7 +105,7 @@ function LearningCalendar({
           <div className="flex items-center gap-1.5 mt-3 text-xs text-slate-400">
             <span>적음</span>
             {LEVEL_COLORS.map((color, i) => (
-              <div key={i} className={`w-3 h-3 rounded-sm ${color}`} />
+              <div key={i} className={`w-4 h-4 rounded-[3px] ${color}`} />
             ))}
             <span>많음</span>
           </div>
