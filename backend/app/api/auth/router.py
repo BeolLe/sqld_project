@@ -91,7 +91,7 @@ def get_current_user(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT user_id, email, nickname, is_active, email_verified, email_verified_at
+                SELECT user_id, email, nickname, is_active, email_verified, email_verified_at, is_admin
                 FROM auth.users
                 WHERE user_id = %s
                 """,
@@ -111,6 +111,7 @@ def get_current_user(
         "nickname": user[2],
         "email_verified": bool(user[4]),
         "email_verified_at": user[5].isoformat() if user[5] else None,
+        "is_admin": bool(user[6]),
     }
 
 
@@ -547,6 +548,7 @@ def me(request: Request, current_user: dict = Depends(get_current_user)):
     points = 0
     email_verified = current_user["email_verified"]
     email_verified_at = current_user["email_verified_at"]
+    is_admin = current_user["is_admin"]
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -554,7 +556,8 @@ def me(request: Request, current_user: dict = Depends(get_current_user)):
                 SELECT
                     COALESCE(ds.total_points, 0) AS total_points,
                     u.email_verified,
-                    u.email_verified_at
+                    u.email_verified_at,
+                    u.is_admin
                 FROM auth.users u
                 LEFT JOIN dashboard.user_stats ds
                   ON ds.user_id = u.user_id
@@ -567,6 +570,7 @@ def me(request: Request, current_user: dict = Depends(get_current_user)):
                 points = int(row[0] or 0)
                 email_verified = bool(row[1])
                 email_verified_at = row[2].isoformat() if row[2] else None
+                is_admin = bool(row[3])
 
     send_amplitude_event(
         event_type="backend_auth_restored",
@@ -585,6 +589,7 @@ def me(request: Request, current_user: dict = Depends(get_current_user)):
         "points": points,
         "emailVerified": email_verified,
         "emailVerifiedAt": email_verified_at,
+        "isAdmin": is_admin,
     }
 
 
@@ -602,7 +607,8 @@ def get_profile(current_user: dict = Depends(get_current_user)):
                     MAX(uc.consented_at) FILTER (WHERE cv.consent_type = 'terms') AS terms_agreed_at,
                     MAX(uc.consented_at) FILTER (WHERE cv.consent_type = 'privacy_policy') AS privacy_agreed_at,
                     u.email_verified,
-                    u.email_verified_at
+                    u.email_verified_at,
+                    u.is_admin
                 FROM auth.users u
                 LEFT JOIN dashboard.user_stats ds
                   ON ds.user_id = u.user_id
@@ -617,7 +623,8 @@ def get_profile(current_user: dict = Depends(get_current_user)):
                     u.created_at,
                     ds.total_points,
                     u.email_verified,
-                    u.email_verified_at
+                    u.email_verified_at,
+                    u.is_admin
                 """,
                 (current_user["user_id"],),
             )
@@ -635,6 +642,7 @@ def get_profile(current_user: dict = Depends(get_current_user)):
         "privacyAgreedAt": row[5].isoformat() if row[5] else None,
         "emailVerified": bool(row[6]),
         "emailVerifiedAt": row[7].isoformat() if row[7] else None,
+        "isAdmin": bool(row[8]),
     }
 
 
