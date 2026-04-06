@@ -64,7 +64,7 @@ export default function AdminFeedbackPage() {
     setError('');
     try {
       const res = await apiFetch<AdminFeedbackListResponse>(
-        `/api/admin/feedback?tab=${tab}&page=${page}&size=${PAGE_SIZE}`
+        `/admin/feedback?tab=${tab}&page=${page}&size=${PAGE_SIZE}`
       );
       setTickets(res.items);
       setTotal(res.total);
@@ -88,7 +88,7 @@ export default function AdminFeedbackPage() {
   async function handleStatusChange(ticketId: string, newStatus: FeedbackStatus) {
     setStatusLoading(ticketId);
     try {
-      await apiFetch(`/api/admin/feedback/${ticketId}/status`, {
+      await apiFetch(`/admin/feedback/${ticketId}/status`, {
         method: 'PATCH',
         body: JSON.stringify({ status: newStatus }),
       });
@@ -109,7 +109,7 @@ export default function AdminFeedbackPage() {
     setReplyLoading(ticketId);
     setReplyMessage((prev) => ({ ...prev, [ticketId]: undefined! }));
     try {
-      await apiFetch(`/api/admin/feedback/${ticketId}/reply`, {
+      await apiFetch(`/admin/feedback/${ticketId}/reply`, {
         method: 'PATCH',
         body: JSON.stringify({ admin_reply: text }),
       });

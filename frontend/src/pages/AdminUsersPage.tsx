@@ -33,7 +33,7 @@ export default function AdminUsersPage() {
       });
       if (search) params.set('search', search);
 
-      const res = await apiFetch<AdminUserListResponse>(`/api/admin/users?${params}`);
+      const res = await apiFetch<AdminUserListResponse>(`/auth/admin/users?${params}`);
       setUsers(res.items);
       setTotal(res.total);
     } catch {
@@ -65,7 +65,7 @@ export default function AdminUsersPage() {
     setConfirmTarget(null);
 
     try {
-      await apiFetch(`/api/admin/users/${confirmTarget.user_id}/role`, {
+      await apiFetch(`/auth/admin/users/${confirmTarget.user_id}/role`, {
         method: 'PATCH',
         body: JSON.stringify({ is_admin: newIsAdmin }),
       });

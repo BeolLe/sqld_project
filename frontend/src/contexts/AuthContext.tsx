@@ -47,7 +47,8 @@ interface MeResponse {
   email: string;
   nickname: string;
   points: number;
-  is_admin: boolean;
+  is_admin?: boolean;
+  isAdmin?: boolean;
 }
 
 function toUser(me: MeResponse): User {
@@ -56,7 +57,7 @@ function toUser(me: MeResponse): User {
     email: me.email,
     nickname: me.nickname,
     points: me.points ?? 0,
-    isAdmin: me.is_admin ?? false,
+    isAdmin: me.is_admin ?? me.isAdmin ?? false,
     createdAt: new Date().toISOString(),
   };
 }

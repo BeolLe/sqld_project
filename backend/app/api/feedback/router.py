@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from app.api.auth.router import get_current_user
+from app.api.auth.router import get_current_user, ensure_admin
 from app.core.config import settings
 from app.db.postgres import get_connection
 from app.services.amplitude import send_amplitude_event
@@ -33,6 +33,14 @@ class FeedbackAdminUpdateRequest(BaseModel):
     admin_reply: str | None = None
 
 
+class FeedbackAdminStatusUpdateRequest(BaseModel):
+    status: FeedbackStatus
+
+
+class FeedbackAdminReplyUpdateRequest(BaseModel):
+    admin_reply: str
+
+
 def serialize_ticket(row: tuple) -> dict:
     return {
         "ticket_id": str(row[0]),
@@ -48,11 +56,6 @@ def serialize_ticket(row: tuple) -> dict:
         "replied_at": row[10].isoformat() if row[10] else None,
         "created_at": row[11].isoformat() if row[11] else None,
     }
-
-
-def ensure_feedback_admin(current_user: dict) -> None:
-    if current_user["user_id"] not in settings.FEEDBACK_ADMIN_USER_IDS:
-        raise HTTPException(status_code=403, detail="admin access required")
 
 
 def build_feedback_admin_url(ticket_id: str) -> str | None:
@@ -305,7 +308,7 @@ def update_feedback_admin(
     req: FeedbackAdminUpdateRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    ensure_feedback_admin(current_user)
+    ensure_admin(current_user)
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -340,4 +343,154 @@ def update_feedback_admin(
         "ticket_id": str(row[0]),
         "status": row[1],
         "message": "답변이 등록되었습니다.",
+    }
+
+
+@router.get("/admin/feedback")
+def list_admin_feedback(
+    tab: Literal["all", "service", "sql", "exam"] = Query("all"),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_admin(current_user)
+
+    offset = (page - 1) * size
+    type_filters: dict[str, tuple[str, ...] | None] = {
+        "all": None,
+        "service": ("suggestion", "bug"),
+        "sql": ("sql_error",),
+        "exam": ("exam_error",),
+    }
+    selected_types = type_filters[tab]
+
+    where_clause = ""
+    params: list[object] = []
+    if selected_types:
+        where_clause = "WHERE t.type = ANY(%s)"
+        params.append(list(selected_types))
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM feedback.tickets t
+                {where_clause}
+                """,
+                params,
+            )
+            total = int(cur.fetchone()[0])
+
+            cur.execute(
+                f"""
+                SELECT
+                    t.ticket_id,
+                    t.type,
+                    t.status,
+                    t.title,
+                    t.content,
+                    t.related_exam_id,
+                    t.related_problem_id,
+                    t.related_problem_no,
+                    t.error_subtype,
+                    t.admin_reply,
+                    t.replied_at,
+                    t.created_at,
+                    u.nickname,
+                    u.email
+                FROM feedback.tickets t
+                JOIN auth.users u
+                  ON u.user_id = t.user_id
+                {where_clause}
+                ORDER BY t.created_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                [*params, size, offset],
+            )
+            items = []
+            for row in cur.fetchall():
+                ticket = serialize_ticket(row[:12])
+                ticket["user_nickname"] = row[12]
+                ticket["user_email"] = row[13]
+                items.append(ticket)
+
+    return {
+        "total": total,
+        "items": items,
+    }
+
+
+@router.patch("/admin/feedback/{ticket_id}/status")
+def update_feedback_status(
+    ticket_id: str,
+    req: FeedbackAdminStatusUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_admin(current_user)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE feedback.tickets
+                SET status = %s,
+                    updated_at = now()
+                WHERE ticket_id = %s
+                RETURNING ticket_id, status
+                """,
+                (req.status, ticket_id),
+            )
+            row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다.")
+
+    return {
+        "ticket_id": str(row[0]),
+        "status": row[1],
+        "message": "상태가 변경되었습니다.",
+    }
+
+
+@router.patch("/admin/feedback/{ticket_id}/reply")
+def update_feedback_reply(
+    ticket_id: str,
+    req: FeedbackAdminReplyUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_admin(current_user)
+
+    reply = req.admin_reply.strip()
+    if not reply:
+        raise HTTPException(status_code=400, detail="답변을 입력해주세요.")
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE feedback.tickets
+                SET admin_reply = %s,
+                    replied_at = now(),
+                    status = CASE
+                      WHEN status = 'pending' THEN 'reviewing'
+                      ELSE status
+                    END,
+                    updated_at = now()
+                WHERE ticket_id = %s
+                RETURNING ticket_id, admin_reply, replied_at, status
+                """,
+                (reply, ticket_id),
+            )
+            row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다.")
+
+    return {
+        "ticket_id": str(row[0]),
+        "admin_reply": row[1],
+        "replied_at": row[2].isoformat() if row[2] else None,
+        "status": row[3],
+        "message": "답변이 저장되었습니다.",
     }

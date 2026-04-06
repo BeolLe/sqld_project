@@ -66,6 +66,10 @@ class PasswordResetConfirmRequest(BaseModel):
     new_password: str
 
 
+class AdminUserRoleUpdateRequest(BaseModel):
+    is_admin: bool
+
+
 def extract_email_domain(email: str) -> str:
     return email.split("@", 1)[1].lower() if "@" in email else ""
 
@@ -113,6 +117,11 @@ def get_current_user(
         "email_verified_at": user[5].isoformat() if user[5] else None,
         "is_admin": bool(user[6]),
     }
+
+
+def ensure_admin(current_user: dict) -> None:
+    if not current_user["is_admin"]:
+        raise HTTPException(status_code=403, detail="admin access required")
 
 
 def hash_verification_token(token: str) -> str:
@@ -587,6 +596,7 @@ def me(request: Request, current_user: dict = Depends(get_current_user)):
         "email": current_user["email"],
         "nickname": current_user["nickname"],
         "points": points,
+        "is_admin": is_admin,
         "emailVerified": email_verified,
         "emailVerifiedAt": email_verified_at,
         "isAdmin": is_admin,
@@ -1073,3 +1083,111 @@ def confirm_password_reset(req: PasswordResetConfirmRequest):
             )
 
     return {"message": "비밀번호가 재설정되었습니다."}
+
+
+@router.get("/admin/users")
+def list_admin_users(
+    page: int = 1,
+    size: int = 20,
+    search: str | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_admin(current_user)
+
+    page = max(1, page)
+    size = min(max(1, size), 100)
+    offset = (page - 1) * size
+    search_value = f"%{(search or '').strip()}%"
+    has_search = bool((search or "").strip())
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM auth.users u
+                WHERE u.is_active = true
+                  AND (
+                    %s = false
+                    OR u.email ILIKE %s
+                    OR u.nickname ILIKE %s
+                  )
+                """,
+                (has_search, search_value, search_value),
+            )
+            total = int(cur.fetchone()[0])
+
+            cur.execute(
+                """
+                SELECT
+                    u.user_id,
+                    u.email,
+                    u.nickname,
+                    COALESCE(ds.total_points, 0) AS total_points,
+                    u.is_admin,
+                    u.created_at
+                FROM auth.users u
+                LEFT JOIN dashboard.user_stats ds
+                  ON ds.user_id = u.user_id
+                WHERE u.is_active = true
+                  AND (
+                    %s = false
+                    OR u.email ILIKE %s
+                    OR u.nickname ILIKE %s
+                  )
+                ORDER BY u.created_at DESC, u.email ASC
+                LIMIT %s OFFSET %s
+                """,
+                (has_search, search_value, search_value, size, offset),
+            )
+            items = [
+                {
+                    "user_id": str(row[0]),
+                    "email": row[1],
+                    "nickname": row[2],
+                    "points": int(row[3] or 0),
+                    "is_admin": bool(row[4]),
+                    "created_at": row[5].isoformat() if row[5] else None,
+                }
+                for row in cur.fetchall()
+            ]
+
+    return {
+        "total": total,
+        "items": items,
+    }
+
+
+@router.patch("/admin/users/{user_id}/role")
+def update_admin_user_role(
+    user_id: str,
+    req: AdminUserRoleUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_admin(current_user)
+
+    if user_id == current_user["user_id"] and not req.is_admin:
+        raise HTTPException(status_code=400, detail="자기 자신의 관리자 권한은 해제할 수 없습니다.")
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE auth.users
+                SET is_admin = %s
+                WHERE user_id = %s
+                  AND is_active = true
+                RETURNING user_id, is_admin
+                """,
+                (req.is_admin, user_id),
+            )
+            row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="유저를 찾을 수 없습니다.")
+
+    return {
+        "user_id": str(row[0]),
+        "is_admin": bool(row[1]),
+        "message": "role updated",
+    }
