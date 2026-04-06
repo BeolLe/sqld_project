@@ -25,6 +25,12 @@ class Settings:
     DASHBOARD_SUMMARY_CACHE_TTL_SECONDS = int(
         os.getenv("DASHBOARD_SUMMARY_CACHE_TTL_SECONDS", "30")
     )
+    AUTH_ME_CACHE_TTL_SECONDS = int(
+        os.getenv("AUTH_ME_CACHE_TTL_SECONDS", "10")
+    )
+    CONTENT_LIST_CACHE_TTL_SECONDS = int(
+        os.getenv("CONTENT_LIST_CACHE_TTL_SECONDS", "30")
+    )
 
     AMPLITUDE_API_KEY = os.getenv("AMPLITUDE_API_KEY", "")
     AMPLITUDE_API_URL = os.getenv(

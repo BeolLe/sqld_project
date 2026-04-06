@@ -1,12 +1,17 @@
 import re
 from decimal import Decimal
+from threading import Lock
+from time import monotonic
 
 from fastapi import APIRouter, HTTPException
 from psycopg.rows import dict_row
 
+from app.core.config import settings
 from app.db.postgres import get_connection
 
 router = APIRouter(prefix="/api/content", tags=["content"])
+_content_cache_lock = Lock()
+_content_cache: dict[str, tuple[float, list[dict]]] = {}
 
 TABLE_REFERENCE_PATTERN = re.compile(
     r"\b(?:FROM|JOIN|INTO|UPDATE|DELETE\s+FROM|MERGE\s+INTO|TRUNCATE\s+TABLE)\s+([A-Za-z0-9_#$]+)",
@@ -122,6 +127,15 @@ def build_practice_problem_payload(row: dict) -> dict:
 
 @router.get("/exams")
 def list_exams():
+    cache_key = "exams"
+    now = monotonic()
+    ttl = settings.CONTENT_LIST_CACHE_TTL_SECONDS
+
+    with _content_cache_lock:
+        cached = _content_cache.get(cache_key)
+        if cached and now - cached[0] < ttl:
+            return cached[1]
+
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
@@ -143,7 +157,7 @@ def list_exams():
             )
             rows = cur.fetchall()
 
-    return [
+    exams = [
         {
             "id": row["exam_code"].replace("sqld_mock_", ""),
             "round": row["round"],
@@ -154,6 +168,11 @@ def list_exams():
         }
         for row in rows
     ]
+
+    with _content_cache_lock:
+        _content_cache[cache_key] = (now, exams)
+
+    return exams
 
 
 @router.get("/exams/{exam_id}")
@@ -196,6 +215,15 @@ def get_exam(exam_id: str):
 
 @router.get("/sql-practices")
 def list_sql_practices():
+    cache_key = "sql_practices"
+    now = monotonic()
+    ttl = settings.CONTENT_LIST_CACHE_TTL_SECONDS
+
+    with _content_cache_lock:
+        cached = _content_cache.get(cache_key)
+        if cached and now - cached[0] < ttl:
+            return cached[1]
+
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
@@ -214,7 +242,7 @@ def list_sql_practices():
             )
             rows = cur.fetchall()
 
-    return [
+    practices = [
         {
             "id": row["practice_code"],
             "title": row["title"],
@@ -226,6 +254,11 @@ def list_sql_practices():
         }
         for row in rows
     ]
+
+    with _content_cache_lock:
+        _content_cache[cache_key] = (now, practices)
+
+    return practices
 
 
 @router.get("/sql-practices/{practice_id}")

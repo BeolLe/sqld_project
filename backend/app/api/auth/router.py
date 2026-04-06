@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
 import secrets
+from threading import Lock
+from time import monotonic
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -21,6 +23,8 @@ from app.services.mailer import send_email
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 bearer_scheme = HTTPBearer()
+_me_cache_lock = Lock()
+_me_cache: dict[str, tuple[float, dict]] = {}
 
 
 class LoginRequest(BaseModel):
@@ -540,6 +544,15 @@ def login(req: LoginRequest, request: Request):
 
 @router.get("/me")
 def me(request: Request, current_user: dict = Depends(get_current_user)):
+    cache_key = current_user["user_id"]
+    now = monotonic()
+    ttl = settings.AUTH_ME_CACHE_TTL_SECONDS
+
+    with _me_cache_lock:
+        cached = _me_cache.get(cache_key)
+        if cached and now - cached[0] < ttl:
+            return cached[1]
+
     points = 0
     email_verified = current_user["email_verified"]
     email_verified_at = current_user["email_verified_at"]
@@ -566,7 +579,7 @@ def me(request: Request, current_user: dict = Depends(get_current_user)):
                 email_verified = bool(row[1])
                 email_verified_at = row[2].isoformat() if row[2] else None
                 is_admin = bool(row[3])
-    return {
+    response = {
         "user_id": current_user["user_id"],
         "email": current_user["email"],
         "nickname": current_user["nickname"],
@@ -576,6 +589,11 @@ def me(request: Request, current_user: dict = Depends(get_current_user)):
         "emailVerifiedAt": email_verified_at,
         "isAdmin": is_admin,
     }
+
+    with _me_cache_lock:
+        _me_cache[cache_key] = (now, response)
+
+    return response
 
 
 @router.get("/profile")
