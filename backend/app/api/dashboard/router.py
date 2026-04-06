@@ -48,27 +48,42 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
 
             cur.execute(
                 """
+                WITH answered AS (
+                    SELECT
+                        COALESCE(NULLIF(q.question_payload->>'category', ''), '미분류') AS category,
+                        aaa.selected_choice,
+                        ak.correct_answer
+                    FROM exam.exam_attempt_answers aaa
+                    JOIN exam.exam_attempts aa
+                      ON aa.id = aaa.attempt_id
+                    JOIN exam.exam_questions q
+                      ON q.id = aaa.question_id
+                    JOIN exam.answer_keys ak
+                      ON ak.question_id = q.id
+                    WHERE aa.user_id = %s::uuid
+                )
                 SELECT
-                    us.subject_id,
-                    s.name,
-                    us.solved_count,
-                    us.correct_count,
-                    us.accuracy_rate
-                FROM dashboard.user_subject_stats us
-                JOIN exam.subjects s
-                  ON s.id = us.subject_id
-                WHERE us.user_id = %s::uuid
-                ORDER BY s.display_order ASC, s.id ASC
+                    category,
+                    COUNT(*) AS solved_count,
+                    COUNT(*) FILTER (WHERE selected_choice = correct_answer) AS correct_count,
+                    ROUND(
+                        COUNT(*) FILTER (WHERE selected_choice = correct_answer)::numeric
+                        / NULLIF(COUNT(*), 0) * 100,
+                        2
+                    ) AS accuracy_rate
+                FROM answered
+                GROUP BY category
+                ORDER BY COUNT(*) DESC, category ASC
                 """,
                 (user_id,),
             )
             subject_stats = [
                 {
-                    "subjectId": str(row[0]),
-                    "subjectName": row[1],
-                    "solvedCount": int(row[2] or 0),
-                    "correctCount": int(row[3] or 0),
-                    "accuracyRate": float(row[4] or 0),
+                    "subjectId": row[0],
+                    "subjectName": row[0],
+                    "solvedCount": int(row[1] or 0),
+                    "correctCount": int(row[2] or 0),
+                    "accuracyRate": float(row[3] or 0),
                 }
                 for row in cur.fetchall()
             ]
