@@ -79,6 +79,18 @@ function LearningCalendar({
     weeks.push(grid.slice(i, i + 7));
   }
 
+  const monthLabels = weeks.map((week, index) => {
+    const firstDay = week[0];
+    if (!firstDay) return '';
+    const currentMonth = new Date(firstDay.date).getMonth();
+    const prevMonth = index > 0 && weeks[index - 1][0]
+      ? new Date(weeks[index - 1][0].date).getMonth()
+      : null;
+    return index === 0 || currentMonth !== prevMonth
+      ? `${new Date(firstDay.date).getMonth() + 1}월`
+      : '';
+  });
+
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
       <h2 className="text-base font-bold text-sqld-navy mb-4">학습 캘린더</h2>
@@ -89,23 +101,53 @@ function LearningCalendar({
         </div>
       ) : (
         <>
-          <div className="grid grid-flow-col auto-cols-fr gap-1.5 w-full">
-            {weeks.map((week, wi) => (
-              <div key={wi} className="grid grid-rows-7 gap-1.5">
-                {week.map((day) => (
-                  <div
-                    key={day.date}
-                    title={`${day.date}: ${day.count}건`}
-                    className={`w-full aspect-square rounded-[3px] ${LEVEL_COLORS[day.level]}`}
-                  />
-                ))}
+          <div className="overflow-x-auto">
+            <div className="inline-flex flex-col gap-2 min-w-fit">
+              <div className="flex items-end">
+                <div className="w-8" />
+                <div className="flex gap-1">
+                  {monthLabels.map((label, index) => (
+                    <div
+                      key={`${label}-${index}`}
+                      className="w-4 md:w-5 text-[10px] md:text-xs text-slate-400 text-center"
+                    >
+                      {label}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
+
+              <div className="flex gap-2">
+                <div className="grid grid-rows-7 gap-1 text-[10px] md:text-xs text-slate-400 pt-0.5">
+                  <span className="h-4 md:h-5" />
+                  <span className="h-4 md:h-5">월</span>
+                  <span className="h-4 md:h-5" />
+                  <span className="h-4 md:h-5">수</span>
+                  <span className="h-4 md:h-5" />
+                  <span className="h-4 md:h-5">금</span>
+                  <span className="h-4 md:h-5" />
+                </div>
+
+                <div className="flex gap-1">
+                  {weeks.map((week, wi) => (
+                    <div key={wi} className="grid grid-rows-7 gap-1">
+                      {week.map((day) => (
+                        <div
+                          key={day.date}
+                          title={`${day.date}: ${day.count}건`}
+                          className={`w-4 h-4 md:w-5 md:h-5 rounded-[3px] ${LEVEL_COLORS[day.level]}`}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
           <div className="flex items-center gap-1.5 mt-3 text-xs text-slate-400">
             <span>적음</span>
             {LEVEL_COLORS.map((color, i) => (
-              <div key={i} className={`w-4 h-4 rounded-[3px] ${color}`} />
+              <div key={i} className={`w-3.5 h-3.5 md:w-4 md:h-4 rounded-[3px] ${color}`} />
             ))}
             <span>많음</span>
           </div>
