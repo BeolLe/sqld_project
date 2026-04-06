@@ -33,6 +33,7 @@ from app.services.sql_grading import compare_result_sets
 from app.services.amplitude import send_amplitude_event
 from app.services.slack import send_slack_message
 from app.services.sql_workspace import (
+    BASE_TABLES,
     WorkspaceValidationError,
     build_workspace_context,
     classify_statement,
@@ -41,6 +42,7 @@ from app.services.sql_workspace import (
     enforce_namespace_limits,
     extract_rename_target_object,
     extract_target_object,
+    fetch_namespace_tables,
     is_read_only_statement,
     prepare_namespace,
     rewrite_query_for_namespace,
@@ -50,6 +52,8 @@ from app.services.sql_workspace import (
 
 router = APIRouter(prefix="/api/sql", tags=["sql"])
 logger = logging.getLogger(__name__)
+STALE_NAMESPACE_CLEANUP_INTERVAL_SECONDS = 60
+_last_stale_namespace_cleanup_at = 0.0
 
 MAX_ROWS = 50
 RESERVED_BASE_TABLES = {
@@ -348,14 +352,28 @@ def resolve_workspace_scope(
 
 
 def cleanup_stale_namespaces() -> None:
+    global _last_stale_namespace_cleanup_at
+
+    now = time.monotonic()
+    if now - _last_stale_namespace_cleanup_at < STALE_NAMESPACE_CLEANUP_INTERVAL_SECONDS:
+        return
+
     stale_records = list_stale_namespaces()
     if not stale_records:
+        _last_stale_namespace_cleanup_at = now
         return
 
     with get_oracle_connection() as conn:
         for record in stale_records:
             cleanup_namespace_by_prefix(conn, record.namespace_prefix)
             delete_namespace(record.scope_key)
+    _last_stale_namespace_cleanup_at = now
+
+
+def namespace_is_ready(conn, workspace) -> bool:
+    existing_tables = fetch_namespace_tables(conn, workspace)
+    required_base_tables = {workspace.table_name(table) for table in BASE_TABLES}
+    return required_base_tables.issubset(existing_tables)
 
 
 def sync_namespace_lifecycle(
@@ -371,8 +389,10 @@ def sync_namespace_lifecycle(
     if existing and existing.practice_id != practice_id:
         cleanup_namespace_by_prefix(conn, existing.namespace_prefix)
         delete_namespace(scope_key)
+        existing = None
 
-    prepare_namespace(conn, workspace)
+    if not existing or not namespace_is_ready(conn, workspace):
+        prepare_namespace(conn, workspace)
     upsert_namespace(
         scope_key=scope_key,
         practice_id=practice_id,
