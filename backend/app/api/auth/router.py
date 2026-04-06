@@ -16,6 +16,7 @@ from app.db.postgres import get_connection
 from app.core.security import (
     hash_password,
     verify_password,
+    verify_and_update_password,
     create_access_token,
     decode_access_token,
 )
@@ -490,13 +491,18 @@ def login(req: LoginRequest, request: Request):
         )
         raise HTTPException(status_code=401, detail="invalid credentials")
 
-    user_id, email, nickname, password_hash, is_active = user
+    user_id, email, nickname, stored_password_hash, is_active = user
 
     if not is_active:
         raise HTTPException(status_code=403, detail="deactivated account")
 
-    if not verify_password(req.password, password_hash):
-        timing_marks["passwordVerifiedMs"] = round((monotonic() - started_at) * 1000)
+    password_verified, updated_password_hash = verify_and_update_password(
+        req.password,
+        stored_password_hash,
+    )
+    timing_marks["passwordVerifiedMs"] = round((monotonic() - started_at) * 1000)
+
+    if not password_verified:
         logger.info(
             "login failed request_id=%s user_id=%s timings=%s reason=invalid_credentials_password_mismatch",
             request_id,
@@ -525,12 +531,24 @@ def login(req: LoginRequest, request: Request):
         )
         raise HTTPException(status_code=401, detail="invalid credentials")
 
+    if updated_password_hash:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE auth.users
+                    SET password_hash = %s
+                    WHERE user_id = %s
+                    """,
+                    (updated_password_hash, str(user_id)),
+                )
+        timing_marks["passwordRehashedMs"] = round((monotonic() - started_at) * 1000)
+
     access_token = create_access_token(
         user_id=str(user_id),
         email=email,
         nickname=nickname,
     )
-    timing_marks["passwordVerifiedMs"] = round((monotonic() - started_at) * 1000)
     timing_marks["tokenCreatedMs"] = round((monotonic() - started_at) * 1000)
 
     submit_amplitude_event(
