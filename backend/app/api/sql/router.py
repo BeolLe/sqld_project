@@ -23,6 +23,7 @@ from app.db.sql_namespaces import (
     delete_namespace,
     get_namespace,
     list_stale_namespaces,
+    namespace_advisory_lock,
     touch_namespace,
     upsert_namespace,
 )
@@ -395,15 +396,16 @@ def init_workspace(
     )
 
     cleanup_stale_namespaces()
-    with get_oracle_connection() as conn:
-        sync_namespace_lifecycle(
-            conn=conn,
-            workspace=workspace,
-            scope_key=scope_key,
-            practice_id=req.practice_id,
-            user_id=user_id,
-            session_id=session_id,
-        )
+    with namespace_advisory_lock(scope_key):
+        with get_oracle_connection() as conn:
+            sync_namespace_lifecycle(
+                conn=conn,
+                workspace=workspace,
+                scope_key=scope_key,
+                practice_id=req.practice_id,
+                user_id=user_id,
+                session_id=session_id,
+            )
 
     return {
         "practiceId": workspace.practice_id,
@@ -428,9 +430,10 @@ def cleanup_workspace(
         require_persistent_scope=True,
     )
 
-    with get_oracle_connection() as conn:
-        dropped_tables = cleanup_namespace_tables(conn, workspace)
-    delete_namespace(scope_key)
+    with namespace_advisory_lock(scope_key):
+        with get_oracle_connection() as conn:
+            dropped_tables = cleanup_namespace_tables(conn, workspace)
+        delete_namespace(scope_key)
 
     return {
         "practiceId": workspace.practice_id,
@@ -522,14 +525,15 @@ def execute_sql(
             )
 
             if has_persistent_scope:
-                sync_namespace_lifecycle(
-                    conn=conn,
-                    workspace=workspace,
-                    scope_key=scope_key,
-                    practice_id=req.practice_id,
-                    user_id=user_id,
-                    session_id=session_id,
-                )
+                with namespace_advisory_lock(scope_key):
+                    sync_namespace_lifecycle(
+                        conn=conn,
+                        workspace=workspace,
+                        scope_key=scope_key,
+                        practice_id=req.practice_id,
+                        user_id=user_id,
+                        session_id=session_id,
+                    )
             else:
                 prepare_namespace(conn, workspace)
 

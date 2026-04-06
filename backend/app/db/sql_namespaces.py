@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -205,3 +206,18 @@ def list_stale_namespaces(
         )
         for row in rows
     ]
+
+
+@contextmanager
+def namespace_advisory_lock(scope_key: str):
+    conn = get_postgres_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_lock(hashtext(%s))", (scope_key,))
+        yield
+    finally:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT pg_advisory_unlock(hashtext(%s))", (scope_key,))
+        finally:
+            conn.close()
