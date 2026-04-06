@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from urllib import request
 from uuid import uuid4
@@ -9,6 +10,7 @@ from uuid import uuid4
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="amplitude")
 
 
 def send_amplitude_event(
@@ -55,3 +57,7 @@ def send_amplitude_event(
     except Exception:
         logger.exception("failed to send amplitude event=%s", event_type)
         return False
+
+
+def submit_amplitude_event(**kwargs: Any) -> None:
+    _executor.submit(send_amplitude_event, **kwargs)

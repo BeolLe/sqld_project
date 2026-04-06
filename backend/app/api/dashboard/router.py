@@ -1,16 +1,29 @@
 from __future__ import annotations
 
+from threading import Lock
+from time import monotonic
+
 from fastapi import APIRouter, Depends
 
 from app.api.auth.router import get_current_user
+from app.core.config import settings
 from app.db.postgres import get_connection
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
+_cache_lock = Lock()
+_summary_cache: dict[str, tuple[float, dict]] = {}
 
 
 @router.get("/summary")
 def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
     user_id = current_user["user_id"]
+    now = monotonic()
+    ttl = settings.DASHBOARD_SUMMARY_CACHE_TTL_SECONDS
+
+    with _cache_lock:
+        cached = _summary_cache.get(user_id)
+        if cached and now - cached[0] < ttl:
+            return cached[1]
 
     stats = {
         "totalPoints": 0,
@@ -195,10 +208,15 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                 for row in cur.fetchall()
             ]
 
-    return {
+    response = {
         "stats": stats,
         "subjectStats": subject_stats,
         "recentExamResults": recent_exam_results,
         "recentSqlAttempts": recent_sql_attempts,
         "learningCalendar": learning_calendar,
     }
+
+    with _cache_lock:
+        _summary_cache[user_id] = (now, response)
+
+    return response

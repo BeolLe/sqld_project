@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from psycopg.types.json import Jsonb
@@ -8,6 +9,7 @@ from psycopg.types.json import Jsonb
 from app.db.postgres import get_postgres_connection
 
 logger = logging.getLogger(__name__)
+_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="log-writer")
 
 
 def log_insert_error(operation: str, exc: Exception) -> None:
@@ -90,6 +92,10 @@ def insert_auth_event(
     except Exception as exc:
         log_insert_error("insert_auth_event", exc)
         return
+
+
+def submit_auth_event(**kwargs: Any) -> None:
+    _executor.submit(insert_auth_event, **kwargs)
 
 
 def insert_learning_event(

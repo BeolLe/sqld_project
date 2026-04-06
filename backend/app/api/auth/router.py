@@ -8,7 +8,7 @@ from pydantic import BaseModel, EmailStr
 from jwt import ExpiredSignatureError, InvalidTokenError
 
 from app.core.config import settings
-from app.db.logs import ensure_request_id, insert_auth_event
+from app.db.logs import ensure_request_id, insert_auth_event, submit_auth_event
 from app.db.postgres import get_connection
 from app.core.security import (
     hash_password,
@@ -16,7 +16,7 @@ from app.core.security import (
     create_access_token,
     decode_access_token,
 )
-from app.services.amplitude import send_amplitude_event
+from app.services.amplitude import send_amplitude_event, submit_amplitude_event
 from app.services.mailer import send_email
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -455,7 +455,7 @@ def login(req: LoginRequest, request: Request):
             user = cur.fetchone()
 
     if not user:
-        send_amplitude_event(
+        submit_amplitude_event(
             event_type="backend_auth_login_failed",
             event_properties={
                 "failure_code": "invalid_credentials",
@@ -463,7 +463,7 @@ def login(req: LoginRequest, request: Request):
             },
             insert_id=request_id,
         )
-        insert_auth_event(
+        submit_auth_event(
             event_type="login_failed",
             success=False,
             email=req.email,
@@ -481,7 +481,7 @@ def login(req: LoginRequest, request: Request):
         raise HTTPException(status_code=403, detail="deactivated account")
 
     if not verify_password(req.password, password_hash):
-        send_amplitude_event(
+        submit_amplitude_event(
             event_type="backend_auth_login_failed",
             user_id=str(user_id),
             event_properties={
@@ -490,7 +490,7 @@ def login(req: LoginRequest, request: Request):
             },
             insert_id=request_id,
         )
-        insert_auth_event(
+        submit_auth_event(
             event_type="login_failed",
             success=False,
             email=req.email,
@@ -509,7 +509,7 @@ def login(req: LoginRequest, request: Request):
         nickname=nickname,
     )
 
-    send_amplitude_event(
+    submit_amplitude_event(
         event_type="backend_auth_login_succeeded",
         user_id=str(user_id),
         event_properties={
@@ -521,7 +521,7 @@ def login(req: LoginRequest, request: Request):
         },
         insert_id=request_id,
     )
-    insert_auth_event(
+    submit_auth_event(
         event_type="login_succeeded",
         success=True,
         email=email,
@@ -540,20 +540,6 @@ def login(req: LoginRequest, request: Request):
 
 @router.get("/me")
 def me(request: Request, current_user: dict = Depends(get_current_user)):
-    request_id = ensure_request_id(request.headers.get("x-request-id"))
-    session_id = request.headers.get("x-session-id")
-
-    insert_auth_event(
-        event_type="auth_restored",
-        success=True,
-        email=current_user["email"],
-        user_id=current_user["user_id"],
-        session_id=session_id,
-        request_id=request_id,
-        page_path=str(request.url.path),
-        metadata={"nickname": current_user["nickname"]},
-    )
-
     points = 0
     email_verified = current_user["email_verified"]
     email_verified_at = current_user["email_verified_at"]
@@ -580,17 +566,6 @@ def me(request: Request, current_user: dict = Depends(get_current_user)):
                 email_verified = bool(row[1])
                 email_verified_at = row[2].isoformat() if row[2] else None
                 is_admin = bool(row[3])
-
-    send_amplitude_event(
-        event_type="backend_auth_restored",
-        user_id=current_user["user_id"],
-        event_properties={"points": points},
-        user_properties={
-            "email": current_user["email"],
-            "nickname": current_user["nickname"],
-        },
-        insert_id=request_id,
-    )
     return {
         "user_id": current_user["user_id"],
         "email": current_user["email"],

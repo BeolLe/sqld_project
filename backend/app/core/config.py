@@ -19,6 +19,12 @@ class Settings:
     POSTGRES_DB = os.getenv("POSTGRES_DB", "")
     POSTGRES_USER = os.getenv("POSTGRES_USER", "")
     POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
+    POSTGRES_POOL_MIN_SIZE = int(os.getenv("POSTGRES_POOL_MIN_SIZE", "5"))
+    POSTGRES_POOL_MAX_SIZE = int(os.getenv("POSTGRES_POOL_MAX_SIZE", "20"))
+
+    DASHBOARD_SUMMARY_CACHE_TTL_SECONDS = int(
+        os.getenv("DASHBOARD_SUMMARY_CACHE_TTL_SECONDS", "30")
+    )
 
     AMPLITUDE_API_KEY = os.getenv("AMPLITUDE_API_KEY", "")
     AMPLITUDE_API_URL = os.getenv(
