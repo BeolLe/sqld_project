@@ -21,6 +21,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
     subject_stats: list[dict] = []
     recent_exam_results: list[dict] = []
     recent_sql_attempts: list[dict] = []
+    learning_calendar: list[dict] = []
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -144,10 +145,45 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                 if row[3] is not None
             ]
 
+            cur.execute(
+                """
+                WITH learning_events AS (
+                    SELECT
+                        timezone('Asia/Seoul', COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at))::date AS learning_date
+                    FROM practice.sql_practice_attempts spa
+                    WHERE spa.user_id = %s::uuid
+                      AND COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at) IS NOT NULL
+
+                    UNION ALL
+
+                    SELECT
+                        timezone('Asia/Seoul', COALESCE(ea.submitted_at, ea.last_saved_at, ea.started_at, ea.created_at))::date AS learning_date
+                    FROM exam.exam_attempts ea
+                    WHERE ea.user_id = %s::uuid
+                      AND COALESCE(ea.submitted_at, ea.last_saved_at, ea.started_at, ea.created_at) IS NOT NULL
+                )
+                SELECT
+                    learning_date::text,
+                    COUNT(*)::int AS event_count
+                FROM learning_events
+                WHERE learning_date >= timezone('Asia/Seoul', now())::date - INTERVAL '83 days'
+                GROUP BY learning_date
+                ORDER BY learning_date ASC
+                """,
+                (user_id, user_id),
+            )
+            learning_calendar = [
+                {
+                    "date": row[0],
+                    "eventCount": int(row[1] or 0),
+                }
+                for row in cur.fetchall()
+            ]
+
     return {
         "stats": stats,
         "subjectStats": subject_stats,
         "recentExamResults": recent_exam_results,
         "recentSqlAttempts": recent_sql_attempts,
-        "learningCalendar": [],
+        "learningCalendar": learning_calendar,
     }
