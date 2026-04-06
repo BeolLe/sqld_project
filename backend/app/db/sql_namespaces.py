@@ -210,14 +210,11 @@ def list_stale_namespaces(
 
 @contextmanager
 def namespace_advisory_lock(scope_key: str):
-    conn = get_postgres_connection()
-    try:
+    with get_postgres_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT pg_advisory_lock(hashtext(%s))", (scope_key,))
-        yield
-    finally:
         try:
+            yield
+        finally:
             with conn.cursor() as cur:
                 cur.execute("SELECT pg_advisory_unlock(hashtext(%s))", (scope_key,))
-        finally:
-            conn.close()
