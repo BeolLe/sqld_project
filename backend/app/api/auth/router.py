@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
+import logging
 import secrets
 from threading import Lock
 from time import monotonic
@@ -22,6 +23,7 @@ from app.services.amplitude import send_amplitude_event, submit_amplitude_event
 from app.services.mailer import send_email
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 bearer_scheme = HTTPBearer()
 _me_cache_lock = Lock()
 _me_cache: dict[str, tuple[float, dict]] = {}
@@ -445,6 +447,8 @@ def register(req: RegisterRequest, request: Request):
 def login(req: LoginRequest, request: Request):
     request_id = ensure_request_id(request.headers.get("x-request-id"))
     session_id = request.headers.get("x-session-id")
+    started_at = monotonic()
+    timing_marks: dict[str, int] = {}
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -457,8 +461,15 @@ def login(req: LoginRequest, request: Request):
                 (req.email,),
             )
             user = cur.fetchone()
+    timing_marks["userLoadedMs"] = round((monotonic() - started_at) * 1000)
 
     if not user:
+        logger.info(
+            "login failed request_id=%s email=%s timings=%s reason=invalid_credentials_user_not_found",
+            request_id,
+            req.email,
+            timing_marks,
+        )
         submit_amplitude_event(
             event_type="backend_auth_login_failed",
             event_properties={
@@ -485,6 +496,13 @@ def login(req: LoginRequest, request: Request):
         raise HTTPException(status_code=403, detail="deactivated account")
 
     if not verify_password(req.password, password_hash):
+        timing_marks["passwordVerifiedMs"] = round((monotonic() - started_at) * 1000)
+        logger.info(
+            "login failed request_id=%s user_id=%s timings=%s reason=invalid_credentials_password_mismatch",
+            request_id,
+            str(user_id),
+            timing_marks,
+        )
         submit_amplitude_event(
             event_type="backend_auth_login_failed",
             user_id=str(user_id),
@@ -512,6 +530,8 @@ def login(req: LoginRequest, request: Request):
         email=email,
         nickname=nickname,
     )
+    timing_marks["passwordVerifiedMs"] = round((monotonic() - started_at) * 1000)
+    timing_marks["tokenCreatedMs"] = round((monotonic() - started_at) * 1000)
 
     submit_amplitude_event(
         event_type="backend_auth_login_succeeded",
@@ -534,6 +554,13 @@ def login(req: LoginRequest, request: Request):
         request_id=request_id,
         page_path=str(request.url.path),
         metadata={"nickname": nickname},
+    )
+    timing_marks["loginCompletedMs"] = round((monotonic() - started_at) * 1000)
+    logger.info(
+        "login succeeded request_id=%s user_id=%s timings=%s",
+        request_id,
+        str(user_id),
+        timing_marks,
     )
 
     return {
