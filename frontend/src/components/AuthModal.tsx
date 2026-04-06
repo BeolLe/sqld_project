@@ -135,9 +135,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   const [step, setStep] = useState<ModalStep>('auth');
   const [findNickname, setFindNickname] = useState('');
   const [findEmail, setFindEmail] = useState('');
-  const [findEmailFound, setFindEmailFound] = useState<boolean | null>(null);
-  const [findEmailDeliveryMode, setFindEmailDeliveryMode] = useState<'email' | 'inline_email'>('email');
-  const [recoveredEmail, setRecoveredEmail] = useState('');
+  const [maskedEmail, setMaskedEmail] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [resetConfirmPassword, setResetConfirmPassword] = useState('');
@@ -158,9 +156,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     setStep('auth');
     setFindNickname('');
     setFindEmail('');
-    setFindEmailFound(null);
-    setFindEmailDeliveryMode('email');
-    setRecoveredEmail('');
+    setMaskedEmail('');
     setResetToken('');
     setResetNewPassword('');
     setResetConfirmPassword('');
@@ -197,16 +193,13 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     }
     try {
       setLoading(true);
-      const res = await apiFetch<{ found: boolean; message: string; deliveryMode?: 'email' | 'inline_email'; recoveredEmail?: string }>('/auth/find-email', {
+      const res = await apiFetch<{ maskedEmail: string }>('/auth/find-email', {
         method: 'POST',
         body: JSON.stringify({ nickname: findNickname.trim() }),
       });
-      setSuccess(res.message);
-      setFindEmailFound(res.found);
-      setFindEmailDeliveryMode(res.deliveryMode ?? 'email');
-      setRecoveredEmail(res.recoveredEmail ?? '');
+      setMaskedEmail(res.maskedEmail);
       setStep('find-email-result');
-      logEvent('common_auth_modal_viewed', { step: 'find-email', found: res.found });
+      logEvent('common_auth_modal_viewed', { step: 'find-email', found: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : '계정을 찾을 수 없습니다.');
       logEvent('common_auth_modal_viewed', { step: 'find-email', found: false });
@@ -335,7 +328,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
               <ArrowLeft className="w-4 h-4" /> 로그인으로 돌아가기
             </button>
             <h2 className="text-2xl font-bold text-sqld-navy mb-1">아이디 찾기</h2>
-            <p className="text-sm text-slate-500 mb-6">가입 시 등록한 닉네임을 입력하면 계정 여부를 확인하고, 등록된 이메일로 아이디 안내를 보냅니다.</p>
+            <p className="text-sm text-slate-500 mb-6">가입 시 등록한 닉네임을 입력해주세요.</p>
             <form onSubmit={handleFindEmail} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">닉네임</label>
@@ -354,7 +347,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                 disabled={loading}
                 className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
               >
-                {loading ? '처리 중...' : '아이디 찾기'}
+                {loading ? '검색 중...' : '아이디 찾기'}
               </button>
             </form>
           </>
@@ -367,22 +360,10 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
               <ArrowLeft className="w-4 h-4" /> 로그인으로 돌아가기
             </button>
             <h2 className="text-2xl font-bold text-sqld-navy mb-1">아이디 찾기 결과</h2>
-            <p className="text-sm text-slate-500 mb-6">
-              {findEmailFound
-                ? '입력하신 정보에 등록된 이메일로 안내를 보냈습니다.'
-                : '입력하신 정보에 맞는 계정이 없습니다.'}
-            </p>
-            {success && (
-              <p className={`text-sm px-4 py-2 rounded-lg mb-4 ${findEmailFound ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'}`}>
-                {success}
-              </p>
-            )}
-            {findEmailDeliveryMode === 'inline_email' && recoveredEmail && (
-              <div className="bg-slate-50 border border-slate-200 rounded-lg px-6 py-4 text-center mb-6">
-                <p className="text-sm text-slate-500 mb-1">개발 환경용 직접 확인</p>
-                <p className="text-lg font-semibold text-sqld-navy">{recoveredEmail}</p>
-              </div>
-            )}
+            <p className="text-sm text-slate-500 mb-6">가입된 이메일을 확인해주세요.</p>
+            <div className="bg-slate-50 border border-slate-200 rounded-lg px-6 py-4 text-center mb-6">
+              <p className="text-lg font-semibold text-sqld-navy">{maskedEmail}</p>
+            </div>
             <button
               onClick={goBackToAuth}
               className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition-colors"

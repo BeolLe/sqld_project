@@ -162,6 +162,28 @@ def build_verification_url(token: str) -> str | None:
     return f"{settings.APP_PUBLIC_BASE_URL}/mypage?verifyToken={token}"
 
 
+def mask_email(email: str) -> str:
+    local, _, domain = email.partition("@")
+    if not local or not domain:
+        return email
+
+    if len(local) <= 2:
+        masked_local = local[0] + "*"
+    else:
+        masked_local = local[0] + ("*" * (len(local) - 2)) + local[-1]
+
+    domain_name, dot, domain_suffix = domain.partition(".")
+    if not domain_name:
+        return f"{masked_local}@{domain}"
+
+    if len(domain_name) <= 2:
+        masked_domain = domain_name[0] + "*"
+    else:
+        masked_domain = domain_name[0] + ("*" * (len(domain_name) - 2)) + domain_name[-1]
+
+    return f"{masked_local}@{masked_domain}{dot}{domain_suffix}" if dot else f"{masked_local}@{masked_domain}"
+
+
 def create_password_reset_token(*, cur, user_id: str, email: str) -> tuple[str, datetime]:
     raw_token = secrets.token_urlsafe(32)
     token_hash = hash_verification_token(raw_token)
@@ -893,11 +915,6 @@ def confirm_email_verification(req: EmailVerificationConfirmRequest):
 
 @router.post("/find-email")
 def request_find_email(req: FindEmailRequest):
-    not_found_message = "입력하신 정보에 맞는 계정이 없습니다."
-    sent_message = "입력하신 정보에 등록된 이메일로 안내를 보냈습니다."
-    delivery_mode = "email"
-    recovered_email: str | None = None
-
     nickname = req.nickname.strip()
     if not nickname:
         raise HTTPException(status_code=400, detail="닉네임을 입력해주세요.")
@@ -918,38 +935,11 @@ def request_find_email(req: FindEmailRequest):
             user = cur.fetchone()
 
     if not user:
-        return {
-            "found": False,
-            "message": not_found_message,
-            "deliveryMode": delivery_mode,
-        }
+        raise HTTPException(status_code=404, detail="입력하신 정보에 맞는 계정이 없습니다.")
 
-    sent = send_email(
-        to_email=user[1],
-        subject="[SolSQLD] 아이디 찾기 안내",
-        text_content="\n".join(
-            [
-                "SolSQLD에서 아이디 찾기 요청이 접수되었습니다.",
-                "",
-                f"가입된 아이디(이메일): {user[1]}",
-                f"닉네임: {user[2]}",
-                "",
-                "본인이 요청하지 않았다면 이 메일을 무시해주세요.",
-            ]
-        ),
-    )
-    if not sent:
-        delivery_mode = "inline_email"
-        recovered_email = user[1]
-
-    response = {
-        "found": True,
-        "message": sent_message,
-        "deliveryMode": delivery_mode,
+    return {
+        "maskedEmail": mask_email(user[1]),
     }
-    if recovered_email:
-        response["recoveredEmail"] = recovered_email
-    return response
 
 
 @router.post("/password-reset/request")
