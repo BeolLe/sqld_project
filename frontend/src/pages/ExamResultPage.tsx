@@ -35,18 +35,19 @@ export default function ExamResultPage() {
 
   const { score, answers, problems, passed, failedBySubjectCutoff } = state;
   const isPassed = passed === true;
+  const isSubjectCutoffFailure = failedBySubjectCutoff === true || (!isPassed && score >= 60);
   const [reportTarget, setReportTarget] = useState<Problem | null>(null);
 
   const correctList = problems.filter((p) => answers[p.id] === p.answer);
   const wrongList = problems.filter((p) => answers[p.id] !== p.answer);
-  const resultTitle = isPassed ? '합격' : '불합격';
-  const resultSummary = failedBySubjectCutoff
-    ? '총점과 별개로 과목별 40점 미만 과락 기준에 해당합니다.'
+  const resultTitle = isPassed ? '합격' : isSubjectCutoffFailure ? '과락으로 불합격' : '불합격';
+  const resultSummary = isSubjectCutoffFailure
+    ? '총점이 합격 기준을 넘었더라도, 과목별 40점 미만이 있으면 불합격입니다.'
     : isPassed
       ? '총점 60점 이상으로 합격 기준을 충족했습니다.'
       : '총점이 60점 미만으로 불합격입니다.';
-  const resultMetaLabel = failedBySubjectCutoff
-    ? '과목별 40점 미만 과락'
+  const resultMetaLabel = isSubjectCutoffFailure
+    ? '과목별 과락 적용'
     : isPassed
       ? '60점 이상 합격'
       : '60점 미만 불합격';
