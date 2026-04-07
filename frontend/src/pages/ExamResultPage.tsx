@@ -40,7 +40,7 @@ export default function ExamResultPage() {
 
   const correctList = problems.filter((p) => answers[p.id] === p.answer);
   const wrongList = problems.filter((p) => answers[p.id] !== p.answer);
-  const resultTitle = isPassed ? '합격' : isSubjectCutoffFailure ? '과락으로 불합격' : '불합격';
+  const resultTitle = isPassed ? '합격' : '불합격';
   const resultSummary = isSubjectCutoffFailure
     ? '총점이 합격 기준을 넘었더라도, 과목별 40점 미만이 있으면 불합격입니다.'
     : isPassed
