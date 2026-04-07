@@ -8,6 +8,8 @@ interface ResultState {
   score: number;
   answers: Record<string, string>;
   problems: Problem[];
+  passed?: boolean;
+  failedBySubjectCutoff?: boolean;
 }
 
 export default function ExamResultPage() {
@@ -28,8 +30,8 @@ export default function ExamResultPage() {
     );
   }
 
-  const { score, answers, problems } = state;
-  const isPassed = score >= 60;
+  const { score, answers, problems, passed, failedBySubjectCutoff } = state;
+  const isPassed = passed ?? score >= 60;
   const [reportTarget, setReportTarget] = useState<Problem | null>(null);
 
   const correctList = problems.filter((p) => answers[p.id] === p.answer);
@@ -52,7 +54,12 @@ export default function ExamResultPage() {
           <h1 className="text-3xl font-extrabold mb-2">{isPassed ? '합격' : '불합격'}</h1>
           <p className="text-5xl font-black mb-2">{score}점</p>
           <p className="text-sm opacity-80">
-            {isPassed ? '60점 이상 합격' : '60점 미만 불합격'} &nbsp;|&nbsp; 정답{' '}
+            {failedBySubjectCutoff
+              ? '과목별 40점 미만 과락'
+              : isPassed
+                ? '60점 이상 합격'
+                : '60점 미만 불합격'}{' '}
+            &nbsp;|&nbsp; 정답{' '}
             {correctList.length}문제 / 오답 {wrongList.length}문제
           </p>
         </div>

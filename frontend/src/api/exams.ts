@@ -105,6 +105,7 @@ export interface ExamSubmitResponse {
   problems: Problem[];
   correctCount: number;
   passed: boolean;
+  failedBySubjectCutoff: boolean;
   scorePercent: number;
 }
 

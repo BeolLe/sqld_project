@@ -638,6 +638,7 @@ def submit_exam(
     return {
         "attemptId": attempt["id"],
         "passed": passed,
+        "failedBySubjectCutoff": failed_by_subject_cutoff,
         "scorePercent": score_percent,
         **result_payload,
     }

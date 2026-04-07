@@ -176,7 +176,13 @@ export default function ExamTakingPage() {
       logEvent('exam_result_viewed', { examId: id, userId: user.id, score: result.score }, user.id);
 
       navigate(`/exams/${id}/result`, {
-        state: { score: result.score, answers: result.answers, problems: result.problems },
+        state: {
+          score: result.score,
+          answers: result.answers,
+          problems: result.problems,
+          passed: result.passed,
+          failedBySubjectCutoff: result.failedBySubjectCutoff,
+        },
       });
     }).catch((caughtError) => {
       setError(caughtError instanceof Error ? caughtError.message : '시험 제출 중 오류가 발생했습니다.');
