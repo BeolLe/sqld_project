@@ -385,7 +385,7 @@ export default function ExamTakingPage() {
               <div className="text-center mb-6 md:mb-8 pb-4 border-b-2 border-sqld-navy">
                 <h1 className="text-lg md:text-xl font-bold text-sqld-navy">SQLD 모의고사 {id}회</h1>
                 <p className="text-xs md:text-sm text-slate-500 mt-1">
-                  총 {problems.length}문항 · 제한시간 90분 · 60점 이상 합격
+                  총 {problems.length}문항 · 제한시간 90분 · 60점 이상 합격 · 과목별 40점 미만 과락
                 </p>
               </div>
             )}

@@ -21,7 +21,10 @@ export default function ExamResultPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <p className="text-slate-500 mb-4">결과 데이터가 없습니다.</p>
+          <p className="text-slate-700 font-semibold mb-2">표시할 시험 결과를 찾지 못했습니다.</p>
+          <p className="text-sm text-slate-500 mb-4">
+            제출 직후 화면에서 다시 들어오지 않은 경우 이 메시지가 보일 수 있습니다.
+          </p>
           <button onClick={() => navigate('/exams')} className="text-primary-600 hover:underline">
             모의고사 목록으로
           </button>
@@ -36,6 +39,17 @@ export default function ExamResultPage() {
 
   const correctList = problems.filter((p) => answers[p.id] === p.answer);
   const wrongList = problems.filter((p) => answers[p.id] !== p.answer);
+  const resultTitle = isPassed ? '합격' : '불합격';
+  const resultSummary = failedBySubjectCutoff
+    ? '총점과 별개로 과목별 40점 미만 과락 기준에 해당합니다.'
+    : isPassed
+      ? '총점 60점 이상으로 합격 기준을 충족했습니다.'
+      : '총점이 60점 미만으로 불합격입니다.';
+  const resultMetaLabel = failedBySubjectCutoff
+    ? '과목별 40점 미만 과락'
+    : isPassed
+      ? '60점 이상 합격'
+      : '60점 미만 불합격';
 
   return (
     <div className="min-h-screen bg-slate-50 py-10">
@@ -51,14 +65,11 @@ export default function ExamResultPage() {
               <XCircle className="w-16 h-16 text-white/80" />
             )}
           </div>
-          <h1 className="text-3xl font-extrabold mb-2">{isPassed ? '합격' : '불합격'}</h1>
+          <h1 className="text-3xl font-extrabold mb-2">{resultTitle}</h1>
           <p className="text-5xl font-black mb-2">{score}점</p>
+          <p className="text-sm font-medium opacity-90 mb-2">{resultSummary}</p>
           <p className="text-sm opacity-80">
-            {failedBySubjectCutoff
-              ? '과목별 40점 미만 과락'
-              : isPassed
-                ? '60점 이상 합격'
-                : '60점 미만 불합격'}{' '}
+            {resultMetaLabel}{' '}
             &nbsp;|&nbsp; 정답{' '}
             {correctList.length}문제 / 오답 {wrongList.length}문제
           </p>
