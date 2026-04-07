@@ -31,7 +31,7 @@ export default function ExamResultPage() {
   }
 
   const { score, answers, problems, passed, failedBySubjectCutoff } = state;
-  const isPassed = passed ?? score >= 60;
+  const isPassed = passed === true;
   const [reportTarget, setReportTarget] = useState<Problem | null>(null);
 
   const correctList = problems.filter((p) => answers[p.id] === p.answer);

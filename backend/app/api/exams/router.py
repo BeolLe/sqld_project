@@ -412,7 +412,24 @@ def submit_exam(
 
         if attempt["status"] == "submitted":
             result_payload = build_result_payload(conn, attempt["id"])
-            return {"attemptId": attempt["id"], **result_payload}
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(
+                    """
+                    SELECT passed, failed_by_subject_cutoff, score_percent
+                    FROM exam.exam_attempt_results
+                    WHERE attempt_id = %s
+                    """,
+                    (attempt["id"],),
+                )
+                stored_result = cur.fetchone()
+
+            return {
+                "attemptId": attempt["id"],
+                "passed": bool(stored_result["passed"]) if stored_result else False,
+                "failedBySubjectCutoff": bool(stored_result["failed_by_subject_cutoff"]) if stored_result else False,
+                "scorePercent": float(stored_result["score_percent"]) if stored_result and stored_result["score_percent"] is not None else 0,
+                **result_payload,
+            }
 
         if req.current_page_no is not None or req.remaining_seconds is not None:
             update_attempt_counters(
@@ -434,15 +451,16 @@ def submit_exam(
                     q.subject_id,
                     COUNT(*) AS question_count,
                     COUNT(*) FILTER (WHERE a.selected_choice = ak.correct_answer) AS correct_count
-                FROM exam.exam_attempt_answers a
-                JOIN exam.exam_questions q
-                  ON q.id = a.question_id
+                FROM exam.exam_questions q
                 JOIN exam.answer_keys ak
                   ON ak.question_id = q.id
-                WHERE a.attempt_id = %s
+                LEFT JOIN exam.exam_attempt_answers a
+                  ON a.question_id = q.id
+                 AND a.attempt_id = %s
+                WHERE q.exam_id = %s
                 GROUP BY q.subject_id
                 """,
-                (attempt["id"],),
+                (attempt["id"], exam["id"]),
             )
             subject_rows = cur.fetchall()
 
