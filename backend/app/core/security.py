@@ -22,6 +22,10 @@ JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(
     os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 )
+JWT_REFRESH_SECRET_KEY = os.getenv("JWT_REFRESH_SECRET_KEY", JWT_SECRET_KEY)
+JWT_REFRESH_TOKEN_EXPIRE_DAYS = int(
+    os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "14")
+)
 
 
 def hash_password(password: str) -> str:
@@ -45,6 +49,7 @@ def create_access_token(user_id: str, email: str, nickname: str) -> str:
         "sub": user_id,
         "email": email,
         "nickname": nickname,
+        "typ": "access",
         "exp": expire,
     }
 
@@ -58,4 +63,30 @@ def decode_access_token(token: str) -> dict:
         JWT_SECRET_KEY,
         algorithms=[JWT_ALGORITHM],
     )
+    token_type = payload.get("typ")
+    if token_type not in (None, "access"):
+        raise InvalidTokenError("invalid token type")
+    return payload
+
+
+def create_refresh_token(user_id: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(
+        days=JWT_REFRESH_TOKEN_EXPIRE_DAYS
+    )
+    payload = {
+        "sub": user_id,
+        "typ": "refresh",
+        "exp": expire,
+    }
+    return jwt.encode(payload, JWT_REFRESH_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def decode_refresh_token(token: str) -> dict:
+    payload = jwt.decode(
+        token,
+        JWT_REFRESH_SECRET_KEY,
+        algorithms=[JWT_ALGORITHM],
+    )
+    if payload.get("typ") != "refresh":
+        raise InvalidTokenError("invalid token type")
     return payload

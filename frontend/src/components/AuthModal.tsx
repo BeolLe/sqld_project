@@ -7,6 +7,8 @@ import type { AuthMode } from '../types';
 
 type ModalStep = 'auth' | 'find-email' | 'find-email-result' | 'reset-password' | 'reset-password-verify' | 'reset-password-form' | 'reset-password-done';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 const TERMS_TEXT = `SolSQLD 서비스 이용약관
 
 제1조 (목적)
@@ -115,6 +117,27 @@ interface AuthModalProps {
   onModeChange: (mode: AuthMode) => void;
 }
 
+const SIGNUP_REASON_OPTIONS = [
+  { value: 'sqld_exam', label: 'SQLD 자격증 시험 준비', code: 1 },
+  { value: 'sql_skill', label: 'SQL 실력 향상', code: 2 },
+  { value: 'school_work', label: '학교 · 직장 학습용', code: 3 },
+] as const;
+
+function getSignupPurposePayload(signupReason: string, signupReasonOther: string) {
+  if (signupReason === 'other') {
+    return {
+      signupPurposeCode: 4,
+      signupPurposeOther: signupReasonOther.trim(),
+    };
+  }
+
+  const matchedOption = SIGNUP_REASON_OPTIONS.find((option) => option.value === signupReason);
+  return {
+    signupPurposeCode: matchedOption?.code ?? null,
+    signupPurposeOther: '',
+  };
+}
+
 export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProps) {
   const { login, signup } = useAuth();
   const [email, setEmail] = useState('');
@@ -188,6 +211,13 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     setStep('auth');
     setError('');
     setSuccess('');
+  }
+
+  function handleGoogleLogin() {
+    const next = `${window.location.pathname}${window.location.search}`;
+    window.location.assign(
+      `${API_BASE_URL}/auth/google/start?next=${encodeURIComponent(next)}`
+    );
   }
 
   async function handleFindEmail(e: React.FormEvent) {
@@ -301,7 +331,19 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
         }, 600);
       } else {
         const reason = signupReason === 'other' ? signupReasonOther.trim() : signupReason;
-        const result = await signup(email, password, nickname, termsAgreed, privacyAgreed);
+        const { signupPurposeCode, signupPurposeOther } = getSignupPurposePayload(
+          signupReason,
+          signupReasonOther
+        );
+        const result = await signup(
+          email,
+          password,
+          nickname,
+          termsAgreed,
+          privacyAgreed,
+          signupPurposeCode,
+          signupPurposeOther
+        );
         if (reason) {
           logEvent('common_signup_reason', { email, reason });
         }
@@ -529,6 +571,32 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
             : '지금 바로 SQL 실력을 키워보세요.'}
         </p>
 
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          className="w-full flex items-center justify-center gap-3 border border-slate-200 hover:border-slate-300 bg-white text-slate-700 font-medium py-3 rounded-lg transition-colors mb-4"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="#4285F4"
+              d="M21.6 12.23c0-.68-.06-1.33-.18-1.95H12v3.69h5.39a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.75 2.97-4.34 2.97-7.26Z"
+            />
+            <path
+              fill="#34A853"
+              d="M12 22c2.7 0 4.96-.9 6.61-2.44l-3.24-2.5c-.9.61-2.05.97-3.37.97-2.59 0-4.78-1.75-5.56-4.1H3.1v2.58A10 10 0 0 0 12 22Z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M6.44 13.93A6 6 0 0 1 6.13 12c0-.67.11-1.32.31-1.93V7.49H3.1A10 10 0 0 0 2 12c0 1.61.38 3.13 1.1 4.51l3.34-2.58Z"
+            />
+            <path
+              fill="#EA4335"
+              d="M12 5.97c1.47 0 2.8.5 3.84 1.5l2.88-2.88C16.95 2.96 14.7 2 12 2A10 10 0 0 0 3.1 7.49l3.34 2.58c.78-2.35 2.97-4.1 5.56-4.1Z"
+            />
+          </svg>
+          <span>{mode === 'login' ? 'Google로 로그인' : 'Google로 계속하기'}</span>
+        </button>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">이메일</label>
@@ -688,11 +756,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                     </svg>
                   </button>
                   {reasonOpen && <div className="px-4 py-3 border-t border-slate-200 space-y-2">
-                    {[
-                      { value: 'sqld_exam', label: 'SQLD 자격증 시험 준비' },
-                      { value: 'sql_skill', label: 'SQL 실력 향상' },
-                      { value: 'school_work', label: '학교 · 직장 학습용' },
-                    ].map((option) => (
+                    {SIGNUP_REASON_OPTIONS.map((option) => (
                       <label key={option.value} className="flex items-center gap-2 cursor-pointer select-none">
                         <input
                           type="radio"

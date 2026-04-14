@@ -9,6 +9,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from app.api.auth.router import get_current_user
+from app.core.config import settings
 from app.db.logs import (
     ensure_request_id,
     insert_learning_event,
@@ -111,10 +112,14 @@ def validate_query(query: str) -> str:
 
 def extract_user_id(request: Request) -> str | None:
     authorization = request.headers.get("authorization")
-    if not authorization or not authorization.lower().startswith("bearer "):
-        return None
+    token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization.split(" ", 1)[1]
+    else:
+        token = request.cookies.get(settings.AUTH_COOKIE_NAME)
+        if not token:
+            return None
 
-    token = authorization.split(" ", 1)[1]
     try:
         payload = decode_access_token(token)
     except Exception:

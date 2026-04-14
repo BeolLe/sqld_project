@@ -28,16 +28,12 @@ import type { SQLResult, Difficulty } from '../types';
 import { parseDDL, parseInserts } from '../utils/sqlParser';
 import { fetchSQLPractice } from '../api/content';
 import { getColumnDescription } from '../constants/columnDescriptions';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-const ACCESS_TOKEN_KEY = 'solsqld_access_token';
+import { apiRequest } from '../utils/api';
 
 async function fetchLatestSubmittedQuery(practiceId: string): Promise<string> {
-  const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-  const response = await fetch(`${API_BASE_URL}/sql/practices/${practiceId}/latest-submission`, {
+  const response = await apiRequest(`/sql/practices/${practiceId}/latest-submission`, {
     headers: {
       'Content-Type': 'application/json',
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
   });
 
@@ -51,12 +47,10 @@ async function fetchLatestSubmittedQuery(practiceId: string): Promise<string> {
 }
 
 async function executeSQL(query: string, practiceId: string, action: 'execute' | 'submit'): Promise<SQLResult> {
-  const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-  const response = await fetch(`${API_BASE_URL}/sql/execute`, {
+  const response = await apiRequest('/sql/execute', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: JSON.stringify({ query, practice_id: practiceId, action }),
   });

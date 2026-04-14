@@ -1,18 +1,14 @@
 import type { Problem } from '../types';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-const ACCESS_TOKEN_KEY = 'solsqld_access_token';
+import { apiRequest } from '../utils/api';
 
 function getAuthHeaders() {
-  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
   return {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await apiRequest(path, {
     ...init,
     headers: {
       ...getAuthHeaders(),
@@ -82,14 +78,11 @@ export function persistExamSessionSnapshot(
   examId: string,
   payload: { currentPageNo?: number; remainingSeconds?: number }
 ) {
-  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
-
-  return fetch(`${API_BASE_URL}/exams/${examId}/session`, {
+  return apiRequest(`/exams/${examId}/session`, {
     method: 'PUT',
     keepalive: true,
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({
       current_page_no: payload.currentPageNo,

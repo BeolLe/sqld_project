@@ -8,9 +8,7 @@ import {
 } from 'react';
 import type { User } from '../types';
 import { logEvent, setAmplitudeUserId, resetAmplitudeUserId } from '../utils/eventLogger';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-const ACCESS_TOKEN_KEY = 'solsqld_access_token';
+import { apiRequest } from '../utils/api';
 
 interface AuthResult {
   message: string;
@@ -21,7 +19,15 @@ interface AuthContextValue {
   isLoggedIn: boolean;
   isInitializing: boolean;
   login: (email: string, password: string) => Promise<AuthResult>;
-  signup: (email: string, password: string, nickname?: string, termsAgreed?: boolean, privacyAgreed?: boolean) => Promise<AuthResult>;
+  signup: (
+    email: string,
+    password: string,
+    nickname?: string,
+    termsAgreed?: boolean,
+    privacyAgreed?: boolean,
+    signupPurposeCode?: number | null,
+    signupPurposeOther?: string
+  ) => Promise<AuthResult>;
   logout: () => void;
   updatePoints: (points: number) => void;
   updateNickname: (nickname: string) => void;
@@ -35,7 +41,7 @@ interface ApiErrorPayload {
 }
 
 interface LoginResponse {
-  access_token: string;
+  message: string;
 }
 
 interface RegisterResponse {
@@ -62,16 +68,12 @@ function toUser(me: MeResponse): User {
   };
 }
 
-function getStoredAccessToken() {
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
-}
-
-function storeAccessToken(token: string) {
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
-}
-
-function clearStoredAccessToken() {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
+function clearAuthRedirectParams() {
+  const currentUrl = new URL(window.location.href);
+  currentUrl.searchParams.delete('auth_provider');
+  currentUrl.searchParams.delete('auth_error');
+  currentUrl.searchParams.delete('auth_success');
+  window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
 }
 
 const ERROR_MESSAGE_MAP: Record<string, string> = {
@@ -90,6 +92,8 @@ const ERROR_MESSAGE_MAP: Record<string, string> = {
   'Token expired': '인증이 만료되었습니다. 다시 로그인해주세요.',
   'Internal server error': '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
   'deactivated account': '비활성화된 계정입니다.',
+  'signup purpose code is invalid': '가입 목적 값이 올바르지 않습니다.',
+  'signup purpose other is required': '기타 가입 목적을 입력해주세요.',
 };
 
 function translateErrorMessage(message: string): string {
@@ -107,13 +111,7 @@ async function parseErrorMessage(response: Response) {
 }
 
 async function request<T>(path: string, init?: RequestInit) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  });
+  const response = await apiRequest(path, init);
 
   if (!response.ok) {
     throw new Error(await parseErrorMessage(response));
@@ -127,7 +125,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isInitializing, setIsInitializing] = useState(true);
 
   const logout = useCallback(() => {
-    clearStoredAccessToken();
     setUser(null);
     resetAmplitudeUserId();
   }, []);
@@ -161,32 +158,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return nextUser;
   }, []);
 
-  const loadCurrentUser = useCallback(
-    async (token: string) => {
-      try {
-        const me = await request<MeResponse>('/auth/me', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        return applyAuthenticatedUser(me);
-      } catch (error) {
-        logout();
-        throw error;
-      }
-    },
-    [applyAuthenticatedUser, logout]
-  );
+  const loadCurrentUser = useCallback(async () => {
+    try {
+      const me = await request<MeResponse>('/auth/me');
+      return applyAuthenticatedUser(me);
+    } catch (error) {
+      logout();
+      throw error;
+    }
+  }, [applyAuthenticatedUser, logout]);
 
   useEffect(() => {
-    const token = getStoredAccessToken();
+    const searchParams = new URLSearchParams(window.location.search);
+    const redirectAuthProvider = searchParams.get('auth_provider');
+    const redirectAuthError = searchParams.get('auth_error');
+    const redirectAuthSuccess = searchParams.get('auth_success');
 
-    if (!token) {
-      setIsInitializing(false);
-      return;
+    if (redirectAuthError || redirectAuthProvider || redirectAuthSuccess) {
+      clearAuthRedirectParams();
     }
 
-    loadCurrentUser(token)
+    if (redirectAuthError) {
+      window.alert(redirectAuthError);
+    }
+
+    loadCurrentUser()
+      .then((me) => {
+        if (redirectAuthSuccess) {
+          logEvent(
+            'common_login_succeeded',
+            { email: me.email, provider: redirectAuthProvider ?? 'social' },
+            me.id
+          );
+        }
+      })
       .catch(() => undefined)
       .finally(() => {
         setIsInitializing(false);
@@ -194,20 +199,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadCurrentUser]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const { access_token: accessToken } = await request<LoginResponse>('/auth/login', {
+    await request<LoginResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
 
-    storeAccessToken(accessToken);
-    const me = await loadCurrentUser(accessToken);
+    const me = await loadCurrentUser();
     logEvent('common_login_succeeded', { email: me.email }, me.id);
 
     return { message: '로그인에 성공했습니다.' };
   }, [loadCurrentUser]);
 
-  const signup = useCallback(async (email: string, password: string, nickname?: string, termsAgreed = false, privacyAgreed = false) => {
+  const signup = useCallback(async (
+    email: string,
+    password: string,
+    nickname?: string,
+    termsAgreed = false,
+    privacyAgreed = false,
+    signupPurposeCode: number | null = null,
+    signupPurposeOther = ''
+  ) => {
     const resolvedNickname = nickname?.trim() || email.split('@')[0];
+    const normalizedSignupPurposeOther = signupPurposeCode === 4 ? signupPurposeOther.trim() : '';
     const response = await request<RegisterResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({
@@ -216,10 +229,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         terms_agreed: termsAgreed,
         privacy_agreed: privacyAgreed,
+        signup_purpose_code: signupPurposeCode,
+        signup_purpose_other: normalizedSignupPurposeOther || null,
       }),
     });
 
-    logEvent('common_signup_succeeded', { email, nickname: resolvedNickname }, email);
+    logEvent(
+      'common_signup_succeeded',
+      { email, nickname: resolvedNickname, signupPurposeCode },
+      email
+    );
     logEvent('system_first_visit', { email }, email);
 
     return {
@@ -230,9 +249,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const logoutWithServer = useCallback(async () => {
+    try {
+      await request<{ message: string }>('/auth/logout', {
+        method: 'POST',
+      });
+    } catch {
+      // 서버 로그아웃 실패 시에도 로컬 상태는 즉시 비웁니다.
+    } finally {
+      logout();
+    }
+  }, [logout]);
+
   return (
     <AuthContext.Provider
-      value={{ user, isLoggedIn: !!user, isInitializing, login, signup, logout, updatePoints, updateNickname }}
+      value={{
+        user,
+        isLoggedIn: !!user,
+        isInitializing,
+        login,
+        signup,
+        logout: logoutWithServer,
+        updatePoints,
+        updateNickname,
+      }}
     >
       {children}
     </AuthContext.Provider>

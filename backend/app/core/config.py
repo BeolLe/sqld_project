@@ -53,5 +53,19 @@ class Settings:
         if user_id.strip()
     ]
 
+    GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
+    GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
+    GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "")
+    GOOGLE_OAUTH_STATE_TTL_SECONDS = int(
+        os.getenv("GOOGLE_OAUTH_STATE_TTL_SECONDS", "600")
+    )
+
+    AUTH_COOKIE_NAME = os.getenv("AUTH_COOKIE_NAME", "solsqld_access_token")
+    REFRESH_COOKIE_NAME = os.getenv("REFRESH_COOKIE_NAME", "solsqld_refresh_token")
+    CSRF_COOKIE_NAME = os.getenv("CSRF_COOKIE_NAME", "solsqld_csrf_token")
+    AUTH_COOKIE_SECURE = os.getenv("AUTH_COOKIE_SECURE", "false").lower() == "true"
+    AUTH_COOKIE_SAMESITE = os.getenv("AUTH_COOKIE_SAMESITE", "lax")
+    REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "14"))
+
 
 settings = Settings()
