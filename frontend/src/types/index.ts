@@ -69,6 +69,7 @@ export type EventType =
   | 'common_signup_succeeded'
   | 'common_login_succeeded'
   | 'common_auth_modal_viewed'
+  | 'common_signup_reason'
   | 'system_first_visit'
   // Exam
   | 'exam_session_started'
@@ -151,8 +152,6 @@ export interface UserProfile {
   points: number;
   termsAgreedAt: string | null;
   privacyAgreedAt: string | null;
-  emailVerified: boolean;
-  emailVerifiedAt: string | null;
 }
 
 // ─── 피드백 타입 ──────────────────────────────────────────────────────────────

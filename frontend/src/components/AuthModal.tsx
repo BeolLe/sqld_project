@@ -5,7 +5,7 @@ import { logEvent } from '../utils/eventLogger';
 import { apiFetch } from '../utils/api';
 import type { AuthMode } from '../types';
 
-type ModalStep = 'auth' | 'find-email' | 'find-email-result' | 'reset-password' | 'reset-password-form' | 'reset-password-done';
+type ModalStep = 'auth' | 'find-email' | 'find-email-result' | 'reset-password' | 'reset-password-verify' | 'reset-password-form' | 'reset-password-done';
 
 const TERMS_TEXT = `SolSQLD 서비스 이용약관
 
@@ -127,6 +127,9 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   const [privacyScrolled, setPrivacyScrolled] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [signupReason, setSignupReason] = useState('');
+  const [signupReasonOther, setSignupReasonOther] = useState('');
+  const [reasonOpen, setReasonOpen] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -136,9 +139,9 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   const [findNickname, setFindNickname] = useState('');
   const [findEmail, setFindEmail] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
-  const [resetToken, setResetToken] = useState('');
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [resetToken, setResetToken] = useState('');
 
   const termsRef = useRef<HTMLDivElement>(null);
   const privacyRef = useRef<HTMLDivElement>(null);
@@ -153,13 +156,16 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     setPrivacyScrolled(false);
     setPrivacyAgreed(false);
     setPrivacyOpen(false);
+    setSignupReason('');
+    setSignupReasonOther('');
+    setReasonOpen(false);
     setStep('auth');
     setFindNickname('');
     setFindEmail('');
     setMaskedEmail('');
-    setResetToken('');
     setResetNewPassword('');
     setResetConfirmPassword('');
+    setResetToken('');
   }, [mode]);
 
   function handleTermsScroll() {
@@ -193,7 +199,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     }
     try {
       setLoading(true);
-      const res = await apiFetch<{ maskedEmail: string }>('/auth/find-email', {
+      const res = await apiFetch<{ maskedEmail: string }>('/api/auth/find-email', {
         method: 'POST',
         body: JSON.stringify({ nickname: findNickname.trim() }),
       });
@@ -208,34 +214,39 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     }
   }
 
-  async function handleResetPasswordVerify(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleResetPasswordRequest(e?: React.FormEvent) {
+    e?.preventDefault();
     setError('');
-    setSuccess('');
     if (!findEmail.trim()) {
       setError('이메일을 입력해주세요.');
       return;
     }
     try {
       setLoading(true);
-      const res = await apiFetch<{ message: string; resetToken?: string }>('/auth/password-reset/request', {
+      await apiFetch<{ message: string }>('/api/auth/password-reset/request', {
         method: 'POST',
-        body: JSON.stringify({
-          email: findEmail.trim(),
-        }),
+        body: JSON.stringify({ email: findEmail.trim() }),
       });
-      if (res.resetToken) {
-        setResetToken(res.resetToken);
-      }
-      setSuccess(res.message);
-      setStep('reset-password-form');
-      logEvent('common_auth_modal_viewed', { step: 'password-reset-request', success: true });
+      setStep('reset-password-verify');
+      setError('');
+      logEvent('common_auth_modal_viewed', { step: 'reset-password-request', sent: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : '비밀번호 재설정 요청에 실패했습니다.');
-      logEvent('common_auth_modal_viewed', { step: 'password-reset-request', success: false });
+      setError(err instanceof Error ? err.message : '인증번호 발송에 실패했습니다.');
+      logEvent('common_auth_modal_viewed', { step: 'reset-password-request', sent: false });
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleResetTokenVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (!resetToken.trim()) {
+      setError('인증번호를 입력해주세요.');
+      return;
+    }
+    setStep('reset-password-form');
+    setError('');
   }
 
   async function handleResetPasswordSubmit(e: React.FormEvent) {
@@ -249,13 +260,9 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
       setError('새 비밀번호가 일치하지 않습니다.');
       return;
     }
-    if (!resetToken.trim()) {
-      setError('이메일로 받은 인증 토큰을 입력해주세요.');
-      return;
-    }
     try {
       setLoading(true);
-      await apiFetch<{ message: string }>('/auth/password-reset/confirm', {
+      await apiFetch<{ message: string }>('/api/auth/password-reset/confirm', {
         method: 'POST',
         body: JSON.stringify({
           token: resetToken.trim(),
@@ -293,7 +300,11 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
           onClose();
         }, 600);
       } else {
+        const reason = signupReason === 'other' ? signupReasonOther.trim() : signupReason;
         const result = await signup(email, password, nickname, termsAgreed, privacyAgreed);
+        if (reason) {
+          logEvent('common_signup_reason', { email, reason });
+        }
         setSuccess(result.message);
         setPassword('');
         window.setTimeout(() => {
@@ -373,15 +384,15 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
           </>
         )}
 
-        {/* ── 비밀번호 재설정 - 본인 확인 ── */}
+        {/* ── 비밀번호 재설정 - 이메일 입력 ── */}
         {step === 'reset-password' && (
           <>
             <button onClick={goBackToAuth} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
               <ArrowLeft className="w-4 h-4" /> 로그인으로 돌아가기
             </button>
             <h2 className="text-2xl font-bold text-sqld-navy mb-1">비밀번호 재설정</h2>
-            <p className="text-sm text-slate-500 mb-6">가입한 이메일을 입력하면 재설정 토큰을 보내드립니다.</p>
-            <form onSubmit={handleResetPasswordVerify} className="space-y-4">
+            <p className="text-sm text-slate-500 mb-6">가입한 이메일을 입력하시면 인증번호를 보내드립니다.</p>
+            <form onSubmit={handleResetPasswordRequest} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">이메일</label>
                 <input
@@ -393,14 +404,56 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                   autoFocus
                 />
               </div>
-              {success && <p className="text-sm text-emerald-700 bg-emerald-50 px-4 py-2 rounded-lg">{success}</p>}
               {error && <p className="text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg">{error}</p>}
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
               >
-                {loading ? '처리 중...' : '재설정 요청'}
+                {loading ? '발송 중...' : '인증번호 받기'}
+              </button>
+            </form>
+          </>
+        )}
+
+        {/* ── 비밀번호 재설정 - 인증번호 입력 ── */}
+        {step === 'reset-password-verify' && (
+          <>
+            <button onClick={() => { setStep('reset-password'); setError(''); setResetToken(''); }} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+              <ArrowLeft className="w-4 h-4" /> 이전 단계
+            </button>
+            <h2 className="text-2xl font-bold text-sqld-navy mb-1">인증번호 확인</h2>
+            <p className="text-sm text-slate-500 mb-2">
+              <span className="font-medium text-sqld-navy">{findEmail}</span>로 인증번호를 보냈습니다.
+            </p>
+            <p className="text-xs text-slate-400 mb-6">이메일을 확인하고 인증번호를 입력해주세요.</p>
+            <form onSubmit={handleResetTokenVerify} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">인증번호</label>
+                <input
+                  type="text"
+                  value={resetToken}
+                  onChange={(e) => setResetToken(e.target.value)}
+                  placeholder="이메일로 받은 인증번호 입력"
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 tracking-widest"
+                  autoFocus
+                />
+              </div>
+              {error && <p className="text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg">{error}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
+              >
+                확인
+              </button>
+              <button
+                type="button"
+                onClick={handleResetPasswordRequest}
+                disabled={loading}
+                className="w-full text-sm text-slate-500 hover:text-primary-600 transition-colors"
+              >
+                인증번호 재발송
               </button>
             </form>
           </>
@@ -409,23 +462,12 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
         {/* ── 비밀번호 재설정 - 새 비밀번호 입력 ── */}
         {step === 'reset-password-form' && (
           <>
-            <button onClick={() => { setStep('reset-password'); setError(''); }} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+            <button onClick={() => { setStep('reset-password-verify'); setError(''); }} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
               <ArrowLeft className="w-4 h-4" /> 이전 단계
             </button>
             <h2 className="text-2xl font-bold text-sqld-navy mb-1">새 비밀번호 설정</h2>
-            <p className="text-sm text-slate-500 mb-6">이메일로 받은 토큰과 새로운 비밀번호를 입력해주세요.</p>
+            <p className="text-sm text-slate-500 mb-6">새로운 비밀번호를 입력해주세요.</p>
             <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">인증 토큰</label>
-                <input
-                  type="text"
-                  value={resetToken}
-                  onChange={(e) => setResetToken(e.target.value)}
-                  placeholder="이메일로 받은 토큰"
-                  className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  autoFocus
-                />
-              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">새 비밀번호</label>
                 <input
@@ -434,6 +476,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                   onChange={(e) => setResetNewPassword(e.target.value)}
                   placeholder="8자 이상"
                   className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  autoFocus
                 />
               </div>
               <div>
@@ -625,6 +668,67 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                     </label>
                   </div>
                 </div>
+
+                {/* 가입 목적 설문 (선택) */}
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setReasonOpen((v) => !v)}
+                    className="flex items-center justify-between w-full px-4 py-3 bg-slate-50 text-left"
+                  >
+                    <span>
+                      <span className="text-sm font-medium text-slate-700">가입 목적 </span>
+                      <span className="text-xs text-slate-400">(선택)</span>
+                    </span>
+                    <svg
+                      className={`w-4 h-4 text-slate-400 transition-transform ${reasonOpen ? 'rotate-180' : ''}`}
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {reasonOpen && <div className="px-4 py-3 border-t border-slate-200 space-y-2">
+                    {[
+                      { value: 'sqld_exam', label: 'SQLD 자격증 시험 준비' },
+                      { value: 'sql_skill', label: 'SQL 실력 향상' },
+                      { value: 'school_work', label: '학교 · 직장 학습용' },
+                    ].map((option) => (
+                      <label key={option.value} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="radio"
+                          name="signupReason"
+                          value={option.value}
+                          checked={signupReason === option.value}
+                          onChange={(e) => setSignupReason(e.target.value)}
+                          className="w-4 h-4 text-primary-600 focus:ring-primary-500 border-slate-300"
+                        />
+                        <span className="text-sm text-slate-700">{option.label}</span>
+                      </label>
+                    ))}
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="radio"
+                        name="signupReason"
+                        value="other"
+                        checked={signupReason === 'other'}
+                        onChange={(e) => setSignupReason(e.target.value)}
+                        className="w-4 h-4 text-primary-600 focus:ring-primary-500 border-slate-300"
+                      />
+                      <span className="text-sm text-slate-700">기타</span>
+                    </label>
+                    {signupReason === 'other' && (
+                      <input
+                        type="text"
+                        value={signupReasonOther}
+                        onChange={(e) => setSignupReasonOther(e.target.value)}
+                        placeholder="가입 목적을 알려주세요"
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ml-6"
+                        style={{ maxWidth: 'calc(100% - 1.5rem)' }}
+                        maxLength={100}
+                      />
+                    )}
+                  </div>}
+                </div>
               </div>
             </>
           )}
@@ -665,7 +769,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
             </button>
             <span>|</span>
             <button
-              onClick={() => { setStep('reset-password'); setError(''); setFindEmail(''); setFindNickname(''); }}
+              onClick={() => { setStep('reset-password'); setError(''); setFindEmail(''); setResetToken(''); }}
               className="hover:text-primary-600 hover:underline transition-colors"
             >
               비밀번호를 잊으셨나요?
