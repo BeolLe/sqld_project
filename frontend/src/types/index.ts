@@ -152,6 +152,8 @@ export interface UserProfile {
   points: number;
   termsAgreedAt: string | null;
   privacyAgreedAt: string | null;
+  emailVerified?: boolean;
+  emailVerifiedAt?: string | null;
 }
 
 // ─── 피드백 타입 ──────────────────────────────────────────────────────────────
