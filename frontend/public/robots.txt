@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /mypage
+Disallow: /dashboard
+Disallow: /exams/*/taking
+Disallow: /exams/*/result
 
 Sitemap: https://www.solsqld.com/sitemap.xml
