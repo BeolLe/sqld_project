@@ -52,9 +52,32 @@ function parseBlocks(description: string): Block[] {
     current = null;
   }
 
+  let inFencedSql = false;
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
+
+    // 마크다운 코드블록 시작 (```sql, ```SQL 등)
+    if (/^```\s*sql\s*$/i.test(trimmed)) {
+      flush();
+      inFencedSql = true;
+      current = { type: 'sql', lines: [] };
+      continue;
+    }
+
+    // 마크다운 코드블록 종료 (```)
+    if (inFencedSql && /^```\s*$/.test(trimmed)) {
+      inFencedSql = false;
+      flush();
+      continue;
+    }
+
+    // 마크다운 코드블록 내부 — 그대로 SQL 블록에 추가
+    if (inFencedSql) {
+      current!.lines.push(line);
+      continue;
+    }
 
     // 빈 줄은 현재 블록 종료
     if (trimmed === '') {
