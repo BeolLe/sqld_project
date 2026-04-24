@@ -77,7 +77,8 @@ class PasswordChangeRequest(BaseModel):
 
 
 class DeleteAccountRequest(BaseModel):
-    password: str
+    password: str | None = None
+    social_delete_token: str | None = None
 
 
 class EmailVerificationConfirmRequest(BaseModel):
@@ -317,6 +318,19 @@ def create_google_oauth_state(next_path: str) -> str:
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
+def create_google_account_delete_state(*, user_id: str, next_path: str) -> str:
+    now = int(time())
+    payload = {
+        "flow": "google_account_delete",
+        "user_id": user_id,
+        "next": normalize_next_path(next_path),
+        "nonce": secrets.token_urlsafe(24),
+        "iat": now,
+        "exp": now + settings.GOOGLE_OAUTH_STATE_TTL_SECONDS,
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
 def create_social_signup_token(
     *,
     provider: str,
@@ -339,7 +353,7 @@ def create_social_signup_token(
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
-def decode_google_oauth_state(state_token: str) -> dict:
+def decode_google_state_token(state_token: str) -> dict:
     try:
         payload = jwt.decode(
             state_token,
@@ -351,9 +365,16 @@ def decode_google_oauth_state(state_token: str) -> dict:
     except InvalidTokenError:
         raise HTTPException(status_code=400, detail="google login state is invalid")
 
-    if payload.get("flow") != "google_oauth":
+    if payload.get("flow") not in {"google_oauth", "google_account_delete"}:
         raise HTTPException(status_code=400, detail="google login state is invalid")
 
+    return payload
+
+
+def decode_google_oauth_state(state_token: str) -> dict:
+    payload = decode_google_state_token(state_token)
+    if payload.get("flow") != "google_oauth":
+        raise HTTPException(status_code=400, detail="google login state is invalid")
     return payload
 
 
@@ -371,6 +392,36 @@ def decode_social_signup_token(token: str) -> dict:
 
     if payload.get("flow") != "social_signup":
         raise HTTPException(status_code=400, detail="social signup token is invalid")
+
+    return payload
+
+
+def create_account_delete_token(*, user_id: str, provider: str) -> str:
+    now = int(time())
+    payload = {
+        "flow": "account_delete",
+        "sub": user_id,
+        "provider": provider,
+        "iat": now,
+        "exp": now + 60 * 10,
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def decode_account_delete_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(
+            token,
+            JWT_SECRET_KEY,
+            algorithms=[JWT_ALGORITHM],
+        )
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=400, detail="account delete token expired")
+    except InvalidTokenError:
+        raise HTTPException(status_code=400, detail="account delete token is invalid")
+
+    if payload.get("flow") != "account_delete":
+        raise HTTPException(status_code=400, detail="account delete token is invalid")
 
     return payload
 
@@ -619,6 +670,7 @@ def get_current_user(request: Request):
         "email_verified": bool(user[4]),
         "email_verified_at": user[5].isoformat() if user[5] else None,
         "is_admin": bool(user[6]),
+        "auth_provider": payload.get("auth_provider") or "local",
     }
 
 
@@ -980,6 +1032,56 @@ def google_login_start(request: Request, next: str = "/"):
     return RedirectResponse(url=authorization_url, status_code=302)
 
 
+@router.get("/google/delete/start")
+def google_delete_start(
+    request: Request,
+    next: str = "/mypage",
+    current_user: dict = Depends(get_current_user),
+):
+    require_google_oauth_settings()
+
+    if current_user.get("auth_provider") != "google":
+        raise HTTPException(status_code=400, detail="현재 로그인 수단이 구글이 아닙니다.")
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1
+                FROM auth.social_accounts
+                WHERE user_id = %s
+                  AND provider = 'google'
+                LIMIT 1
+                """,
+                (current_user["user_id"],),
+            )
+            row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=400, detail="google account is not linked")
+
+    state_token = create_google_account_delete_state(
+        user_id=current_user["user_id"],
+        next_path=next,
+    )
+    oidc_config = fetch_google_oidc_config()
+    authorization_url = (
+        f"{oidc_config['authorization_endpoint']}?"
+        + urlencode(
+            {
+                "response_type": "code",
+                "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
+                "redirect_uri": settings.GOOGLE_OAUTH_REDIRECT_URI,
+                "scope": "openid email profile",
+                "state": state_token,
+                "nonce": decode_google_state_token(state_token)["nonce"],
+                "prompt": "select_account",
+            }
+        )
+    )
+    return RedirectResponse(url=authorization_url, status_code=302)
+
+
 @router.get("/google/callback")
 def google_login_callback(
     request: Request,
@@ -993,7 +1095,7 @@ def google_login_callback(
     if not state:
         raise HTTPException(status_code=400, detail="google login state is required")
 
-    state_payload = decode_google_oauth_state(state)
+    state_payload = decode_google_state_token(state)
     next_path = state_payload["next"]
     redirect_params: dict[str, str | None] = {"auth_provider": "google"}
 
@@ -1047,6 +1149,42 @@ def google_login_callback(
 
     email = claims["email"].strip().lower()
     google_sub = claims["sub"]
+
+    if state_payload.get("flow") == "google_account_delete":
+        expected_user_id = str(state_payload.get("user_id") or "")
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT u.user_id, u.is_active
+                    FROM auth.users u
+                    JOIN auth.social_accounts sa
+                      ON sa.user_id = u.user_id
+                    WHERE u.user_id = %s
+                      AND sa.provider = 'google'
+                      AND sa.provider_user_id = %s
+                    """,
+                    (expected_user_id, google_sub),
+                )
+                delete_target = cur.fetchone()
+
+        if not delete_target or not delete_target[1]:
+            redirect_params["auth_error"] = "구글 재인증에 실패했습니다. 다시 시도해주세요."
+            return RedirectResponse(
+                url=build_frontend_redirect_url(request, next_path, redirect_params),
+                status_code=302,
+            )
+
+        redirect_params["account_delete_ready"] = "1"
+        redirect_params["account_delete_provider"] = "google"
+        redirect_params["account_delete_token"] = create_account_delete_token(
+            user_id=expected_user_id,
+            provider="google",
+        )
+        return RedirectResponse(
+            url=build_frontend_redirect_url(request, next_path, redirect_params),
+            status_code=302,
+        )
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -1109,8 +1247,9 @@ def google_login_callback(
         user_id=str(user_id),
         email=resolved_email,
         nickname=nickname,
+        auth_provider="google",
     )
-    refresh_token = create_refresh_token(str(user_id))
+    refresh_token = create_refresh_token(str(user_id), auth_provider="google")
 
     submit_amplitude_event(
         event_type="backend_auth_google_login_succeeded",
@@ -1230,8 +1369,9 @@ def complete_social_signup(req: SocialSignupCompleteRequest, request: Request):
         user_id=str(user_id),
         email=resolved_email,
         nickname=resolved_nickname,
+        auth_provider=provider,
     )
-    refresh_token = create_refresh_token(str(user_id))
+    refresh_token = create_refresh_token(str(user_id), auth_provider=provider)
 
     submit_amplitude_event(
         event_type="backend_auth_social_signup_succeeded",
@@ -1383,8 +1523,9 @@ def login(req: LoginRequest, request: Request, response: Response):
         user_id=str(user_id),
         email=email,
         nickname=nickname,
+        auth_provider="local",
     )
-    refresh_token = create_refresh_token(str(user_id))
+    refresh_token = create_refresh_token(str(user_id), auth_provider="local")
     timing_marks["tokenCreatedMs"] = round((monotonic() - started_at) * 1000)
 
     submit_amplitude_event(
@@ -1463,6 +1604,7 @@ def refresh_access_token(request: Request, response: Response):
         raise HTTPException(status_code=401, detail="user not found")
 
     resolved_user_id, email, nickname, is_active = user
+    auth_provider = payload.get("auth_provider") or "local"
     if not is_active:
         clear_auth_cookie(response)
         raise HTTPException(status_code=403, detail="deactivated account")
@@ -1471,8 +1613,12 @@ def refresh_access_token(request: Request, response: Response):
         user_id=str(resolved_user_id),
         email=email,
         nickname=nickname,
+        auth_provider=auth_provider,
     )
-    new_refresh_token = create_refresh_token(str(resolved_user_id))
+    new_refresh_token = create_refresh_token(
+        str(resolved_user_id),
+        auth_provider=auth_provider,
+    )
     issue_auth_cookies(
         response,
         access_token=new_access_token,
@@ -1530,6 +1676,7 @@ def me(request: Request, current_user: dict = Depends(get_current_user)):
         "nickname": current_user["nickname"],
         "points": points,
         "is_admin": is_admin,
+        "auth_provider": current_user["auth_provider"],
         "emailVerified": email_verified,
         "emailVerifiedAt": email_verified_at,
         "isAdmin": is_admin,
@@ -1591,6 +1738,7 @@ def get_profile(current_user: dict = Depends(get_current_user)):
         "emailVerified": bool(row[6]),
         "emailVerifiedAt": row[7].isoformat() if row[7] else None,
         "isAdmin": bool(row[8]),
+        "authProvider": current_user["auth_provider"],
     }
 
 
@@ -1682,8 +1830,19 @@ def delete_account(
             )
             row = cur.fetchone()
 
-            if not row or not verify_password(req.password, row[0]):
-                raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
+            if not row:
+                raise HTTPException(status_code=404, detail="user not found")
+
+            if req.social_delete_token:
+                payload = decode_account_delete_token(req.social_delete_token)
+                if (
+                    payload.get("sub") != current_user["user_id"]
+                    or payload.get("provider") != "google"
+                ):
+                    raise HTTPException(status_code=401, detail="소셜 탈퇴 인증이 올바르지 않습니다.")
+            else:
+                if not req.password or not verify_password(req.password, row[0]):
+                    raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
 
             deleted_suffix = current_user["user_id"][:8]
             cur.execute(

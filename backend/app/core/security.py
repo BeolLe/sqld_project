@@ -40,7 +40,12 @@ def verify_and_update_password(password: str, hashed_password: str) -> tuple[boo
     return password_hash.verify_and_update(password, hashed_password)
 
 
-def create_access_token(user_id: str, email: str, nickname: str) -> str:
+def create_access_token(
+    user_id: str,
+    email: str,
+    nickname: str,
+    auth_provider: str = "local",
+) -> str:
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES
     )
@@ -49,6 +54,7 @@ def create_access_token(user_id: str, email: str, nickname: str) -> str:
         "sub": user_id,
         "email": email,
         "nickname": nickname,
+        "auth_provider": auth_provider,
         "typ": "access",
         "exp": expire,
     }
@@ -69,12 +75,13 @@ def decode_access_token(token: str) -> dict:
     return payload
 
 
-def create_refresh_token(user_id: str) -> str:
+def create_refresh_token(user_id: str, auth_provider: str = "local") -> str:
     expire = datetime.now(timezone.utc) + timedelta(
         days=JWT_REFRESH_TOKEN_EXPIRE_DAYS
     )
     payload = {
         "sub": user_id,
+        "auth_provider": auth_provider,
         "typ": "refresh",
         "exp": expire,
     }

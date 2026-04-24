@@ -5,6 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { apiFetch } from '../utils/api';
 import type { UserProfile } from '../types';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 /* ─── 약관 텍스트 (AuthModal.tsx와 동일) ─────────────────────────────────── */
 
 const TERMS_TEXT = `SolSQLD 서비스 이용약관
@@ -165,11 +167,17 @@ function TermsModal({ title, content, onClose }: { title: string; content: strin
 function DeleteAccountModal({
   onClose,
   onConfirm,
+  onConfirmSocial,
   loading,
+  authProvider,
+  socialDeleteReady,
 }: {
   onClose: () => void;
   onConfirm: (password: string) => void;
+  onConfirmSocial: () => void;
   loading: boolean;
+  authProvider: 'local' | 'google';
+  socialDeleteReady: boolean;
 }) {
   const [password, setPassword] = useState('');
 
@@ -186,16 +194,26 @@ function DeleteAccountModal({
           <li>· 보유 포인트</li>
           <li>· 계정 정보</li>
         </ul>
-        <label className="block text-sm font-medium text-slate-700 mb-1">
-          확인을 위해 비밀번호를 입력해주세요.
-        </label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="비밀번호"
-          className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-4"
-        />
+        {authProvider === 'local' ? (
+          <>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              확인을 위해 비밀번호를 입력해주세요.
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="비밀번호"
+              className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-4"
+            />
+          </>
+        ) : (
+          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            {socialDeleteReady
+              ? '구글 본인 확인이 완료되었습니다. 아래 버튼을 누르면 계정이 삭제됩니다.'
+              : '현재 구글 로그인 상태입니다. 탈퇴 전에 Google 계정으로 한 번 더 본인 확인을 진행합니다.'}
+          </div>
+        )}
         <div className="flex gap-3">
           <button
             onClick={onClose}
@@ -204,11 +222,23 @@ function DeleteAccountModal({
             취소
           </button>
           <button
-            onClick={() => onConfirm(password)}
-            disabled={!password || loading}
+            onClick={() => (
+              authProvider === 'local'
+                ? onConfirm(password)
+                : socialDeleteReady
+                  ? onConfirm('')
+                  : onConfirmSocial()
+            )}
+            disabled={(authProvider === 'local' && !password) || loading}
             className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg transition-colors"
           >
-            {loading ? '처리 중...' : '탈퇴하기'}
+            {loading
+              ? '처리 중...'
+              : authProvider === 'local'
+                ? '탈퇴하기'
+                : socialDeleteReady
+                  ? '탈퇴하기'
+                  : 'Google로 본인 확인'}
           </button>
         </div>
       </div>
@@ -249,6 +279,7 @@ export default function MyPage() {
   // 탈퇴 모달
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [accountDeleteToken, setAccountDeleteToken] = useState('');
 
   // 비로그인 리다이렉트
   useEffect(() => {
@@ -287,9 +318,19 @@ export default function MyPage() {
     if (!isLoggedIn) return;
     const params = new URLSearchParams(window.location.search);
     const tokenFromUrl = params.get('verifyToken');
+    const deleteTokenFromUrl = params.get('account_delete_token');
     if (tokenFromUrl) {
       setVerificationToken(tokenFromUrl);
       window.history.replaceState({}, '', '/mypage');
+    }
+    if (deleteTokenFromUrl) {
+      setAccountDeleteToken(deleteTokenFromUrl);
+      const nextParams = new URLSearchParams(window.location.search);
+      nextParams.delete('account_delete_ready');
+      nextParams.delete('account_delete_provider');
+      nextParams.delete('account_delete_token');
+      const nextSearch = nextParams.toString();
+      window.history.replaceState({}, '', `/mypage${nextSearch ? `?${nextSearch}` : ''}`);
     }
   }, [isLoggedIn]);
 
@@ -382,6 +423,34 @@ export default function MyPage() {
     }
   }
 
+  function handleDeleteAccountWithGoogle() {
+    const next = `${window.location.pathname}${window.location.search}`;
+    window.location.assign(
+      `${API_BASE_URL}/auth/google/delete/start?next=${encodeURIComponent(next)}`
+    );
+  }
+
+  async function handleDeleteAccountWithSocialToken() {
+    try {
+      setDeleteLoading(true);
+      await apiFetch<{ message: string }>('/auth/account', {
+        method: 'DELETE',
+        body: JSON.stringify({ social_delete_token: accountDeleteToken }),
+      });
+      setDeleteModal(false);
+      setAccountDeleteToken('');
+      logout();
+      navigate('/', { replace: true });
+      window.setTimeout(() => {
+        alert('탈퇴가 완료되었습니다.');
+      }, 100);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '탈퇴 처리에 실패했습니다.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
   async function handleSendVerification() {
     try {
       setVerificationLoading(true);
@@ -456,6 +525,7 @@ export default function MyPage() {
   const displayPrivacyAgreedAt = profile?.privacyAgreedAt ?? null;
   const displayEmailVerified = profile?.emailVerified ?? false;
   const displayEmailVerifiedAt = profile?.emailVerifiedAt ?? null;
+  const authProvider = profile?.authProvider ?? user.authProvider ?? 'local';
 
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4">
@@ -693,8 +763,11 @@ export default function MyPage() {
       {deleteModal && (
         <DeleteAccountModal
           onClose={() => setDeleteModal(false)}
-          onConfirm={handleDeleteAccount}
+          onConfirm={authProvider === 'google' && accountDeleteToken ? handleDeleteAccountWithSocialToken : handleDeleteAccount}
+          onConfirmSocial={handleDeleteAccountWithGoogle}
           loading={deleteLoading}
+          authProvider={authProvider}
+          socialDeleteReady={!!accountDeleteToken}
         />
       )}
     </div>

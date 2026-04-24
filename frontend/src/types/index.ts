@@ -7,6 +7,7 @@ export interface User {
   points: number;
   isAdmin: boolean;
   createdAt: string;
+  authProvider?: 'local' | 'google';
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
@@ -154,6 +155,7 @@ export interface UserProfile {
   privacyAgreedAt: string | null;
   emailVerified?: boolean;
   emailVerifiedAt?: string | null;
+  authProvider?: 'local' | 'google';
 }
 
 // ─── 피드백 타입 ──────────────────────────────────────────────────────────────

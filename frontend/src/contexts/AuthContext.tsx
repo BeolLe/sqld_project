@@ -65,6 +65,7 @@ interface MeResponse {
   points: number;
   is_admin?: boolean;
   isAdmin?: boolean;
+  auth_provider?: 'local' | 'google';
 }
 
 function toUser(me: MeResponse): User {
@@ -75,6 +76,7 @@ function toUser(me: MeResponse): User {
     points: me.points ?? 0,
     isAdmin: me.is_admin ?? me.isAdmin ?? false,
     createdAt: new Date().toISOString(),
+    authProvider: me.auth_provider ?? 'local',
   };
 }
 
@@ -85,6 +87,9 @@ function clearAuthRedirectParams() {
   currentUrl.searchParams.delete('auth_success');
   currentUrl.searchParams.delete('social_signup_required');
   currentUrl.searchParams.delete('social_signup_token');
+  currentUrl.searchParams.delete('account_delete_ready');
+  currentUrl.searchParams.delete('account_delete_provider');
+  currentUrl.searchParams.delete('account_delete_token');
   window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
 }
 
