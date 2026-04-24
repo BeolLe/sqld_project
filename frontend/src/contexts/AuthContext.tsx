@@ -28,6 +28,14 @@ interface AuthContextValue {
     signupPurposeCode?: number | null,
     signupPurposeOther?: string
   ) => Promise<AuthResult>;
+  completeSocialSignup: (
+    socialSignupToken: string,
+    nickname?: string,
+    termsAgreed?: boolean,
+    privacyAgreed?: boolean,
+    signupPurposeCode?: number | null,
+    signupPurposeOther?: string
+  ) => Promise<AuthResult>;
   logout: () => void;
   updatePoints: (points: number) => void;
   updateNickname: (nickname: string) => void;
@@ -47,6 +55,8 @@ interface LoginResponse {
 interface RegisterResponse {
   message: string;
 }
+
+const PENDING_SOCIAL_SIGNUP_KEY = 'pendingSocialSignup';
 
 interface MeResponse {
   user_id: string;
@@ -73,6 +83,8 @@ function clearAuthRedirectParams() {
   currentUrl.searchParams.delete('auth_provider');
   currentUrl.searchParams.delete('auth_error');
   currentUrl.searchParams.delete('auth_success');
+  currentUrl.searchParams.delete('social_signup_required');
+  currentUrl.searchParams.delete('social_signup_token');
   window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
 }
 
@@ -86,6 +98,8 @@ const ERROR_MESSAGE_MAP: Record<string, string> = {
   'Invalid email or password': '이메일 또는 비밀번호가 올바르지 않습니다.',
   'Terms must be agreed': '서비스 이용약관에 동의해주세요.',
   'Privacy policy must be agreed': '개인정보 수집 및 이용에 동의해주세요.',
+  'terms agreement is required': '서비스 이용약관에 동의해주세요.',
+  'privacy agreement is required': '개인정보 수집 및 이용에 동의해주세요.',
   'Password too short': '비밀번호가 너무 짧습니다.',
   'Invalid email format': '올바른 이메일 형식이 아닙니다.',
   'Unauthorized': '인증이 만료되었습니다. 다시 로그인해주세요.',
@@ -94,6 +108,8 @@ const ERROR_MESSAGE_MAP: Record<string, string> = {
   'deactivated account': '비활성화된 계정입니다.',
   'signup purpose code is invalid': '가입 목적 값이 올바르지 않습니다.',
   'signup purpose other is required': '기타 가입 목적을 입력해주세요.',
+  'social signup token expired': '소셜 가입 세션이 만료되었습니다. 다시 시도해주세요.',
+  'social signup token is invalid': '소셜 가입 정보를 확인하지 못했습니다. 다시 시도해주세요.',
 };
 
 function translateErrorMessage(message: string): string {
@@ -173,8 +189,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const redirectAuthProvider = searchParams.get('auth_provider');
     const redirectAuthError = searchParams.get('auth_error');
     const redirectAuthSuccess = searchParams.get('auth_success');
+    const socialSignupRequired = searchParams.get('social_signup_required');
+    const socialSignupToken = searchParams.get('social_signup_token');
 
-    if (redirectAuthError || redirectAuthProvider || redirectAuthSuccess) {
+    if (socialSignupRequired === '1' && socialSignupToken) {
+      window.sessionStorage.setItem(
+        PENDING_SOCIAL_SIGNUP_KEY,
+        JSON.stringify({
+          provider: redirectAuthProvider ?? 'google',
+          token: socialSignupToken,
+        })
+      );
+    }
+
+    if (redirectAuthError || redirectAuthProvider || redirectAuthSuccess || socialSignupRequired || socialSignupToken) {
       clearAuthRedirectParams();
     }
 
@@ -249,6 +277,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const completeSocialSignup = useCallback(async (
+    socialSignupToken: string,
+    nickname?: string,
+    termsAgreed = false,
+    privacyAgreed = false,
+    signupPurposeCode: number | null = null,
+    signupPurposeOther = ''
+  ) => {
+    const response = await request<RegisterResponse>('/auth/social/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        social_signup_token: socialSignupToken,
+        nickname: nickname?.trim() || null,
+        terms_agreed: termsAgreed,
+        privacy_agreed: privacyAgreed,
+        signup_purpose_code: signupPurposeCode,
+        signup_purpose_other: signupPurposeCode === 4 ? signupPurposeOther.trim() || null : null,
+      }),
+    });
+
+    window.sessionStorage.removeItem(PENDING_SOCIAL_SIGNUP_KEY);
+    const me = await loadCurrentUser();
+    logEvent(
+      'common_signup_succeeded',
+      { email: me.email, nickname: me.nickname, provider: 'google', signupPurposeCode },
+      me.id
+    );
+    logEvent('system_first_visit', { email: me.email, provider: 'google' }, me.id);
+
+    return {
+      message:
+        response.message === 'social signup completed'
+          ? '구글 계정 가입이 완료되었습니다.'
+          : response.message,
+    };
+  }, [loadCurrentUser]);
+
   const logoutWithServer = useCallback(async () => {
     try {
       await request<{ message: string }>('/auth/logout', {
@@ -269,6 +334,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isInitializing,
         login,
         signup,
+        completeSocialSignup,
         logout: logoutWithServer,
         updatePoints,
         updateNickname,

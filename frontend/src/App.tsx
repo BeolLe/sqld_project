@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Header from './components/Header';
@@ -16,10 +16,17 @@ import AdminPage from './pages/AdminPage';
 import type { AuthMode } from './types';
 
 function AppShell() {
+  const pendingSocialSignup = window.sessionStorage.getItem('pendingSocialSignup');
   const [authModal, setAuthModal] = useState<{ open: boolean; mode: AuthMode }>({
-    open: false,
-    mode: 'login',
+    open: !!pendingSocialSignup,
+    mode: pendingSocialSignup ? 'signup' : 'login',
   });
+
+  useEffect(() => {
+    if (window.sessionStorage.getItem('pendingSocialSignup')) {
+      setAuthModal({ open: true, mode: 'signup' });
+    }
+  }, []);
 
   function openAuth(mode: AuthMode) {
     setAuthModal({ open: true, mode });

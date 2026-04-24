@@ -117,6 +117,30 @@ interface AuthModalProps {
   onModeChange: (mode: AuthMode) => void;
 }
 
+interface PendingSocialSignup {
+  provider: string;
+  token: string;
+  email?: string;
+  nickname?: string;
+}
+
+const PENDING_SOCIAL_SIGNUP_KEY = 'pendingSocialSignup';
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const parts = token.split('.');
+  if (parts.length < 2) {
+    return null;
+  }
+
+  try {
+    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    return JSON.parse(window.atob(padded)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 const SIGNUP_REASON_OPTIONS = [
   { value: 'sqld_exam', label: 'SQLD 자격증 시험 준비', code: 1 },
   { value: 'sql_skill', label: 'SQL 실력 향상', code: 2 },
@@ -139,7 +163,7 @@ function getSignupPurposePayload(signupReason: string, signupReasonOther: string
 }
 
 export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProps) {
-  const { login, signup } = useAuth();
+  const { login, signup, completeSocialSignup } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
@@ -156,6 +180,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pendingSocialSignup, setPendingSocialSignup] = useState<PendingSocialSignup | null>(null);
 
   // 계정 찾기 step 상태
   const [step, setStep] = useState<ModalStep>('auth');
@@ -170,6 +195,32 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   const privacyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const storedSocialSignup = window.sessionStorage.getItem(PENDING_SOCIAL_SIGNUP_KEY);
+    if (mode === 'signup' && storedSocialSignup) {
+      try {
+        const parsed = JSON.parse(storedSocialSignup) as PendingSocialSignup;
+        const payload = decodeJwtPayload(parsed.token);
+        const resolvedEmail = typeof payload?.email === 'string' ? payload.email : '';
+        const resolvedNickname = typeof payload?.nickname === 'string' ? payload.nickname : '';
+        setPendingSocialSignup({
+          ...parsed,
+          email: resolvedEmail,
+          nickname: resolvedNickname,
+        });
+        if (resolvedEmail) {
+          setEmail(resolvedEmail);
+        }
+        if (resolvedNickname) {
+          setNickname(resolvedNickname);
+        }
+      } catch {
+        window.sessionStorage.removeItem(PENDING_SOCIAL_SIGNUP_KEY);
+        setPendingSocialSignup(null);
+      }
+    } else {
+      setPendingSocialSignup(null);
+    }
+
     logEvent('common_auth_modal_viewed', { mode });
     setError('');
     setSuccess('');
@@ -313,8 +364,12 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     e.preventDefault();
     setError('');
     setSuccess('');
-    if (!email || !password) {
-      setError('이메일과 비밀번호를 입력해주세요.');
+    if (!email || (!pendingSocialSignup && !password)) {
+      setError(
+        pendingSocialSignup
+          ? '이메일 정보를 불러오지 못했습니다. 다시 시도해주세요.'
+          : '이메일과 비밀번호를 입력해주세요.'
+      );
       return;
     }
     if (mode === 'signup' && (!termsAgreed || !privacyAgreed)) {
@@ -335,22 +390,35 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
           signupReason,
           signupReasonOther
         );
-        const result = await signup(
-          email,
-          password,
-          nickname,
-          termsAgreed,
-          privacyAgreed,
-          signupPurposeCode,
-          signupPurposeOther
-        );
+        const result = pendingSocialSignup
+          ? await completeSocialSignup(
+              pendingSocialSignup.token,
+              nickname,
+              termsAgreed,
+              privacyAgreed,
+              signupPurposeCode,
+              signupPurposeOther
+            )
+          : await signup(
+              email,
+              password,
+              nickname,
+              termsAgreed,
+              privacyAgreed,
+              signupPurposeCode,
+              signupPurposeOther
+            );
         if (reason) {
           logEvent('common_signup_reason', { email, reason });
         }
         setSuccess(result.message);
         setPassword('');
         window.setTimeout(() => {
-          onModeChange('login');
+          if (pendingSocialSignup) {
+            onClose();
+          } else {
+            onModeChange('login');
+          }
         }, 900);
       }
     } catch (caughtError) {
@@ -563,39 +631,43 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
         {step === 'auth' && (
         <>
         <h2 className="text-2xl font-bold text-sqld-navy mb-1">
-          {mode === 'login' ? '로그인' : '회원가입'}
+          {mode === 'login' ? '로그인' : pendingSocialSignup ? '구글 가입 완료' : '회원가입'}
         </h2>
         <p className="text-sm text-slate-500 mb-6">
           {mode === 'login'
             ? 'SolSQLD에 오신 것을 환영합니다.'
-            : '지금 바로 SQL 실력을 키워보세요.'}
+            : pendingSocialSignup
+              ? '추가 정보와 약관 동의를 완료하면 바로 시작할 수 있습니다.'
+              : '지금 바로 SQL 실력을 키워보세요.'}
         </p>
 
-        <button
-          type="button"
-          onClick={handleGoogleLogin}
-          className="w-full flex items-center justify-center gap-3 border border-slate-200 hover:border-slate-300 bg-white text-slate-700 font-medium py-3 rounded-lg transition-colors mb-4"
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              fill="#4285F4"
-              d="M21.6 12.23c0-.68-.06-1.33-.18-1.95H12v3.69h5.39a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.75 2.97-4.34 2.97-7.26Z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 22c2.7 0 4.96-.9 6.61-2.44l-3.24-2.5c-.9.61-2.05.97-3.37.97-2.59 0-4.78-1.75-5.56-4.1H3.1v2.58A10 10 0 0 0 12 22Z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M6.44 13.93A6 6 0 0 1 6.13 12c0-.67.11-1.32.31-1.93V7.49H3.1A10 10 0 0 0 2 12c0 1.61.38 3.13 1.1 4.51l3.34-2.58Z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 5.97c1.47 0 2.8.5 3.84 1.5l2.88-2.88C16.95 2.96 14.7 2 12 2A10 10 0 0 0 3.1 7.49l3.34 2.58c.78-2.35 2.97-4.1 5.56-4.1Z"
-            />
-          </svg>
-          <span>{mode === 'login' ? 'Google로 로그인' : 'Google로 계속하기'}</span>
-        </button>
+        {!pendingSocialSignup && (
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            className="w-full flex items-center justify-center gap-3 border border-slate-200 hover:border-slate-300 bg-white text-slate-700 font-medium py-3 rounded-lg transition-colors mb-4"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="#4285F4"
+                d="M21.6 12.23c0-.68-.06-1.33-.18-1.95H12v3.69h5.39a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.75 2.97-4.34 2.97-7.26Z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 22c2.7 0 4.96-.9 6.61-2.44l-3.24-2.5c-.9.61-2.05.97-3.37.97-2.59 0-4.78-1.75-5.56-4.1H3.1v2.58A10 10 0 0 0 12 22Z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M6.44 13.93A6 6 0 0 1 6.13 12c0-.67.11-1.32.31-1.93V7.49H3.1A10 10 0 0 0 2 12c0 1.61.38 3.13 1.1 4.51l3.34-2.58Z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.97c1.47 0 2.8.5 3.84 1.5l2.88-2.88C16.95 2.96 14.7 2 12 2A10 10 0 0 0 3.1 7.49l3.34 2.58c.78-2.35 2.97-4.1 5.56-4.1Z"
+              />
+            </svg>
+            <span>{mode === 'login' ? 'Google로 로그인' : 'Google로 계속하기'}</span>
+          </button>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -605,29 +677,32 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="example@email.com"
+              disabled={!!pendingSocialSignup}
               className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">비밀번호</label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+          {!pendingSocialSignup && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">비밀번호</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {mode === 'signup' && (
             <>
@@ -819,7 +894,9 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                 ? '로그인'
                 : !termsAgreed || !privacyAgreed
                   ? '약관에 모두 동의해주세요'
-                  : '회원가입'}
+                  : pendingSocialSignup
+                    ? '구글 계정으로 가입 완료'
+                    : '회원가입'}
           </button>
         </form>
 
@@ -854,13 +931,19 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
             </>
           ) : (
             <>
-              이미 계정이 있으신가요?{' '}
-              <button
-                onClick={() => onModeChange('login')}
-                className="text-primary-600 hover:underline font-medium"
-              >
-                로그인
-              </button>
+              {pendingSocialSignup ? (
+                <>구글 인증이 완료되었습니다. 추가 정보 입력 후 바로 로그인됩니다.</>
+              ) : (
+                <>
+                  이미 계정이 있으신가요?{' '}
+                  <button
+                    onClick={() => onModeChange('login')}
+                    className="text-primary-600 hover:underline font-medium"
+                  >
+                    로그인
+                  </button>
+                </>
+              )}
             </>
           )}
         </p>

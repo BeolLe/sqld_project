@@ -58,6 +58,15 @@ class RegisterRequest(BaseModel):
     signup_purpose_other: str | None = None
 
 
+class SocialSignupCompleteRequest(BaseModel):
+    social_signup_token: str
+    nickname: str | None = None
+    terms_agreed: bool
+    privacy_agreed: bool
+    signup_purpose_code: int | None = None
+    signup_purpose_other: str | None = None
+
+
 class NicknameUpdateRequest(BaseModel):
     nickname: str
 
@@ -307,6 +316,28 @@ def create_google_oauth_state(next_path: str) -> str:
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
+def create_social_signup_token(
+    *,
+    provider: str,
+    provider_user_id: str,
+    email: str,
+    nickname: str,
+    next_path: str,
+) -> str:
+    now = int(time())
+    payload = {
+        "flow": "social_signup",
+        "provider": provider,
+        "provider_user_id": provider_user_id,
+        "email": email,
+        "nickname": nickname,
+        "next": normalize_next_path(next_path),
+        "iat": now,
+        "exp": now + 60 * 15,
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
 def decode_google_oauth_state(state_token: str) -> dict:
     try:
         payload = jwt.decode(
@@ -321,6 +352,24 @@ def decode_google_oauth_state(state_token: str) -> dict:
 
     if payload.get("flow") != "google_oauth":
         raise HTTPException(status_code=400, detail="google login state is invalid")
+
+    return payload
+
+
+def decode_social_signup_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(
+            token,
+            JWT_SECRET_KEY,
+            algorithms=[JWT_ALGORITHM],
+        )
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=400, detail="social signup token expired")
+    except InvalidTokenError:
+        raise HTTPException(status_code=400, detail="social signup token is invalid")
+
+    if payload.get("flow") != "social_signup":
+        raise HTTPException(status_code=400, detail="social signup token is invalid")
 
     return payload
 
@@ -437,6 +486,94 @@ def upsert_social_account(
             provider_email_verified,
         ),
     )
+
+
+def create_social_user(
+    *,
+    cur,
+    email: str,
+    nickname: str,
+    signup_purpose_code: int | None,
+    signup_purpose_other: str | None,
+) -> tuple:
+    random_password_hash = hash_password(secrets.token_urlsafe(32))
+    cur.execute(
+        """
+        WITH latest_consents AS (
+            SELECT
+                MAX(version) FILTER (WHERE consent_type = 'terms') AS terms_version,
+                MAX(version) FILTER (WHERE consent_type = 'privacy_policy') AS privacy_version
+            FROM auth.consent_versions
+            WHERE is_active = true
+        )
+        INSERT INTO auth.users (
+            email,
+            nickname,
+            password_hash,
+            terms_agreed,
+            privacy_policy_agreed,
+            signup_purpose_code,
+            signup_purpose_other,
+            terms_version,
+            privacy_policy_version,
+            email_verified,
+            email_verified_at
+        )
+        SELECT
+            %s,
+            %s,
+            %s,
+            true,
+            true,
+            %s,
+            %s,
+            COALESCE(latest_consents.terms_version, '2026-04-03'),
+            COALESCE(latest_consents.privacy_version, '2026-04-03'),
+            true,
+            now()
+        FROM latest_consents
+        RETURNING user_id, email, nickname, is_active
+        """,
+        (
+            email,
+            nickname,
+            random_password_hash,
+            signup_purpose_code,
+            signup_purpose_other,
+        ),
+    )
+    user = cur.fetchone()
+
+    cur.execute(
+        """
+        INSERT INTO auth.user_consents (
+            user_id,
+            consent_version_id,
+            agreed,
+            consented_at
+        )
+        SELECT
+            %s,
+            cv.id,
+            true,
+            now()
+        FROM auth.consent_versions cv
+        WHERE cv.is_active = true
+          AND cv.consent_type IN ('terms', 'privacy_policy')
+        ON CONFLICT (user_id, consent_version_id) DO NOTHING
+        """,
+        (user[0],),
+    )
+
+    cur.execute(
+        """
+        INSERT INTO dashboard.user_stats (user_id)
+        VALUES (%s)
+        ON CONFLICT (user_id) DO NOTHING
+        """,
+        (user[0],),
+    )
+    return user
 
 
 def get_current_user(request: Request):
@@ -937,8 +1074,13 @@ def google_login_callback(
                 user = cur.fetchone()
 
             if not user:
-                redirect_params["auth_error"] = (
-                    "구글 계정으로 로그인할 수 있는 계정이 없습니다. 먼저 일반 회원가입을 완료해주세요."
+                redirect_params["social_signup_required"] = "1"
+                redirect_params["social_signup_token"] = create_social_signup_token(
+                    provider="google",
+                    provider_user_id=google_sub,
+                    email=email,
+                    nickname=(claims.get("name") or email.split("@", 1)[0]).strip(),
+                    next_path=next_path,
                 )
                 return RedirectResponse(
                     url=build_frontend_redirect_url(request, next_path, redirect_params),
@@ -1010,6 +1152,130 @@ def google_login_callback(
         refresh_token=refresh_token,
     )
     return redirect_response
+
+
+@router.post("/social/register")
+def complete_social_signup(req: SocialSignupCompleteRequest, request: Request):
+    request_id = ensure_request_id(request.headers.get("x-request-id"))
+    session_id = request.headers.get("x-session-id")
+
+    if not req.terms_agreed:
+        raise HTTPException(status_code=400, detail="terms agreement is required")
+    if not req.privacy_agreed:
+        raise HTTPException(status_code=400, detail="privacy agreement is required")
+
+    payload = decode_social_signup_token(req.social_signup_token)
+    provider = payload.get("provider")
+    provider_user_id = payload.get("provider_user_id")
+    email = (payload.get("email") or "").strip().lower()
+    default_nickname = (payload.get("nickname") or email.split("@", 1)[0]).strip()
+    nickname = (req.nickname or default_nickname).strip() or email.split("@", 1)[0]
+
+    if provider != "google" or not provider_user_id or not email:
+        raise HTTPException(status_code=400, detail="social signup token is invalid")
+
+    signup_purpose_code, signup_purpose_other = normalize_signup_purpose(
+        req.signup_purpose_code,
+        req.signup_purpose_other,
+    )
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT user_id, email, nickname, is_active
+                    FROM auth.users
+                    WHERE lower(email) = lower(%s)
+                    """,
+                    (email,),
+                )
+                user = cur.fetchone()
+
+                if not user:
+                    user = create_social_user(
+                        cur=cur,
+                        email=email,
+                        nickname=nickname,
+                        signup_purpose_code=signup_purpose_code,
+                        signup_purpose_other=signup_purpose_other,
+                    )
+
+                user_id, resolved_email, resolved_nickname, is_active = user
+                if not is_active:
+                    raise HTTPException(status_code=403, detail="deactivated account")
+
+                upsert_social_account(
+                    cur=cur,
+                    user_id=str(user_id),
+                    provider=provider,
+                    provider_user_id=provider_user_id,
+                    provider_email=email,
+                    provider_email_verified=True,
+                )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning(
+            "social signup failed request_id=%s provider=%s email=%s reason=%s",
+            request_id,
+            provider,
+            email,
+            exc,
+        )
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    access_token = create_access_token(
+        user_id=str(user_id),
+        email=resolved_email,
+        nickname=resolved_nickname,
+    )
+    refresh_token = create_refresh_token(str(user_id))
+
+    submit_amplitude_event(
+        event_type="backend_auth_social_signup_succeeded",
+        user_id=str(user_id),
+        event_properties={
+            "email_domain": extract_email_domain(resolved_email),
+            "provider": provider,
+            "signup_purpose_code": signup_purpose_code,
+        },
+        user_properties={
+            "email": resolved_email,
+            "nickname": resolved_nickname,
+        },
+        insert_id=request_id,
+    )
+    submit_auth_event(
+        event_type="social_signup_succeeded",
+        success=True,
+        email=resolved_email,
+        user_id=str(user_id),
+        session_id=session_id,
+        request_id=request_id,
+        page_path=str(request.url.path),
+        metadata={"provider": provider, "nickname": resolved_nickname},
+    )
+
+    response = Response(
+        content=json.dumps(
+            {
+                "message": "social signup completed",
+                "user": {
+                    "user_id": str(user_id),
+                    "email": resolved_email,
+                    "nickname": resolved_nickname,
+                },
+            }
+        ),
+        media_type="application/json",
+    )
+    issue_auth_cookies(
+        response,
+        access_token=access_token,
+        refresh_token=refresh_token,
+    )
+    return response
 
 
 @router.post("/login")
