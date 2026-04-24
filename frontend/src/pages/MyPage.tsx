@@ -6,6 +6,7 @@ import { apiFetch } from '../utils/api';
 import type { UserProfile } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const PENDING_ACCOUNT_DELETE_KEY = 'pendingAccountDelete';
 
 /* ─── 약관 텍스트 (AuthModal.tsx와 동일) ─────────────────────────────────── */
 
@@ -325,12 +326,27 @@ export default function MyPage() {
     }
     if (deleteTokenFromUrl) {
       setAccountDeleteToken(deleteTokenFromUrl);
+      setDeleteModal(true);
       const nextParams = new URLSearchParams(window.location.search);
       nextParams.delete('account_delete_ready');
       nextParams.delete('account_delete_provider');
       nextParams.delete('account_delete_token');
       const nextSearch = nextParams.toString();
       window.history.replaceState({}, '', `/mypage${nextSearch ? `?${nextSearch}` : ''}`);
+      return;
+    }
+
+    const storedDeleteToken = window.sessionStorage.getItem(PENDING_ACCOUNT_DELETE_KEY);
+    if (storedDeleteToken) {
+      try {
+        const parsed = JSON.parse(storedDeleteToken) as { token?: string };
+        if (parsed.token) {
+          setAccountDeleteToken(parsed.token);
+          setDeleteModal(true);
+        }
+      } finally {
+        window.sessionStorage.removeItem(PENDING_ACCOUNT_DELETE_KEY);
+      }
     }
   }, [isLoggedIn]);
 
@@ -439,6 +455,7 @@ export default function MyPage() {
       });
       setDeleteModal(false);
       setAccountDeleteToken('');
+      window.sessionStorage.removeItem(PENDING_ACCOUNT_DELETE_KEY);
       logout();
       navigate('/', { replace: true });
       window.setTimeout(() => {

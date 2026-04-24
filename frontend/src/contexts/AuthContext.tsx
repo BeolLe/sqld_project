@@ -57,6 +57,7 @@ interface RegisterResponse {
 }
 
 const PENDING_SOCIAL_SIGNUP_KEY = 'pendingSocialSignup';
+const PENDING_ACCOUNT_DELETE_KEY = 'pendingAccountDelete';
 
 interface MeResponse {
   user_id: string;
@@ -196,6 +197,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const redirectAuthSuccess = searchParams.get('auth_success');
     const socialSignupRequired = searchParams.get('social_signup_required');
     const socialSignupToken = searchParams.get('social_signup_token');
+    const accountDeleteReady = searchParams.get('account_delete_ready');
+    const accountDeleteProvider = searchParams.get('account_delete_provider');
+    const accountDeleteToken = searchParams.get('account_delete_token');
 
     if (socialSignupRequired === '1' && socialSignupToken) {
       window.sessionStorage.setItem(
@@ -207,7 +211,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
     }
 
-    if (redirectAuthError || redirectAuthProvider || redirectAuthSuccess || socialSignupRequired || socialSignupToken) {
+    if (accountDeleteReady === '1' && accountDeleteToken) {
+      window.sessionStorage.setItem(
+        PENDING_ACCOUNT_DELETE_KEY,
+        JSON.stringify({
+          provider: accountDeleteProvider ?? 'google',
+          token: accountDeleteToken,
+        })
+      );
+    }
+
+    if (
+      redirectAuthError ||
+      redirectAuthProvider ||
+      redirectAuthSuccess ||
+      socialSignupRequired ||
+      socialSignupToken ||
+      accountDeleteReady ||
+      accountDeleteProvider ||
+      accountDeleteToken
+    ) {
       clearAuthRedirectParams();
     }
 
