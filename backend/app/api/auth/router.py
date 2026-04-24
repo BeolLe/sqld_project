@@ -1844,32 +1844,34 @@ def delete_account(
                 if not req.password or not verify_password(req.password, row[0]):
                     raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
 
-            deleted_suffix = current_user["user_id"][:8]
             cur.execute(
                 """
-                UPDATE auth.users
-                SET
-                    is_active = false,
-                    deactivated_at = now(),
-                    email = %s,
-                    nickname = %s,
-                    password_hash = %s,
-                    email_verified = false,
-                    email_verified_at = null,
-                    updated_at = now()
+                DELETE FROM auth.user_consents
                 WHERE user_id = %s
-                RETURNING deactivated_at
                 """,
-                (
-                    f"deleted+{deleted_suffix}@solsqld.local",
-                    f"deleted_{deleted_suffix}",
-                    hash_password(secrets.token_urlsafe(24)),
-                    current_user["user_id"],
-                ),
+                (current_user["user_id"],),
             )
-            cur.fetchone()
+            cur.execute(
+                """
+                DELETE FROM exam.exam_attempts
+                WHERE user_id = %s
+                """,
+                (current_user["user_id"],),
+            )
+            cur.execute(
+                """
+                DELETE FROM auth.users
+                WHERE user_id = %s
+                RETURNING user_id
+                """,
+                (current_user["user_id"],),
+            )
+            deleted_row = cur.fetchone()
 
-    return {"message": "account deactivated"}
+            if not deleted_row:
+                raise HTTPException(status_code=404, detail="user not found")
+
+    return {"message": "account deleted"}
 
 
 @router.post("/email-verification/send")
