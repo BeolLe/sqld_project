@@ -16,14 +16,21 @@ import AdminPage from './pages/AdminPage';
 import type { AuthMode } from './types';
 
 function AppShell() {
-  const pendingSocialSignup = window.sessionStorage.getItem('pendingSocialSignup');
+  const searchParams = new URLSearchParams(window.location.search);
+  const hasPendingSocialSignup =
+    !!window.sessionStorage.getItem('pendingSocialSignup') ||
+    searchParams.get('social_signup_required') === '1';
   const [authModal, setAuthModal] = useState<{ open: boolean; mode: AuthMode }>({
-    open: !!pendingSocialSignup,
-    mode: pendingSocialSignup ? 'signup' : 'login',
+    open: hasPendingSocialSignup,
+    mode: hasPendingSocialSignup ? 'signup' : 'login',
   });
 
   useEffect(() => {
-    if (window.sessionStorage.getItem('pendingSocialSignup')) {
+    const currentSearchParams = new URLSearchParams(window.location.search);
+    if (
+      window.sessionStorage.getItem('pendingSocialSignup') ||
+      currentSearchParams.get('social_signup_required') === '1'
+    ) {
       setAuthModal({ open: true, mode: 'signup' });
     }
   }, []);

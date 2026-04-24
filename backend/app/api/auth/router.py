@@ -227,6 +227,7 @@ def validate_csrf_request(request: Request) -> None:
     csrf_exempt_paths = {
         "/api/auth/login",
         "/api/auth/register",
+        "/api/auth/social/register",
         "/api/auth/find-email",
         "/api/auth/password-reset/request",
         "/api/auth/password-reset/confirm",
