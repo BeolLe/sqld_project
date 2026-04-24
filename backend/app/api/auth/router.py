@@ -1851,7 +1851,6 @@ def delete_account(
                 SET
                     is_active = false,
                     deactivated_at = now(),
-                    archived_at = now(),
                     email = %s,
                     nickname = %s,
                     password_hash = %s,
@@ -1859,7 +1858,7 @@ def delete_account(
                     email_verified_at = null,
                     updated_at = now()
                 WHERE user_id = %s
-                RETURNING archived_at
+                RETURNING deactivated_at
                 """,
                 (
                     f"deleted+{deleted_suffix}@solsqld.local",
