@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -268,6 +269,90 @@ def update_attempt_counters(conn, attempt_id: int, *, current_page_no: int | Non
             """,
             (current_page_no, remaining_seconds, attempt_id),
         )
+
+
+def serialize_schedule_datetime(value):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc).isoformat()
+        return value.isoformat()
+    return value
+
+
+@router.get("/schedules")
+def get_exam_schedules(
+    year: int | None = None,
+    exam_type: str | None = None,
+):
+    resolved_year = year or datetime.now(timezone.utc).year
+
+    query = """
+        SELECT
+            schedule_id,
+            schedule_year,
+            exam_type,
+            round_label,
+            application_start_at,
+            application_end_at,
+            ticket_start_at,
+            ticket_end_at,
+            exam_start_at,
+            exam_end_at,
+            score_open_start_at,
+            score_open_end_at,
+            pass_announcement_start_at,
+            pass_announcement_end_at,
+            qualification_submission_start_at,
+            qualification_submission_end_at,
+            display_order,
+            created_at,
+            updated_at
+        FROM schedule.exam_schedules
+        WHERE schedule_year = %s
+    """
+    params: list = [resolved_year]
+
+    if exam_type:
+        query += " AND exam_type = %s"
+        params.append(exam_type)
+
+    query += " ORDER BY display_order ASC, round_label ASC"
+
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+
+    return {
+        "year": resolved_year,
+        "count": len(rows),
+        "items": [
+            {
+                "scheduleId": row["schedule_id"],
+                "scheduleYear": row["schedule_year"],
+                "examType": row["exam_type"],
+                "roundLabel": row["round_label"],
+                "applicationStartAt": serialize_schedule_datetime(row["application_start_at"]),
+                "applicationEndAt": serialize_schedule_datetime(row["application_end_at"]),
+                "ticketStartAt": serialize_schedule_datetime(row["ticket_start_at"]),
+                "ticketEndAt": serialize_schedule_datetime(row["ticket_end_at"]),
+                "examStartAt": serialize_schedule_datetime(row["exam_start_at"]),
+                "examEndAt": serialize_schedule_datetime(row["exam_end_at"]),
+                "scoreOpenStartAt": serialize_schedule_datetime(row["score_open_start_at"]),
+                "scoreOpenEndAt": serialize_schedule_datetime(row["score_open_end_at"]),
+                "passAnnouncementStartAt": serialize_schedule_datetime(row["pass_announcement_start_at"]),
+                "passAnnouncementEndAt": serialize_schedule_datetime(row["pass_announcement_end_at"]),
+                "qualificationSubmissionStartAt": serialize_schedule_datetime(row["qualification_submission_start_at"]),
+                "qualificationSubmissionEndAt": serialize_schedule_datetime(row["qualification_submission_end_at"]),
+                "displayOrder": row["display_order"],
+                "createdAt": serialize_schedule_datetime(row["created_at"]),
+                "updatedAt": serialize_schedule_datetime(row["updated_at"]),
+            }
+            for row in rows
+        ],
+    }
 
 
 @router.get("/{exam_id}/session")
