@@ -13,6 +13,7 @@ import SQLPracticePage from './pages/SQLPracticePage';
 import MyPage from './pages/MyPage';
 import FeedbackPage from './pages/FeedbackPage';
 import AdminPage from './pages/AdminPage';
+import EndlessPracticePage from './pages/EndlessPracticePage';
 import type { AuthMode } from './types';
 
 function AppShell() {
@@ -64,6 +65,7 @@ function AppShell() {
                   <Route path="/exams" element={<ExamListPage />} />
                   <Route path="/exams/:id" element={<ExamListPage />} />
                   <Route path="/exams/:id/result" element={<ExamResultPage />} />
+                  <Route path="/endless" element={<EndlessPracticePage />} />
                   <Route path="/sql-practice" element={<SQLPracticeListPage />} />
                 </Routes>
               </main>
