@@ -16,8 +16,9 @@ import {
 } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
 import { apiFetch } from '../utils/api';
-import { Trophy, Target, Clock, BookOpen, ChevronRight } from 'lucide-react';
+import { Trophy, Target, Clock, BookOpen, ChevronRight, Calendar } from 'lucide-react';
 import type { DashboardSummary } from '../types';
+import { SQLD_SCHEDULES, getNextExamDate, getDday, formatDateFull } from '../data/examSchedule';
 
 // ─── 학습 시간 포맷 ─────────────────────────────────────────────────────────
 
@@ -281,12 +282,27 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* 인삿말 */}
+        {/* 인삿말 + D-day */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-sqld-navy">
             안녕하세요, <span className="text-primary-600">{user?.nickname}</span>님!
           </h1>
           <p className="text-slate-500 mt-1">오늘도 SQL 실력을 키워보세요.</p>
+          {(() => {
+            const next = getNextExamDate(SQLD_SCHEDULES);
+            if (!next) return null;
+            const dday = getDday(next.examDate);
+            if (dday < 0) return null;
+            return (
+              <div className="inline-flex items-center gap-2 mt-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+                <Calendar className="w-4 h-4 text-blue-500" />
+                <span className="text-sm font-bold text-blue-700">D-{dday}</span>
+                <span className="text-sm text-blue-600">
+                  (시험일: {formatDateFull(next.examDate)})
+                </span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* API 에러 배너 */}
