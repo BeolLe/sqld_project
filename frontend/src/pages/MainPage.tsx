@@ -1,6 +1,7 @@
 // test: direct main push verification
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Terminal, Trophy, ChevronRight, CheckCircle } from 'lucide-react';
+import ExamScheduleCard from '../components/ExamScheduleCard';
 
 const FEATURES = [
   {
@@ -75,6 +76,9 @@ export default function MainPage() {
           </button>
         </div>
       </section>
+
+      {/* 시험 일정 */}
+      <ExamScheduleCard />
 
       {/* 핵심 기능 카드 */}
       <section className="max-w-5xl mx-auto px-4 pb-16">
