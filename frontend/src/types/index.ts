@@ -205,6 +205,16 @@ export interface AdminUserListResponse {
   items: AdminUserItem[];
 }
 
+// ─── 시험 일정 타입 ─────────────────────────────────────────────────────────
+
+export interface ExamSchedule {
+  round: number;
+  registrationStart: string;
+  registrationEnd: string;
+  examDate: string;
+  resultDate: string;
+}
+
 // ─── UI 상태 타입 ────────────────────────────────────────────────────────────
 
 export type AuthMode = 'login' | 'signup';
