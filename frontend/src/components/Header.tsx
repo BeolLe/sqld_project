@@ -46,6 +46,11 @@ export default function Header({ onAuthClick }: HeaderProps) {
             SQL 실습
           </Link>
           {isLoggedIn && (
+            <Link to="/endless" className="hover:text-white transition-colors">
+              무한풀이
+            </Link>
+          )}
+          {isLoggedIn && (
             <Link to="/dashboard" className="hover:text-white transition-colors">
               학습현황
             </Link>
@@ -135,6 +140,15 @@ export default function Header({ onAuthClick }: HeaderProps) {
             >
               SQL 실습
             </Link>
+            {isLoggedIn && (
+              <Link
+                to="/endless"
+                onClick={closeMobile}
+                className="py-2.5 text-sm text-slate-300 hover:text-white transition-colors"
+              >
+                무한풀이
+              </Link>
+            )}
             {isLoggedIn && (
               <Link
                 to="/dashboard"
