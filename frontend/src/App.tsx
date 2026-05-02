@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { ExamScheduleProvider } from './contexts/ExamScheduleContext';
 import Header from './components/Header';
 import AuthModal from './components/AuthModal';
 import MainPage from './pages/MainPage';
@@ -89,7 +90,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppShell />
+        <ExamScheduleProvider>
+          <AppShell />
+        </ExamScheduleProvider>
       </AuthProvider>
     </BrowserRouter>
   );

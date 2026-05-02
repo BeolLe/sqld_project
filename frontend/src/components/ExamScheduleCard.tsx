@@ -1,9 +1,7 @@
-import { useState, useEffect } from 'react';
 import { Calendar, Loader2 } from 'lucide-react';
 import type { ExamSchedule } from '../types';
-import { fetchExamSchedules } from '../api/exams';
+import { useExamSchedules } from '../contexts/ExamScheduleContext';
 import {
-  mapScheduleItem,
   getNextExamDate,
   getDday,
   formatDate,
@@ -65,33 +63,7 @@ function ScheduleStatus({ schedule }: { schedule: ExamSchedule }) {
 }
 
 export default function ExamScheduleCard() {
-  const [schedules, setSchedules] = useState<ExamSchedule[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [year] = useState(() => new Date().getFullYear());
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    fetchExamSchedules(year)
-      .then((res) => {
-        if (!cancelled) {
-          setSchedules(res.items.map(mapScheduleItem));
-        }
-      })
-      .catch((err: Error) => {
-        if (!cancelled) {
-          setError(err.message);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => { cancelled = true; };
-  }, [year]);
+  const { schedules, year, loading, error } = useExamSchedules();
 
   const nextExam = getNextExamDate(schedules);
   const dday = nextExam?.examDate ? getDday(nextExam.examDate) : null;

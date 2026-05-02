@@ -17,9 +17,9 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { apiFetch } from '../utils/api';
 import { Trophy, Target, Clock, BookOpen, ChevronRight, Calendar } from 'lucide-react';
-import type { DashboardSummary, ExamSchedule } from '../types';
-import { mapScheduleItem, getNextExamDate, getDday, formatDateFull } from '../data/examSchedule';
-import { fetchExamSchedules } from '../api/exams';
+import type { DashboardSummary } from '../types';
+import { getNextExamDate, getDday, formatDateFull } from '../data/examSchedule';
+import { useExamSchedules } from '../contexts/ExamScheduleContext';
 
 // ─── 학습 시간 포맷 ─────────────────────────────────────────────────────────
 
@@ -185,7 +185,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [examSchedules, setExamSchedules] = useState<ExamSchedule[]>([]);
+  const { schedules: examSchedules } = useExamSchedules();
   const [subjectTab, setSubjectTab] = useState<'all' | 'exam' | 'endless'>('all');
 
   useEffect(() => {
@@ -205,12 +205,6 @@ export default function DashboardPage() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-
-    fetchExamSchedules()
-      .then((res) => {
-        if (!cancelled) setExamSchedules(res.items.map(mapScheduleItem));
-      })
-      .catch(() => {});
 
     return () => {
       cancelled = true;
