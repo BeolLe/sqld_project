@@ -1,8 +1,8 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RotateCcw, ChevronRight, CheckCircle, XCircle, Shuffle, Home } from 'lucide-react';
+import { RotateCcw, ChevronRight, CheckCircle, XCircle, Shuffle, Home, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getExamProblems } from '../data/exams';
+import { fetchExamList, fetchExamProblems } from '../api/content';
 import type { Problem } from '../types';
 import DescriptionRenderer from '../components/DescriptionRenderer';
 
@@ -15,24 +15,46 @@ function shuffleArray<T>(arr: T[]): T[] {
   return shuffled;
 }
 
-function getAllProblems(): Problem[] {
-  const all: Problem[] = [];
-  for (let i = 1; i <= 10; i++) {
-    all.push(...getExamProblems(String(i)));
-  }
-  return all;
-}
-
 export default function EndlessPracticePage() {
   const { isLoggedIn, isInitializing } = useAuth();
   const navigate = useNavigate();
 
-  const allProblems = useMemo(() => getAllProblems(), []);
-  const [queue, setQueue] = useState<Problem[]>(() => shuffleArray(allProblems));
+  const [allProblems, setAllProblems] = useState<Problem[]>([]);
+  const [queue, setQueue] = useState<Problem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [totalAnswered, setTotalAnswered] = useState(0);
   const [totalCorrect, setTotalCorrect] = useState(0);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isLoggedIn || isInitializing) return;
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    fetchExamList()
+      .then((exams) =>
+        Promise.all(exams.map((exam) => fetchExamProblems(exam.id)))
+      )
+      .then((results) => {
+        if (cancelled) return;
+        const problems = results.flat();
+        setAllProblems(problems);
+        setQueue(shuffleArray(problems));
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [isLoggedIn, isInitializing]);
 
   const problem = queue[currentIndex] ?? null;
   const isAnswered = selectedAnswer !== null;
@@ -83,6 +105,28 @@ export default function EndlessPracticePage() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <p className="text-slate-500 mb-4">로그인 후 이용 가능합니다.</p>
+          <button onClick={() => navigate('/')} className="text-primary-600 hover:underline">
+            홈으로 돌아가기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+        <span className="ml-2 text-sm text-slate-500">문제를 불러오는 중...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error}</p>
           <button onClick={() => navigate('/')} className="text-primary-600 hover:underline">
             홈으로 돌아가기
           </button>
