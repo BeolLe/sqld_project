@@ -1,5 +1,5 @@
-import type { Problem } from '../types';
-import { apiRequest } from '../utils/api';
+import type { Problem, ExamScheduleResponse } from '../types';
+import { apiRequest, apiFetch } from '../utils/api';
 
 function getAuthHeaders() {
   return {
@@ -113,4 +113,9 @@ export function submitExam(
       remaining_seconds: payload.remainingSeconds,
     }),
   });
+}
+
+export function fetchExamSchedules(year?: number) {
+  const y = year ?? new Date().getFullYear();
+  return apiFetch<ExamScheduleResponse>(`/exams/schedules?year=${y}`);
 }

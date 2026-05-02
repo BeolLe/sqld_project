@@ -207,12 +207,41 @@ export interface AdminUserListResponse {
 
 // ─── 시험 일정 타입 ─────────────────────────────────────────────────────────
 
+export interface ExamScheduleItem {
+  scheduleId: number;
+  scheduleYear: number;
+  examType: string;
+  roundLabel: string;
+  applicationStartAt: string | null;
+  applicationEndAt: string | null;
+  ticketStartAt: string | null;
+  ticketEndAt: string | null;
+  examStartAt: string | null;
+  examEndAt: string | null;
+  scoreOpenStartAt: string | null;
+  scoreOpenEndAt: string | null;
+  passAnnouncementStartAt: string | null;
+  passAnnouncementEndAt: string | null;
+  qualificationSubmissionStartAt: string | null;
+  qualificationSubmissionEndAt: string | null;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExamScheduleResponse {
+  year: number;
+  count: number;
+  items: ExamScheduleItem[];
+}
+
 export interface ExamSchedule {
   round: number;
-  registrationStart: string;
-  registrationEnd: string;
-  examDate: string;
-  resultDate: string;
+  roundLabel: string;
+  registrationStart: string | null;
+  registrationEnd: string | null;
+  examDate: string | null;
+  resultDate: string | null;
 }
 
 // ─── UI 상태 타입 ────────────────────────────────────────────────────────────

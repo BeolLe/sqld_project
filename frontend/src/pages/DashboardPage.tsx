@@ -17,8 +17,9 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { apiFetch } from '../utils/api';
 import { Trophy, Target, Clock, BookOpen, ChevronRight, Calendar } from 'lucide-react';
-import type { DashboardSummary } from '../types';
-import { SQLD_SCHEDULES, getNextExamDate, getDday, formatDateFull } from '../data/examSchedule';
+import type { DashboardSummary, ExamSchedule } from '../types';
+import { mapScheduleItem, getNextExamDate, getDday, formatDateFull } from '../data/examSchedule';
+import { fetchExamSchedules } from '../api/exams';
 
 // ─── 학습 시간 포맷 ─────────────────────────────────────────────────────────
 
@@ -184,6 +185,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [examSchedules, setExamSchedules] = useState<ExamSchedule[]>([]);
 
   useEffect(() => {
     if (!isLoggedIn || isInitializing) return;
@@ -202,6 +204,12 @@ export default function DashboardPage() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+
+    fetchExamSchedules()
+      .then((res) => {
+        if (!cancelled) setExamSchedules(res.items.map(mapScheduleItem));
+      })
+      .catch(() => {});
 
     return () => {
       cancelled = true;
@@ -289,8 +297,8 @@ export default function DashboardPage() {
           </h1>
           <p className="text-slate-500 mt-1">오늘도 SQL 실력을 키워보세요.</p>
           {(() => {
-            const next = getNextExamDate(SQLD_SCHEDULES);
-            if (!next) return null;
+            const next = getNextExamDate(examSchedules);
+            if (!next?.examDate) return null;
             const dday = getDday(next.examDate);
             if (dday < 0) return null;
             return (
