@@ -186,6 +186,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [examSchedules, setExamSchedules] = useState<ExamSchedule[]>([]);
+  const [subjectTab, setSubjectTab] = useState<'all' | 'exam' | 'endless'>('all');
 
   useEffect(() => {
     if (!isLoggedIn || isInitializing) return;
@@ -384,7 +385,24 @@ export default function DashboardPage() {
           <div className="grid md:grid-cols-2 gap-6 mb-6">
             {/* 과목별 정답률 레이더 */}
             <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
-              <h2 className="text-base font-bold text-sqld-navy mb-4">과목별 정답률</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold text-sqld-navy">과목별 정답률</h2>
+                <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                  {([['all', '전체'], ['exam', '모의고사'], ['endless', '무한풀이']] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setSubjectTab(key)}
+                      className={`px-3 py-1 text-xs font-medium transition-colors ${
+                        subjectTab === key
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-white text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {subjectStats.length > 0 ? (
                 <ResponsiveContainer width="100%" height={260}>
                   <RadarChart
