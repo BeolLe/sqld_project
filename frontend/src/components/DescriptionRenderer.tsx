@@ -202,8 +202,17 @@ function TextBlock({ lines }: { lines: string[] }) {
   );
 }
 
+/** DB에서 줄바꿈이 유실된 description을 보수적으로 정규화 */
+function normalizeDescription(text: string): string {
+  let result = text;
+  // ? 뒤에 바로 새 섹션이 시작되는 경우 줄바꿈 삽입
+  // (테이블 참조 [, 한글, 영문 대문자, SQL 주석 --)
+  result = result.replace(/\?(?=[\[A-Z가-힣]|-{2})/g, '?\n\n');
+  return result;
+}
+
 export default function DescriptionRenderer({ text }: { text: string }) {
-  const blocks = parseBlocks(text);
+  const blocks = parseBlocks(normalizeDescription(text));
 
   return (
     <div className="space-y-1">
