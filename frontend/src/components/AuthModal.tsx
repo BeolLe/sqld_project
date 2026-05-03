@@ -125,6 +125,8 @@ interface PendingSocialSignup {
 }
 
 const PENDING_SOCIAL_SIGNUP_KEY = 'pendingSocialSignup';
+const SAVED_EMAIL_KEY = 'savedEmail';
+const REMEMBER_EMAIL_KEY = 'rememberEmail';
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   const parts = token.split('.');
@@ -164,10 +166,17 @@ function getSignupPurposePayload(signupReason: string, signupReasonOther: string
 
 export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProps) {
   const { login, signup, completeSocialSignup } = useAuth();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => {
+    if (localStorage.getItem(REMEMBER_EMAIL_KEY) === 'true') {
+      return localStorage.getItem(SAVED_EMAIL_KEY) ?? '';
+    }
+    return '';
+  });
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberEmail, setRememberEmail] = useState(() => localStorage.getItem(REMEMBER_EMAIL_KEY) === 'true');
+  const [autoLogin, setAutoLogin] = useState(false);
   const [termsScrolled, setTermsScrolled] = useState(false);
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
@@ -379,6 +388,13 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     try {
       setLoading(true);
       if (mode === 'login') {
+        if (rememberEmail) {
+          localStorage.setItem(SAVED_EMAIL_KEY, email);
+          localStorage.setItem(REMEMBER_EMAIL_KEY, 'true');
+        } else {
+          localStorage.removeItem(SAVED_EMAIL_KEY);
+          localStorage.removeItem(REMEMBER_EMAIL_KEY);
+        }
         const result = await login(email, password);
         setSuccess(result.message);
         window.setTimeout(() => {
@@ -701,6 +717,29 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+          )}
+
+          {mode === 'login' && (
+            <div className="flex items-center gap-6">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberEmail}
+                  onChange={(e) => setRememberEmail(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-sm text-slate-600">이메일 저장</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={autoLogin}
+                  onChange={(e) => setAutoLogin(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-sm text-slate-600">자동 로그인</span>
+              </label>
             </div>
           )}
 
