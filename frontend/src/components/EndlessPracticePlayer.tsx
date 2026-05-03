@@ -191,32 +191,32 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
         </div>
 
         {isAnswered && (
-          <div className="px-6 pb-5">
-            <div
-              className={`rounded-xl px-5 py-4 ${
-                isCorrect ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'
-              }`}
-            >
-              <p
-                className={`text-xs font-bold mb-1.5 ${
-                  isCorrect ? 'text-emerald-700' : 'text-amber-700'
+          <div className="flex flex-col-reverse md:flex-col">
+            <div className="px-6 pb-5">
+              <div
+                className={`rounded-xl px-5 py-4 ${
+                  isCorrect ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'
                 }`}
               >
-                {isCorrect ? '정답입니다!' : `오답 — 정답은 ${problem.answer}번`}
-              </p>
-              <p className="text-sm text-slate-700 leading-relaxed">{problem.explanation}</p>
+                <p
+                  className={`text-xs font-bold mb-1.5 ${
+                    isCorrect ? 'text-emerald-700' : 'text-amber-700'
+                  }`}
+                >
+                  {isCorrect ? '정답입니다!' : `오답 — 정답은 ${problem.answer}번`}
+                </p>
+                <p className="text-sm text-slate-700 leading-relaxed">{problem.explanation}</p>
+              </div>
             </div>
-          </div>
-        )}
 
-        {isAnswered && (
-          <div className="px-6 pb-6">
-            <button
-              onClick={handleNext}
-              className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-xl transition-colors"
-            >
-              다음 문제 <ChevronRight className="w-5 h-5" />
-            </button>
+            <div className="px-6 pb-6">
+              <button
+                onClick={handleNext}
+                className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-xl transition-colors"
+              >
+                다음 문제 <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         )}
       </div>
