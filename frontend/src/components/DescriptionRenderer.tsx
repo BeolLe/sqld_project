@@ -35,8 +35,22 @@ function parseCells(line: string): string[] {
 }
 
 interface Block {
-  type: 'text' | 'table' | 'sql';
+  type: 'text' | 'table' | 'sql' | 'preformatted';
   lines: string[];
+}
+
+function isPreformattedStarter(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith('--') || /^\[.+\]$/.test(trimmed);
+}
+
+function isPreformattedContinuation(line: string): boolean {
+  const trimmed = line.trim();
+  return (
+    trimmed.startsWith('--') ||
+    /^트랜잭션\s+T\d+\s*:/.test(trimmed) ||
+    /^데이터 변경\s*:/.test(trimmed)
+  );
 }
 
 /** description 문자열을 블록 단위로 분류 */
@@ -93,6 +107,22 @@ function parseBlocks(description: string): Block[] {
         flush();
         current = { type: 'table', lines: [line] };
       }
+      continue;
+    }
+
+    // 예시 데이터/상황 블록 감지
+    if (isPreformattedStarter(line)) {
+      if (current?.type === 'preformatted') {
+        current.lines.push(line);
+      } else {
+        flush();
+        current = { type: 'preformatted', lines: [line] };
+      }
+      continue;
+    }
+
+    if (current?.type === 'preformatted' && isPreformattedContinuation(line)) {
+      current.lines.push(line);
       continue;
     }
 
@@ -189,6 +219,14 @@ function SqlBlock({ lines }: { lines: string[] }) {
   );
 }
 
+function PreformattedBlock({ lines }: { lines: string[] }) {
+  return (
+    <pre className="my-2 bg-slate-50 text-slate-800 text-sm border border-slate-200 px-4 py-3 overflow-x-auto whitespace-pre-wrap break-words font-medium leading-relaxed">
+      {lines.join('\n')}
+    </pre>
+  );
+}
+
 function TextBlock({ lines }: { lines: string[] }) {
   return (
     <span>
@@ -218,6 +256,8 @@ export default function DescriptionRenderer({ text }: { text: string }) {
             return <TableBlock key={i} lines={block.lines} />;
           case 'sql':
             return <SqlBlock key={i} lines={block.lines} />;
+          case 'preformatted':
+            return <PreformattedBlock key={i} lines={block.lines} />;
           case 'text':
             return <TextBlock key={i} lines={block.lines} />;
         }
