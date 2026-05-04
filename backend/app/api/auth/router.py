@@ -40,8 +40,6 @@ _google_oidc_config_cache: tuple[float, dict] | None = None
 _google_jwk_client_lock = Lock()
 _google_jwk_client: jwt.PyJWKClient | None = None
 _google_jwk_client_uri: str | None = None
-_refresh_session_table_ready = False
-_refresh_session_table_lock = Lock()
 
 
 class LoginRequest(BaseModel):
@@ -292,44 +290,11 @@ def hash_refresh_token_value(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def ensure_refresh_session_table(conn) -> None:
-    global _refresh_session_table_ready
-    if _refresh_session_table_ready:
-        return
-
-    with _refresh_session_table_lock:
-        if _refresh_session_table_ready:
-            return
-
-        with conn.cursor() as cur:
-            cur.execute("CREATE SCHEMA IF NOT EXISTS auth")
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS auth.refresh_sessions (
-                    refresh_token_hash TEXT PRIMARY KEY,
-                    user_id UUID NOT NULL,
-                    auth_provider TEXT NOT NULL DEFAULT 'local',
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    revoked_at TIMESTAMPTZ NULL
-                )
-                """
-            )
-            cur.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_refresh_sessions_user_id
-                ON auth.refresh_sessions (user_id)
-                """
-            )
-            cur.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_refresh_sessions_last_used_at
-                ON auth.refresh_sessions (last_used_at)
-                WHERE revoked_at IS NULL
-                """
-            )
-
-        _refresh_session_table_ready = True
+def has_refresh_session_table(conn) -> bool:
+    with conn.cursor() as cur:
+        cur.execute("SELECT to_regclass('auth.refresh_sessions')")
+        row = cur.fetchone()
+    return bool(row and row[0])
 
 
 def create_refresh_session(cur, *, user_id: str, auth_provider: str) -> str:
@@ -1373,7 +1338,8 @@ def google_login_callback(
             )
 
     with get_connection() as conn:
-        ensure_refresh_session_table(conn)
+        if not has_refresh_session_table(conn):
+            raise HTTPException(status_code=503, detail="auto login storage not ready")
         with conn.cursor() as cur:
             refresh_token = create_refresh_session(
                 cur,
@@ -1503,7 +1469,8 @@ def complete_social_signup(req: SocialSignupCompleteRequest, request: Request):
         raise HTTPException(status_code=400, detail=str(exc))
 
     with get_connection() as conn:
-        ensure_refresh_session_table(conn)
+        if not has_refresh_session_table(conn):
+            raise HTTPException(status_code=503, detail="auto login storage not ready")
         with conn.cursor() as cur:
             refresh_token = create_refresh_session(
                 cur,
@@ -1667,7 +1634,8 @@ def login(req: LoginRequest, request: Request, response: Response):
     refresh_token = None
     if req.auto_login:
         with get_connection() as conn:
-            ensure_refresh_session_table(conn)
+            if not has_refresh_session_table(conn):
+                raise HTTPException(status_code=503, detail="auto login storage not ready")
             with conn.cursor() as cur:
                 refresh_token = create_refresh_session(
                     cur,
@@ -1733,7 +1701,9 @@ def refresh_access_token(request: Request, response: Response):
     )
 
     with get_connection() as conn:
-        ensure_refresh_session_table(conn)
+        if not has_refresh_session_table(conn):
+            clear_auth_cookie(response)
+            raise HTTPException(status_code=401, detail="refresh token is invalid")
         with conn.cursor() as cur:
             refresh_token_hash, refresh_session = resolve_refresh_session(cur, refresh_token)
             user_id = None
@@ -1781,7 +1751,9 @@ def refresh_access_token(request: Request, response: Response):
         raise HTTPException(status_code=403, detail="deactivated account")
 
     with get_connection() as conn:
-        ensure_refresh_session_table(conn)
+        if not has_refresh_session_table(conn):
+            clear_auth_cookie(response)
+            raise HTTPException(status_code=401, detail="refresh token is invalid")
         with conn.cursor() as cur:
             refresh_token_hash, refresh_session = resolve_refresh_session(cur, refresh_token)
             if refresh_session:
@@ -1812,11 +1784,11 @@ def logout(request: Request, response: Response):
     refresh_token = extract_refresh_token_from_request(request)
     if refresh_token:
         with get_connection() as conn:
-            ensure_refresh_session_table(conn)
-            with conn.cursor() as cur:
-                refresh_token_hash, refresh_session = resolve_refresh_session(cur, refresh_token)
-                if refresh_session:
-                    revoke_refresh_session(cur, refresh_token_hash)
+            if has_refresh_session_table(conn):
+                with conn.cursor() as cur:
+                    refresh_token_hash, refresh_session = resolve_refresh_session(cur, refresh_token)
+                    if refresh_session:
+                        revoke_refresh_session(cur, refresh_token_hash)
     clear_auth_cookie(response)
     return {"message": "logout succeeded"}
 
