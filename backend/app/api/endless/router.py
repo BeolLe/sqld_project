@@ -16,35 +16,13 @@ class EndlessAnswerRequest(BaseModel):
     selected_answer: str
     category: str | None = None
     difficulty: str | None = None
-def ensure_endless_answers_table(conn) -> None:
-    with conn.cursor() as cur:
-        cur.execute("CREATE SCHEMA IF NOT EXISTS logs")
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS logs.endless_answers (
-                id SERIAL PRIMARY KEY,
-                user_id UUID NOT NULL REFERENCES auth.users(user_id),
-                problem_id VARCHAR(64) NOT NULL,
-                selected_answer VARCHAR(5) NOT NULL,
-                is_correct BOOLEAN NOT NULL,
-                category VARCHAR(50),
-                difficulty VARCHAR(20),
-                answered_at TIMESTAMPTZ NOT NULL DEFAULT now()
-            )
-            """
-        )
-        cur.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_endless_answers_user_id
-            ON logs.endless_answers (user_id)
-            """
-        )
-        cur.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_endless_answers_answered_at
-            ON logs.endless_answers (answered_at)
-            """
-        )
+
+
+def has_endless_answers_table(conn) -> bool:
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT to_regclass('logs.endless_answers') AS reg")
+        row = cur.fetchone()
+    return bool(row and row["reg"])
 
 
 def fetch_endless_question(conn, problem_id: str) -> dict | None:
@@ -79,6 +57,16 @@ def fetch_user_total_points(conn, user_id: str) -> int:
         )
         row = cur.fetchone()
     return int(row["total_points"] or 0) if row else 0
+
+
+def empty_stats_payload() -> dict:
+    return {
+        "totalAnswered": 0,
+        "totalCorrect": 0,
+        "correctRate": 0.0,
+        "byCategory": {},
+        "byDifficulty": {},
+    }
 
 
 def build_stats_payload(conn, user_id: str) -> dict:
@@ -164,7 +152,8 @@ def save_endless_answer(
     current_user: dict = Depends(get_current_user),
 ):
     with get_connection() as conn:
-        ensure_endless_answers_table(conn)
+        if not has_endless_answers_table(conn):
+            raise HTTPException(status_code=503, detail="endless answers table not ready")
         ensure_dashboard_row(conn, current_user["user_id"])
 
         question = fetch_endless_question(conn, req.problem_id)
@@ -258,8 +247,11 @@ def save_endless_answer(
 @router.get("/stats")
 def get_endless_stats(current_user: dict = Depends(get_current_user)):
     with get_connection() as conn:
-        ensure_endless_answers_table(conn)
-        stats = build_stats_payload(conn, current_user["user_id"])
+        stats = (
+            build_stats_payload(conn, current_user["user_id"])
+            if has_endless_answers_table(conn)
+            else empty_stats_payload()
+        )
         total_points = fetch_user_total_points(conn, current_user["user_id"])
 
     return {
@@ -271,22 +263,18 @@ def get_endless_stats(current_user: dict = Depends(get_current_user)):
 @router.delete("/stats")
 def reset_endless_stats(current_user: dict = Depends(get_current_user)):
     with get_connection() as conn:
-        ensure_endless_answers_table(conn)
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                DELETE FROM logs.endless_answers
-                WHERE user_id = %s::uuid
-                """,
-                (current_user["user_id"],),
-            )
+        if has_endless_answers_table(conn):
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM logs.endless_answers
+                    WHERE user_id = %s::uuid
+                    """,
+                    (current_user["user_id"],),
+                )
         total_points = fetch_user_total_points(conn, current_user["user_id"])
 
     return {
-        "totalAnswered": 0,
-        "totalCorrect": 0,
-        "correctRate": 0.0,
-        "byCategory": {},
-        "byDifficulty": {},
+        **empty_stats_payload(),
         "totalPoints": total_points,
     }

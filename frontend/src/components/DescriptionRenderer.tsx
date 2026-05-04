@@ -41,7 +41,7 @@ interface Block {
 
 function isPreformattedStarter(line: string): boolean {
   const trimmed = line.trim();
-  return trimmed.startsWith('--') || /^\[.+\]$/.test(trimmed);
+  return trimmed.startsWith('--') || /^\[.+\]$/.test(trimmed) || /^예시\s*:/.test(trimmed);
 }
 
 function isPreformattedContinuation(line: string): boolean {
@@ -49,7 +49,8 @@ function isPreformattedContinuation(line: string): boolean {
   return (
     trimmed.startsWith('--') ||
     /^트랜잭션\s+T\d+\s*:/.test(trimmed) ||
-    /^데이터 변경\s*:/.test(trimmed)
+    /^데이터 변경\s*:/.test(trimmed) ||
+    /^[가-힣A-Z]\.\s+/.test(trimmed)
   );
 }
 
