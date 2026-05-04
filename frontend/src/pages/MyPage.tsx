@@ -598,14 +598,16 @@ export default function MyPage() {
               {!displayEmailVerified && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
                   <p className="text-sm text-amber-800">
-                    아직 이메일 인증이 완료되지 않았습니다. 메일이 오지 않는 환경에서는 아래 토큰으로 직접 인증할 수 있습니다.
+                    아직 이메일 인증이 완료되지 않았습니다. 메일이 오지 않는 환경에서는 아래 6자리 인증 코드로 직접 인증할 수 있습니다.
                   </p>
                   <div className="mt-3 flex gap-2">
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={verificationToken}
-                      onChange={(e) => setVerificationToken(e.target.value)}
-                      placeholder="인증 토큰 입력"
+                      onChange={(e) => setVerificationToken(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="6자리 인증 코드 입력"
+                      maxLength={6}
                       className="flex-1 border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                     />
                     <button

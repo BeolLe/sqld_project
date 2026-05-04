@@ -814,7 +814,7 @@ def create_email_verification(
     email: str,
     purpose: str = "signup_verify",
 ) -> tuple[str, datetime]:
-    raw_token = secrets.token_urlsafe(32)
+    raw_token = f"{secrets.randbelow(1_000_000):06d}"
     token_hash = hash_verification_token(raw_token)
     expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
 
@@ -1103,9 +1103,9 @@ def register(req: RegisterRequest, request: Request):
             "SolSQLD 이메일 인증을 완료해주세요.",
             "",
             f"인증 링크: {verification_url}" if verification_url else "",
-            f"인증 토큰: {verification_token}",
+            f"인증 코드: {verification_token}",
             "",
-            "링크 또는 토큰은 24시간 동안 유효합니다.",
+            "인증 코드는 24시간 동안 유효합니다.",
         ]
         verification_email_sent = send_email(
             to_email=user[1],
@@ -2083,9 +2083,9 @@ def send_email_verification(current_user: dict = Depends(get_current_user)):
             "SolSQLD 이메일 인증을 완료해주세요.",
             "",
             f"인증 링크: {verification_url}" if verification_url else "",
-            f"인증 토큰: {verification_token}",
+            f"인증 코드: {verification_token}",
             "",
-            "링크 또는 토큰은 24시간 동안 유효합니다.",
+            "인증 코드는 24시간 동안 유효합니다.",
         ]
         email_sent = send_email(
             to_email=current_user["email"],
@@ -2094,7 +2094,7 @@ def send_email_verification(current_user: dict = Depends(get_current_user)):
         )
 
     return {
-        "message": "인증 메일이 준비되었습니다." if email_sent else "개발 환경용 인증 토큰이 발급되었습니다.",
+        "message": "인증 메일이 준비되었습니다." if email_sent else "개발 환경용 인증 코드가 발급되었습니다.",
         "emailVerified": False,
         "deliveryMode": "email" if email_sent else "inline_token",
         **(
@@ -2109,8 +2109,15 @@ def send_email_verification(current_user: dict = Depends(get_current_user)):
 
 
 @router.post("/email-verification/confirm")
-def confirm_email_verification(req: EmailVerificationConfirmRequest):
-    token_hash = hash_verification_token(req.token.strip())
+def confirm_email_verification(
+    req: EmailVerificationConfirmRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    token = "".join(ch for ch in req.token.strip() if ch.isdigit())
+    if len(token) != 6:
+        raise HTTPException(status_code=400, detail="6자리 인증 코드를 입력해주세요.")
+
+    token_hash = hash_verification_token(token)
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -2119,15 +2126,17 @@ def confirm_email_verification(req: EmailVerificationConfirmRequest):
                 SELECT user_id, email
                 FROM auth.email_verifications
                 WHERE token_hash = %s
+                  AND user_id = %s::uuid
+                  AND purpose = 'signup_verify'
                   AND used_at IS NULL
                   AND expires_at > now()
                 """,
-                (token_hash,),
+                (token_hash, current_user["user_id"]),
             )
             row = cur.fetchone()
 
             if not row:
-                raise HTTPException(status_code=400, detail="유효하지 않거나 만료된 인증 토큰입니다.")
+                raise HTTPException(status_code=400, detail="유효하지 않거나 만료된 인증 코드입니다.")
 
             cur.execute(
                 """
