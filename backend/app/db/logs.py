@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -24,8 +25,134 @@ def build_query_hash(query: str) -> str:
     return hashlib.sha256(query.encode("utf-8")).hexdigest()
 
 
+def strip_sql_comments(query: str) -> str:
+    result: list[str] = []
+    i = 0
+    in_single_quote = False
+    in_double_quote = False
+    length = len(query)
+
+    while i < length:
+        char = query[i]
+        nxt = query[i + 1] if i + 1 < length else ""
+
+        if in_single_quote:
+            result.append(char)
+            if char == "'" and nxt == "'":
+                result.append(nxt)
+                i += 2
+                continue
+            if char == "'":
+                in_single_quote = False
+            i += 1
+            continue
+
+        if in_double_quote:
+            result.append(char)
+            if char == '"':
+                in_double_quote = False
+            i += 1
+            continue
+
+        if char == "'":
+            in_single_quote = True
+            result.append(char)
+            i += 1
+            continue
+
+        if char == '"':
+            in_double_quote = True
+            result.append(char)
+            i += 1
+            continue
+
+        if char == "-" and nxt == "-":
+            i += 2
+            while i < length and query[i] not in "\r\n":
+                i += 1
+            continue
+
+        if char == "/" and nxt == "*":
+            i += 2
+            while i + 1 < length and not (query[i] == "*" and query[i + 1] == "/"):
+                i += 1
+            i += 2
+            continue
+
+        result.append(char)
+        i += 1
+
+    return "".join(result)
+
+
+def collapse_sql_whitespace(query: str) -> str:
+    result: list[str] = []
+    token: list[str] = []
+    in_single_quote = False
+    in_double_quote = False
+
+    def flush_token() -> None:
+        nonlocal token
+        if token:
+            result.append("".join(token))
+            token = []
+
+    for char in query:
+        if in_single_quote:
+            token.append(char)
+            if char == "'":
+                in_single_quote = False
+            continue
+
+        if in_double_quote:
+            token.append(char)
+            if char == '"':
+                in_double_quote = False
+            continue
+
+        if char == "'":
+            if result and result[-1] != " " and not result[-1].endswith(("(", ",", "=")):
+                flush_token()
+            in_single_quote = True
+            token.append(char)
+            continue
+
+        if char == '"':
+            if result and result[-1] != " " and not result[-1].endswith(("(", ",", "=")):
+                flush_token()
+            in_double_quote = True
+            token.append(char)
+            continue
+
+        if char.isspace():
+            flush_token()
+            if result and result[-1] != " ":
+                result.append(" ")
+            continue
+
+        if char in "(),;":
+            flush_token()
+            if result and result[-1] == " ":
+                result.pop()
+            result.append(char)
+            continue
+
+        token.append(char)
+
+    flush_token()
+    normalized = "".join(result).strip()
+    normalized = re.sub(r"\s*([=<>+\-*/])\s*", r"\1", normalized)
+    normalized = re.sub(r"\s*,\s*", ",", normalized)
+    normalized = re.sub(r"\(\s+", "(", normalized)
+    normalized = re.sub(r"\s+\)", ")", normalized)
+    normalized = re.sub(r";+$", "", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized
+
+
 def normalize_query_for_alert(query: str) -> str:
-    normalized = " ".join((query or "").strip().rstrip(";").split())
+    without_comments = strip_sql_comments(query or "")
+    normalized = collapse_sql_whitespace(without_comments)
     return normalized.upper()
 
 
@@ -314,6 +441,25 @@ def insert_sql_alert_once(
     try:
         with get_postgres_connection() as conn:
             with conn.cursor() as cur:
+                query_hash = build_query_hash(normalized_query)
+                cur.execute(
+                    """
+                    SELECT 1
+                    FROM logs.sql_alert_events
+                    WHERE alert_type = %s
+                      AND practice_id = %s
+                      AND query_hash = %s
+                    LIMIT 1
+                    """,
+                    (
+                        alert_type,
+                        practice_id,
+                        query_hash,
+                    ),
+                )
+                if cur.fetchone():
+                    return False
+
                 cur.execute(
                     """
                     INSERT INTO logs.sql_alert_events (
@@ -345,7 +491,7 @@ def insert_sql_alert_once(
                         user_id,
                         request_id,
                         normalized_query,
-                        build_query_hash(normalized_query),
+                        query_hash,
                         Jsonb(payload or {}),
                     ),
                 )

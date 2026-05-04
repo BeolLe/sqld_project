@@ -221,6 +221,15 @@ function SqlBlock({ lines }: { lines: string[] }) {
 }
 
 function PreformattedBlock({ lines }: { lines: string[] }) {
+  if (lines.length === 1) {
+    const label = lines[0].trim().replace(/^--\s*/, '');
+    return (
+      <div className="my-1 text-sm font-semibold text-slate-600">
+        {label}
+      </div>
+    );
+  }
+
   return (
     <pre className="my-2 bg-slate-50 text-slate-800 text-sm border border-slate-200 px-4 py-3 overflow-x-auto whitespace-pre-wrap break-words font-medium leading-relaxed">
       {lines.join('\n')}
@@ -243,7 +252,7 @@ function TextBlock({ lines }: { lines: string[] }) {
 
 /** DB에서 줄바꿈이 유실된 description을 보수적으로 정규화 */
 function normalizeDescription(text: string): string {
-  return text.replace(/\?(?=\S)/g, '?\n\n');
+  return text.replace(/\?(?=[A-Za-z가-힣\[])/g, '?\n\n');
 }
 
 export default function DescriptionRenderer({ text }: { text: string }) {
