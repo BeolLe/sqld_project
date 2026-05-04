@@ -395,7 +395,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
           localStorage.removeItem(SAVED_EMAIL_KEY);
           localStorage.removeItem(REMEMBER_EMAIL_KEY);
         }
-        const result = await login(email, password);
+        const result = await login(email, password, autoLogin);
         setSuccess(result.message);
         window.setTimeout(() => {
           onClose();

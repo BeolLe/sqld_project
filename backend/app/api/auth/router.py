@@ -46,6 +46,7 @@ _google_jwk_client_uri: str | None = None
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    auto_login: bool = False
 
 
 class RegisterRequest(BaseModel):
@@ -149,6 +150,16 @@ def set_refresh_cookie(response: Response, refresh_token: str) -> None:
     )
 
 
+def clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.REFRESH_COOKIE_NAME,
+        httponly=True,
+        secure=settings.AUTH_COOKIE_SECURE,
+        samesite=settings.AUTH_COOKIE_SAMESITE,
+        path="/",
+    )
+
+
 def set_csrf_cookie(response: Response, csrf_token: str) -> None:
     response.set_cookie(
         key=settings.CSRF_COOKIE_NAME,
@@ -189,12 +200,15 @@ def issue_auth_cookies(
     response: Response,
     *,
     access_token: str,
-    refresh_token: str,
+    refresh_token: str | None = None,
     csrf_token: str | None = None,
 ) -> str:
     resolved_csrf_token = csrf_token or secrets.token_urlsafe(32)
     set_auth_cookie(response, access_token)
-    set_refresh_cookie(response, refresh_token)
+    if refresh_token:
+        set_refresh_cookie(response, refresh_token)
+    else:
+        clear_refresh_cookie(response)
     set_csrf_cookie(response, resolved_csrf_token)
     return resolved_csrf_token
 
@@ -1525,7 +1539,11 @@ def login(req: LoginRequest, request: Request, response: Response):
         nickname=nickname,
         auth_provider="local",
     )
-    refresh_token = create_refresh_token(str(user_id), auth_provider="local")
+    refresh_token = (
+        create_refresh_token(str(user_id), auth_provider="local")
+        if req.auto_login
+        else None
+    )
     timing_marks["tokenCreatedMs"] = round((monotonic() - started_at) * 1000)
 
     submit_amplitude_event(

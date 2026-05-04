@@ -20,13 +20,6 @@ import {
 
 const PROBLEMS_PER_PAGE = 5;
 
-function normalizeQuestionTitle(title: string, index: number): string {
-  const trimmed = title.trim();
-  if (!trimmed) return '';
-  const prefixPattern = new RegExp(`^${index + 1}\\.?\\s*`);
-  return trimmed.replace(prefixPattern, '').trim();
-}
-
 function ChoiceProblem({
   problem,
   index,
@@ -38,17 +31,10 @@ function ChoiceProblem({
   selected?: string;
   onSelect: (val: string) => void;
 }) {
-  const normalizedTitle = normalizeQuestionTitle(problem.title, index);
-
   return (
     <div className="mb-8 break-inside-avoid">
       <div className="font-semibold text-slate-800 mb-3 leading-relaxed">
         <span className="text-primary-600 mr-1">{index + 1}.</span>
-        {normalizedTitle && (
-          <span className="mr-1">
-            {normalizedTitle}
-          </span>
-        )}
         <DescriptionRenderer text={problem.description} />
       </div>
       <div className="space-y-2 ml-4">

@@ -18,7 +18,7 @@ interface AuthContextValue {
   user: User | null;
   isLoggedIn: boolean;
   isInitializing: boolean;
-  login: (email: string, password: string) => Promise<AuthResult>;
+  login: (email: string, password: string, autoLogin?: boolean) => Promise<AuthResult>;
   signup: (
     email: string,
     password: string,
@@ -254,10 +254,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, [loadCurrentUser]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, autoLogin = false) => {
     await request<LoginResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, auto_login: autoLogin }),
     });
 
     const me = await loadCurrentUser();
