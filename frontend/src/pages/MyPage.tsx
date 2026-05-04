@@ -480,8 +480,12 @@ export default function MyPage() {
         method: 'POST',
       });
 
-      if (res.verificationToken) {
-        setVerificationToken(res.verificationToken);
+      if (res.deliveryMode === 'inline_token') {
+        setVerificationMessage({
+          type: 'error',
+          text: '인증 메일 발송에 실패했습니다. 잠시 후 다시 시도하시거나 문의해주세요.',
+        });
+        return;
       }
       setVerificationMessage({ type: 'success', text: res.message });
     } catch (err) {
@@ -494,7 +498,7 @@ export default function MyPage() {
   async function handleConfirmVerification(tokenOverride?: string) {
     const token = (tokenOverride ?? verificationToken).trim();
     if (!token) {
-      setVerificationMessage({ type: 'error', text: '인증 토큰을 입력해주세요.' });
+      setVerificationMessage({ type: 'error', text: '6자리 인증 코드를 입력해주세요.' });
       return;
     }
 
@@ -598,7 +602,7 @@ export default function MyPage() {
               {!displayEmailVerified && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
                   <p className="text-sm text-amber-800">
-                    아직 이메일 인증이 완료되지 않았습니다. 메일이 오지 않는 환경에서는 아래 6자리 인증 코드로 직접 인증할 수 있습니다.
+                    아직 이메일 인증이 완료되지 않았습니다. 인증 메일이 오지 않으면 잠시 후 다시 시도하시거나 문의해주세요.
                   </p>
                   <div className="mt-3 flex gap-2">
                     <input
