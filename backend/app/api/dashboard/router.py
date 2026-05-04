@@ -14,73 +14,94 @@ _cache_lock = Lock()
 _summary_cache: dict[str, tuple[float, dict]] = {}
 
 
-def ensure_endless_answers_table(conn) -> None:
-    with conn.cursor() as cur:
-        cur.execute("CREATE SCHEMA IF NOT EXISTS logs")
+def has_endless_answers_table(cur) -> bool:
+    cur.execute("SELECT to_regclass('logs.endless_answers')")
+    return cur.fetchone()[0] is not None
+
+
+def fetch_subject_stats_by_mode(cur, user_id: str, include_endless: bool) -> dict[str, list[dict]]:
+    if include_endless:
         cur.execute(
             """
-            CREATE TABLE IF NOT EXISTS logs.endless_answers (
-                id SERIAL PRIMARY KEY,
-                user_id UUID NOT NULL REFERENCES auth.users(user_id),
-                problem_id VARCHAR(64) NOT NULL,
-                selected_answer VARCHAR(5) NOT NULL,
-                is_correct BOOLEAN NOT NULL,
-                category VARCHAR(50),
-                difficulty VARCHAR(20),
-                answered_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            WITH exam_answered AS (
+                SELECT
+                    COALESCE(NULLIF(q.question_payload->>'category', ''), '미분류') AS category,
+                    aaa.selected_choice = ak.correct_answer AS is_correct
+                FROM exam.exam_attempt_answers aaa
+                JOIN exam.exam_attempts aa
+                  ON aa.id = aaa.attempt_id
+                JOIN exam.exam_questions q
+                  ON q.id = aaa.question_id
+                JOIN exam.answer_keys ak
+                  ON ak.question_id = q.id
+                WHERE aa.user_id = %s::uuid
+            ),
+            endless_answered AS (
+                SELECT
+                    COALESCE(NULLIF(category, ''), '미분류') AS category,
+                    is_correct
+                FROM logs.endless_answers
+                WHERE user_id = %s::uuid
+            ),
+            combined AS (
+                SELECT 'exam'::text AS source_type, category, is_correct
+                FROM exam_answered
+                UNION ALL
+                SELECT 'endless'::text AS source_type, category, is_correct
+                FROM endless_answered
+            ),
+            aggregated AS (
+                SELECT
+                    CASE
+                        WHEN GROUPING(source_type) = 1 THEN 'all'
+                        ELSE source_type
+                    END AS stat_type,
+                    category,
+                    COUNT(*) AS solved_count,
+                    COUNT(*) FILTER (WHERE is_correct) AS correct_count,
+                    ROUND(
+                        COUNT(*) FILTER (WHERE is_correct)::numeric
+                        / NULLIF(COUNT(*), 0) * 100,
+                        2
+                    ) AS accuracy_rate
+                FROM combined
+                GROUP BY GROUPING SETS (
+                    (source_type, category),
+                    (category)
+                )
             )
-            """
+            SELECT
+                stat_type,
+                category,
+                solved_count,
+                correct_count,
+                accuracy_rate
+            FROM aggregated
+            ORDER BY
+                stat_type ASC,
+                solved_count DESC,
+                category ASC
+            """,
+            (user_id, user_id),
         )
+    else:
         cur.execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_endless_answers_user_id
-            ON logs.endless_answers (user_id)
-            """
-        )
-        cur.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_endless_answers_answered_at
-            ON logs.endless_answers (answered_at)
-            """
-        )
-
-
-def fetch_subject_stats_by_mode(cur, user_id: str) -> dict[str, list[dict]]:
-    cur.execute(
-        """
-        WITH exam_answered AS (
+            WITH exam_answered AS (
+                SELECT
+                    COALESCE(NULLIF(q.question_payload->>'category', ''), '미분류') AS category,
+                    aaa.selected_choice = ak.correct_answer AS is_correct
+                FROM exam.exam_attempt_answers aaa
+                JOIN exam.exam_attempts aa
+                  ON aa.id = aaa.attempt_id
+                JOIN exam.exam_questions q
+                  ON q.id = aaa.question_id
+                JOIN exam.answer_keys ak
+                  ON ak.question_id = q.id
+                WHERE aa.user_id = %s::uuid
+            )
             SELECT
-                COALESCE(NULLIF(q.question_payload->>'category', ''), '미분류') AS category,
-                aaa.selected_choice = ak.correct_answer AS is_correct
-            FROM exam.exam_attempt_answers aaa
-            JOIN exam.exam_attempts aa
-              ON aa.id = aaa.attempt_id
-            JOIN exam.exam_questions q
-              ON q.id = aaa.question_id
-            JOIN exam.answer_keys ak
-              ON ak.question_id = q.id
-            WHERE aa.user_id = %s::uuid
-        ),
-        endless_answered AS (
-            SELECT
-                COALESCE(NULLIF(category, ''), '미분류') AS category,
-                is_correct
-            FROM logs.endless_answers
-            WHERE user_id = %s::uuid
-        ),
-        combined AS (
-            SELECT 'exam'::text AS source_type, category, is_correct
-            FROM exam_answered
-            UNION ALL
-            SELECT 'endless'::text AS source_type, category, is_correct
-            FROM endless_answered
-        ),
-        aggregated AS (
-            SELECT
-                CASE
-                    WHEN GROUPING(source_type) = 1 THEN 'all'
-                    ELSE source_type
-                END AS stat_type,
+                'all'::text AS stat_type,
                 category,
                 COUNT(*) AS solved_count,
                 COUNT(*) FILTER (WHERE is_correct) AS correct_count,
@@ -89,26 +110,31 @@ def fetch_subject_stats_by_mode(cur, user_id: str) -> dict[str, list[dict]]:
                     / NULLIF(COUNT(*), 0) * 100,
                     2
                 ) AS accuracy_rate
-            FROM combined
-            GROUP BY GROUPING SETS (
-                (source_type, category),
-                (category)
-            )
+            FROM exam_answered
+            GROUP BY category
+
+            UNION ALL
+
+            SELECT
+                'exam'::text AS stat_type,
+                category,
+                COUNT(*) AS solved_count,
+                COUNT(*) FILTER (WHERE is_correct) AS correct_count,
+                ROUND(
+                    COUNT(*) FILTER (WHERE is_correct)::numeric
+                    / NULLIF(COUNT(*), 0) * 100,
+                    2
+                ) AS accuracy_rate
+            FROM exam_answered
+            GROUP BY category
+
+            ORDER BY
+                stat_type ASC,
+                solved_count DESC,
+                category ASC
+            """,
+            (user_id,),
         )
-        SELECT
-            stat_type,
-            category,
-            solved_count,
-            correct_count,
-            accuracy_rate
-        FROM aggregated
-        ORDER BY
-            stat_type ASC,
-            solved_count DESC,
-            category ASC
-        """,
-        (user_id, user_id),
-    )
     rows = cur.fetchall()
 
     stats_by_mode = {
@@ -160,8 +186,8 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
     learning_calendar: list[dict] = []
 
     with get_connection() as conn:
-        ensure_endless_answers_table(conn)
         with conn.cursor() as cur:
+            include_endless = has_endless_answers_table(cur)
             cur.execute(
                 """
                 SELECT
@@ -183,7 +209,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                     "totalSolvedQuestionCount": int(row[3] or 0),
                 }
 
-            subject_stats = fetch_subject_stats_by_mode(cur, user_id)
+            subject_stats = fetch_subject_stats_by_mode(cur, user_id, include_endless)
 
             cur.execute(
                 """
@@ -257,41 +283,70 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                 if row[3] is not None
             ]
 
-            cur.execute(
-                """
-                WITH learning_events AS (
+            if include_endless:
+                cur.execute(
+                    """
+                    WITH learning_events AS (
+                        SELECT
+                            timezone('Asia/Seoul', COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at))::date AS learning_date
+                        FROM practice.sql_practice_attempts spa
+                        WHERE spa.user_id = %s::uuid
+                          AND COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at) IS NOT NULL
+
+                        UNION ALL
+
+                        SELECT
+                            timezone('Asia/Seoul', COALESCE(ea.submitted_at, ea.last_saved_at, ea.started_at, ea.created_at))::date AS learning_date
+                        FROM exam.exam_attempts ea
+                        WHERE ea.user_id = %s::uuid
+                          AND COALESCE(ea.submitted_at, ea.last_saved_at, ea.started_at, ea.created_at) IS NOT NULL
+
+                        UNION ALL
+
+                        SELECT
+                            timezone('Asia/Seoul', lea.answered_at)::date AS learning_date
+                        FROM logs.endless_answers lea
+                        WHERE lea.user_id = %s::uuid
+                          AND lea.answered_at IS NOT NULL
+                    )
                     SELECT
-                        timezone('Asia/Seoul', COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at))::date AS learning_date
-                    FROM practice.sql_practice_attempts spa
-                    WHERE spa.user_id = %s::uuid
-                      AND COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at) IS NOT NULL
-
-                    UNION ALL
-
-                    SELECT
-                        timezone('Asia/Seoul', COALESCE(ea.submitted_at, ea.last_saved_at, ea.started_at, ea.created_at))::date AS learning_date
-                    FROM exam.exam_attempts ea
-                    WHERE ea.user_id = %s::uuid
-                      AND COALESCE(ea.submitted_at, ea.last_saved_at, ea.started_at, ea.created_at) IS NOT NULL
-
-                    UNION ALL
-
-                    SELECT
-                        timezone('Asia/Seoul', lea.answered_at)::date AS learning_date
-                    FROM logs.endless_answers lea
-                    WHERE lea.user_id = %s::uuid
-                      AND lea.answered_at IS NOT NULL
+                        learning_date::text,
+                        COUNT(*)::int AS event_count
+                    FROM learning_events
+                    WHERE learning_date >= timezone('Asia/Seoul', now())::date - INTERVAL '83 days'
+                    GROUP BY learning_date
+                    ORDER BY learning_date ASC
+                    """,
+                    (user_id, user_id, user_id),
                 )
-                SELECT
-                    learning_date::text,
-                    COUNT(*)::int AS event_count
-                FROM learning_events
-                WHERE learning_date >= timezone('Asia/Seoul', now())::date - INTERVAL '83 days'
-                GROUP BY learning_date
-                ORDER BY learning_date ASC
-                """,
-                (user_id, user_id, user_id),
-            )
+            else:
+                cur.execute(
+                    """
+                    WITH learning_events AS (
+                        SELECT
+                            timezone('Asia/Seoul', COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at))::date AS learning_date
+                        FROM practice.sql_practice_attempts spa
+                        WHERE spa.user_id = %s::uuid
+                          AND COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at) IS NOT NULL
+
+                        UNION ALL
+
+                        SELECT
+                            timezone('Asia/Seoul', COALESCE(ea.submitted_at, ea.last_saved_at, ea.started_at, ea.created_at))::date AS learning_date
+                        FROM exam.exam_attempts ea
+                        WHERE ea.user_id = %s::uuid
+                          AND COALESCE(ea.submitted_at, ea.last_saved_at, ea.started_at, ea.created_at) IS NOT NULL
+                    )
+                    SELECT
+                        learning_date::text,
+                        COUNT(*)::int AS event_count
+                    FROM learning_events
+                    WHERE learning_date >= timezone('Asia/Seoul', now())::date - INTERVAL '83 days'
+                    GROUP BY learning_date
+                    ORDER BY learning_date ASC
+                    """,
+                    (user_id, user_id),
+                )
             learning_calendar = [
                 {
                     "date": row[0],

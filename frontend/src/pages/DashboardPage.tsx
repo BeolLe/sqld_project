@@ -369,13 +369,20 @@ export default function DashboardPage() {
         {/* 데이터 없을 때 전체 빈 상태 */}
         {!hasAnyData && !error && (
           <div className="bg-white rounded-xl p-10 shadow-sm border border-slate-100 text-center mb-8">
-            <p className="text-slate-500 mb-4">아직 학습 기록이 없습니다. 모의고사를 시작해보세요!</p>
+            <p className="text-slate-500 mb-4">아직 학습 기록이 없습니다. 모의고사나 무한풀이를 시작해보세요.</p>
             <div className="flex justify-center gap-4">
               <Link
                 to="/exams"
                 className="inline-flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm px-5 py-2.5 rounded-lg transition-colors"
               >
                 모의고사 풀기
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+              <Link
+                to="/endless"
+                className="inline-flex items-center gap-1.5 border border-slate-300 hover:border-slate-400 text-slate-700 text-sm px-5 py-2.5 rounded-lg transition-colors"
+              >
+                무한풀이 시작
                 <ChevronRight className="w-4 h-4" />
               </Link>
               <Link
