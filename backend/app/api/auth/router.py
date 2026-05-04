@@ -230,10 +230,15 @@ def extract_refresh_token_from_request(request: Request) -> str | None:
     return request.cookies.get(settings.REFRESH_COOKIE_NAME)
 
 
-def build_allowed_origin(request: Request) -> str:
+def build_allowed_origins(request: Request) -> set[str]:
+    allowed_origins = set(settings.APP_ALLOWED_ORIGINS)
     frontend_base_url = get_frontend_base_url(request)
-    parsed = urlsplit(frontend_base_url)
-    return urlunsplit((parsed.scheme, parsed.netloc, "", "", "")).rstrip("/")
+    if frontend_base_url:
+        parsed = urlsplit(frontend_base_url)
+        allowed_origins.add(
+            urlunsplit((parsed.scheme, parsed.netloc, "", "", "")).rstrip("/")
+        )
+    return {origin for origin in allowed_origins if origin}
 
 
 def validate_csrf_request(request: Request) -> None:
@@ -252,7 +257,7 @@ def validate_csrf_request(request: Request) -> None:
     if request.url.path in csrf_exempt_paths:
         return
 
-    allowed_origin = build_allowed_origin(request)
+    allowed_origins = build_allowed_origins(request)
     origin = request.headers.get("origin")
     referer = request.headers.get("referer")
     request_origin = origin
@@ -262,7 +267,7 @@ def validate_csrf_request(request: Request) -> None:
             (parsed_referer.scheme, parsed_referer.netloc, "", "", "")
         ).rstrip("/")
 
-    if request_origin != allowed_origin:
+    if request_origin not in allowed_origins:
         raise HTTPException(status_code=403, detail="invalid request origin")
 
     csrf_cookie = request.cookies.get(settings.CSRF_COOKIE_NAME)

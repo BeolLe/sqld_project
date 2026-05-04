@@ -7,6 +7,11 @@ class Settings:
     APP_HOST = os.getenv("APP_HOST", "0.0.0.0")
     APP_PORT = int(os.getenv("APP_PORT", "8000"))
     APP_PUBLIC_BASE_URL = os.getenv("APP_PUBLIC_BASE_URL", "").rstrip("/")
+    APP_ALLOWED_ORIGINS = [
+        origin.strip().rstrip("/")
+        for origin in os.getenv("APP_ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
 
     ORACLE_USER = os.getenv("ORACLE_USER", "")
     ORACLE_PASSWORD = os.getenv("ORACLE_PASSWORD", "")
