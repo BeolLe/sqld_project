@@ -25,7 +25,6 @@ from app.core.security import (
     verify_password,
     verify_and_update_password,
     create_access_token,
-    create_refresh_token,
     decode_access_token,
     decode_refresh_token,
 )
@@ -41,6 +40,8 @@ _google_oidc_config_cache: tuple[float, dict] | None = None
 _google_jwk_client_lock = Lock()
 _google_jwk_client: jwt.PyJWKClient | None = None
 _google_jwk_client_uri: str | None = None
+_refresh_session_table_ready = False
+_refresh_session_table_lock = Lock()
 
 
 class LoginRequest(BaseModel):
@@ -145,7 +146,7 @@ def set_refresh_cookie(response: Response, refresh_token: str) -> None:
         httponly=True,
         secure=settings.AUTH_COOKIE_SECURE,
         samesite=settings.AUTH_COOKIE_SAMESITE,
-        max_age=60 * 60 * 24 * settings.REFRESH_TOKEN_EXPIRE_DAYS,
+        max_age=60 * 60 * 24 * settings.AUTO_LOGIN_IDLE_DAYS,
         path="/",
     )
 
@@ -167,7 +168,7 @@ def set_csrf_cookie(response: Response, csrf_token: str) -> None:
         httponly=False,
         secure=settings.AUTH_COOKIE_SECURE,
         samesite=settings.AUTH_COOKIE_SAMESITE,
-        max_age=60 * 60 * 24 * settings.REFRESH_TOKEN_EXPIRE_DAYS,
+        max_age=60 * 60 * 24 * settings.AUTO_LOGIN_IDLE_DAYS,
         path="/",
     )
 
@@ -280,6 +281,115 @@ def normalize_next_path(next_path: str | None) -> str:
 
     normalized_path = parsed.path if parsed.path.startswith("/") else "/"
     return urlunsplit(("", "", normalized_path, parsed.query, ""))
+
+
+def hash_refresh_token_value(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def ensure_refresh_session_table(conn) -> None:
+    global _refresh_session_table_ready
+    if _refresh_session_table_ready:
+        return
+
+    with _refresh_session_table_lock:
+        if _refresh_session_table_ready:
+            return
+
+        with conn.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS auth")
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS auth.refresh_sessions (
+                    refresh_token_hash TEXT PRIMARY KEY,
+                    user_id UUID NOT NULL,
+                    auth_provider TEXT NOT NULL DEFAULT 'local',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    revoked_at TIMESTAMPTZ NULL
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_refresh_sessions_user_id
+                ON auth.refresh_sessions (user_id)
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_refresh_sessions_last_used_at
+                ON auth.refresh_sessions (last_used_at)
+                WHERE revoked_at IS NULL
+                """
+            )
+
+        _refresh_session_table_ready = True
+
+
+def create_refresh_session(cur, *, user_id: str, auth_provider: str) -> str:
+    refresh_token = secrets.token_urlsafe(48)
+    refresh_token_hash = hash_refresh_token_value(refresh_token)
+    cur.execute(
+        """
+        INSERT INTO auth.refresh_sessions (
+            refresh_token_hash,
+            user_id,
+            auth_provider,
+            created_at,
+            last_used_at,
+            revoked_at
+        )
+        VALUES (%s, %s::uuid, %s, NOW(), NOW(), NULL)
+        """,
+        (refresh_token_hash, user_id, auth_provider),
+    )
+    return refresh_token
+
+
+def resolve_refresh_session(cur, refresh_token: str):
+    refresh_token_hash = hash_refresh_token_value(refresh_token)
+    cur.execute(
+        """
+        SELECT refresh_token_hash, user_id::text, auth_provider, last_used_at, revoked_at
+        FROM auth.refresh_sessions
+        WHERE refresh_token_hash = %s
+        """,
+        (refresh_token_hash,),
+    )
+    row = cur.fetchone()
+    return refresh_token_hash, row
+
+
+def revoke_refresh_session(cur, refresh_token_hash: str) -> None:
+    cur.execute(
+        """
+        UPDATE auth.refresh_sessions
+        SET revoked_at = NOW()
+        WHERE refresh_token_hash = %s
+          AND revoked_at IS NULL
+        """,
+        (refresh_token_hash,),
+    )
+
+
+def rotate_refresh_session(cur, refresh_token_hash: str) -> str:
+    new_refresh_token = secrets.token_urlsafe(48)
+    new_refresh_token_hash = hash_refresh_token_value(new_refresh_token)
+    cur.execute(
+        """
+        UPDATE auth.refresh_sessions
+        SET refresh_token_hash = %s,
+            last_used_at = NOW(),
+            revoked_at = NULL
+        WHERE refresh_token_hash = %s
+          AND revoked_at IS NULL
+        """,
+        (new_refresh_token_hash, refresh_token_hash),
+    )
+    if cur.rowcount != 1:
+        raise HTTPException(status_code=401, detail="refresh session is invalid")
+    return new_refresh_token
 
 
 def get_frontend_base_url(request: Request) -> str:
@@ -1257,13 +1367,21 @@ def google_login_callback(
                 provider_email_verified=True,
             )
 
+    with get_connection() as conn:
+        ensure_refresh_session_table(conn)
+        with conn.cursor() as cur:
+            refresh_token = create_refresh_session(
+                cur,
+                user_id=str(user_id),
+                auth_provider="google",
+            )
+
     access_token = create_access_token(
         user_id=str(user_id),
         email=resolved_email,
         nickname=nickname,
         auth_provider="google",
     )
-    refresh_token = create_refresh_token(str(user_id), auth_provider="google")
 
     submit_amplitude_event(
         event_type="backend_auth_google_login_succeeded",
@@ -1379,13 +1497,21 @@ def complete_social_signup(req: SocialSignupCompleteRequest, request: Request):
         )
         raise HTTPException(status_code=400, detail=str(exc))
 
+    with get_connection() as conn:
+        ensure_refresh_session_table(conn)
+        with conn.cursor() as cur:
+            refresh_token = create_refresh_session(
+                cur,
+                user_id=str(user_id),
+                auth_provider=provider,
+            )
+
     access_token = create_access_token(
         user_id=str(user_id),
         email=resolved_email,
         nickname=resolved_nickname,
         auth_provider=provider,
     )
-    refresh_token = create_refresh_token(str(user_id), auth_provider=provider)
 
     submit_amplitude_event(
         event_type="backend_auth_social_signup_succeeded",
@@ -1533,16 +1659,22 @@ def login(req: LoginRequest, request: Request, response: Response):
                 )
         timing_marks["passwordRehashedMs"] = round((monotonic() - started_at) * 1000)
 
+    refresh_token = None
+    if req.auto_login:
+        with get_connection() as conn:
+            ensure_refresh_session_table(conn)
+            with conn.cursor() as cur:
+                refresh_token = create_refresh_session(
+                    cur,
+                    user_id=str(user_id),
+                    auth_provider="local",
+                )
+
     access_token = create_access_token(
         user_id=str(user_id),
         email=email,
         nickname=nickname,
         auth_provider="local",
-    )
-    refresh_token = (
-        create_refresh_token(str(user_id), auth_provider="local")
-        if req.auto_login
-        else None
     )
     timing_marks["tokenCreatedMs"] = round((monotonic() - started_at) * 1000)
 
@@ -1591,22 +1723,39 @@ def refresh_access_token(request: Request, response: Response):
     if not refresh_token:
         raise HTTPException(status_code=401, detail="missing refresh token")
 
-    try:
-        payload = decode_refresh_token(refresh_token)
-    except ExpiredSignatureError:
-        clear_auth_cookie(response)
-        raise HTTPException(status_code=401, detail="refresh token expired")
-    except InvalidTokenError:
-        clear_auth_cookie(response)
-        raise HTTPException(status_code=401, detail="refresh token is invalid")
-
-    user_id = payload.get("sub")
-    if not user_id:
-        clear_auth_cookie(response)
-        raise HTTPException(status_code=401, detail="refresh token is invalid")
+    idle_cutoff = datetime.now(timezone.utc) - timedelta(
+        days=settings.AUTO_LOGIN_IDLE_DAYS
+    )
 
     with get_connection() as conn:
+        ensure_refresh_session_table(conn)
         with conn.cursor() as cur:
+            refresh_token_hash, refresh_session = resolve_refresh_session(cur, refresh_token)
+            user_id = None
+            auth_provider = "local"
+
+            if refresh_session:
+                _, user_id, auth_provider, last_used_at, revoked_at = refresh_session
+                if revoked_at or last_used_at < idle_cutoff:
+                    revoke_refresh_session(cur, refresh_token_hash)
+                    clear_auth_cookie(response)
+                    raise HTTPException(status_code=401, detail="refresh token expired")
+            else:
+                try:
+                    payload = decode_refresh_token(refresh_token)
+                except ExpiredSignatureError:
+                    clear_auth_cookie(response)
+                    raise HTTPException(status_code=401, detail="refresh token expired")
+                except InvalidTokenError:
+                    clear_auth_cookie(response)
+                    raise HTTPException(status_code=401, detail="refresh token is invalid")
+
+                user_id = payload.get("sub")
+                auth_provider = payload.get("auth_provider") or "local"
+                if not user_id:
+                    clear_auth_cookie(response)
+                    raise HTTPException(status_code=401, detail="refresh token is invalid")
+
             cur.execute(
                 """
                 SELECT user_id, email, nickname, is_active
@@ -1622,19 +1771,27 @@ def refresh_access_token(request: Request, response: Response):
         raise HTTPException(status_code=401, detail="user not found")
 
     resolved_user_id, email, nickname, is_active = user
-    auth_provider = payload.get("auth_provider") or "local"
     if not is_active:
         clear_auth_cookie(response)
         raise HTTPException(status_code=403, detail="deactivated account")
+
+    with get_connection() as conn:
+        ensure_refresh_session_table(conn)
+        with conn.cursor() as cur:
+            refresh_token_hash, refresh_session = resolve_refresh_session(cur, refresh_token)
+            if refresh_session:
+                new_refresh_token = rotate_refresh_session(cur, refresh_token_hash)
+            else:
+                new_refresh_token = create_refresh_session(
+                    cur,
+                    user_id=str(resolved_user_id),
+                    auth_provider=auth_provider,
+                )
 
     new_access_token = create_access_token(
         user_id=str(resolved_user_id),
         email=email,
         nickname=nickname,
-        auth_provider=auth_provider,
-    )
-    new_refresh_token = create_refresh_token(
-        str(resolved_user_id),
         auth_provider=auth_provider,
     )
     issue_auth_cookies(
@@ -1646,7 +1803,15 @@ def refresh_access_token(request: Request, response: Response):
 
 
 @router.post("/logout")
-def logout(response: Response):
+def logout(request: Request, response: Response):
+    refresh_token = extract_refresh_token_from_request(request)
+    if refresh_token:
+        with get_connection() as conn:
+            ensure_refresh_session_table(conn)
+            with conn.cursor() as cur:
+                refresh_token_hash, refresh_session = resolve_refresh_session(cur, refresh_token)
+                if refresh_session:
+                    revoke_refresh_session(cur, refresh_token_hash)
     clear_auth_cookie(response)
     return {"message": "logout succeeded"}
 

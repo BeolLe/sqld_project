@@ -66,6 +66,7 @@ class Settings:
     AUTH_COOKIE_SECURE = os.getenv("AUTH_COOKIE_SECURE", "false").lower() == "true"
     AUTH_COOKIE_SAMESITE = os.getenv("AUTH_COOKIE_SAMESITE", "lax")
     REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "1"))
+    AUTO_LOGIN_IDLE_DAYS = int(os.getenv("AUTO_LOGIN_IDLE_DAYS", "14"))
 
 
 settings = Settings()
