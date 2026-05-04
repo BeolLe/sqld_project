@@ -115,6 +115,12 @@ export interface SubjectStat {
   accuracyRate: number;
 }
 
+export interface SubjectStatsByMode {
+  all: SubjectStat[];
+  exam: SubjectStat[];
+  endless: SubjectStat[];
+}
+
 export interface RecentExamResult {
   examId: string;
   examTitle: string;
@@ -138,7 +144,7 @@ export interface LearningDay {
 
 export interface DashboardSummary {
   stats: DashboardStats;
-  subjectStats: SubjectStat[];
+  subjectStats: SubjectStatsByMode;
   recentExamResults: RecentExamResult[];
   recentSqlAttempts: RecentSqlAttempt[];
   learningCalendar: LearningDay[]; // Amplitude ETL 데이터 기반, 미구현 시 빈 배열

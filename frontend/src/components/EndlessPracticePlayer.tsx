@@ -1,7 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { RotateCcw, ChevronRight, CheckCircle, XCircle, Shuffle, ChevronLeft } from 'lucide-react';
 import type { Problem } from '../types';
 import DescriptionRenderer from './DescriptionRenderer';
+import { fetchEndlessStats, resetEndlessStats, submitEndlessAnswer } from '../api/endless';
+import { useAuth } from '../contexts/AuthContext';
 
 function shuffleArray<T>(arr: T[]): T[] {
   const shuffled = [...arr];
@@ -19,27 +21,77 @@ interface Props {
 }
 
 export default function EndlessPracticePlayer({ problems, label, onBack }: Props) {
+  const { updatePoints } = useAuth();
   const [queue, setQueue] = useState<Problem[]>(() => shuffleArray(problems));
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [totalAnswered, setTotalAnswered] = useState(0);
   const [totalCorrect, setTotalCorrect] = useState(0);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const problem = queue[currentIndex] ?? null;
   const isAnswered = selectedAnswer !== null;
   const isCorrect = selectedAnswer === problem?.answer;
   const correctRate = totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0;
 
+  useEffect(() => {
+    let cancelled = false;
+    setStatsLoading(true);
+    setActionError(null);
+
+    fetchEndlessStats()
+      .then((stats) => {
+        if (cancelled) return;
+        setTotalAnswered(stats.totalAnswered ?? 0);
+        setTotalCorrect(stats.totalCorrect ?? 0);
+        if (typeof stats.totalPoints === 'number') {
+          updatePoints(stats.totalPoints);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setActionError(error instanceof Error ? error.message : '무한풀이 통계를 불러오지 못했습니다.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setStatsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [updatePoints]);
+
   const handleSelect = useCallback(
-    (option: string) => {
-      if (isAnswered || !problem) return;
-      setSelectedAnswer(option);
-      setTotalAnswered((prev) => prev + 1);
-      if (option === problem.answer) {
-        setTotalCorrect((prev) => prev + 1);
+    async (option: string) => {
+      if (isAnswered || !problem || isSubmitting) return;
+      setActionError(null);
+      setIsSubmitting(true);
+
+      try {
+        const stats = await submitEndlessAnswer({
+          problemId: problem.id,
+          selectedAnswer: option,
+          category: problem.category,
+          difficulty: problem.difficulty,
+        });
+        setSelectedAnswer(option);
+        setTotalAnswered(stats.totalAnswered ?? 0);
+        setTotalCorrect(stats.totalCorrect ?? 0);
+        if (typeof stats.totalPoints === 'number') {
+          updatePoints(stats.totalPoints);
+        }
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : '정답 저장에 실패했습니다.');
+      } finally {
+        setIsSubmitting(false);
       }
     },
-    [isAnswered, problem],
+    [isAnswered, isSubmitting, problem, updatePoints],
   );
 
   const handleNext = useCallback(() => {
@@ -53,13 +105,25 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
     setSelectedAnswer(null);
   }, [currentIndex, queue.length, problems]);
 
-  const handleReset = useCallback(() => {
+  const handleReset = useCallback(async () => {
+    setActionError(null);
     setQueue(shuffleArray(problems));
     setCurrentIndex(0);
     setSelectedAnswer(null);
-    setTotalAnswered(0);
-    setTotalCorrect(0);
-  }, [problems]);
+
+    try {
+      const stats = await resetEndlessStats();
+      setTotalAnswered(stats.totalAnswered ?? 0);
+      setTotalCorrect(stats.totalCorrect ?? 0);
+      if (typeof stats.totalPoints === 'number') {
+        updatePoints(stats.totalPoints);
+      }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : '무한풀이 초기화에 실패했습니다.');
+      setTotalAnswered(0);
+      setTotalCorrect(0);
+    }
+  }, [problems, updatePoints]);
 
   if (!problem) {
     return (
@@ -102,7 +166,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
         <div className="flex items-center gap-4">
           <div className="text-sm text-slate-500">
             <span className="font-bold text-sqld-navy">{totalAnswered}</span>문제
-            {totalAnswered > 0 && (
+            {!statsLoading && totalAnswered > 0 && (
               <>
                 <span className="mx-1.5 text-slate-300">·</span>
                 정답률{' '}
@@ -115,7 +179,10 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
             )}
           </div>
           <button
-            onClick={handleReset}
+            onClick={() => {
+              void handleReset();
+            }}
+            disabled={isSubmitting}
             className="text-slate-400 hover:text-slate-600 transition-colors"
             title="초기화"
           >
@@ -134,6 +201,9 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
         </div>
 
         <div className="px-6 py-5">
+          {actionError && (
+            <p className="mb-3 text-sm text-red-500">{actionError}</p>
+          )}
           <h2 className="text-base font-semibold text-slate-800 leading-relaxed mb-1">
             {problem.title}
           </h2>
@@ -166,10 +236,12 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
             return (
               <button
                 key={optionNum}
-                onClick={() => handleSelect(optionNum)}
-                disabled={isAnswered}
+                onClick={() => {
+                  void handleSelect(optionNum);
+                }}
+                disabled={isAnswered || isSubmitting}
                 className={`w-full text-left flex items-start gap-3 px-4 py-3 rounded-xl border transition-all ${borderClass} ${
-                  isAnswered ? 'cursor-default' : 'cursor-pointer'
+                  isAnswered || isSubmitting ? 'cursor-default' : 'cursor-pointer'
                 }`}
               >
                 <span

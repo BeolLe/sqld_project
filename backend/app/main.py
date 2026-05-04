@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from app.api.auth.router import router as auth_router, validate_csrf_request
 from app.api.content.router import router as content_router
 from app.api.dashboard.router import router as dashboard_router
+from app.api.endless.router import router as endless_router
 from app.api.exams.router import router as exams_router
 from app.api.sql.router import router as sql_router
 from app.api.feedback.router import router as feedback_router
@@ -41,6 +42,7 @@ async def csrf_guard_middleware(request, call_next):
 app.include_router(auth_router)
 app.include_router(dashboard_router)
 app.include_router(content_router)
+app.include_router(endless_router)
 app.include_router(exams_router)
 app.include_router(sql_router)
 app.include_router(feedback_router)

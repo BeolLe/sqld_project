@@ -20,6 +20,13 @@ import {
 
 const PROBLEMS_PER_PAGE = 5;
 
+function normalizeQuestionTitle(title: string, index: number): string {
+  const trimmed = title.trim();
+  if (!trimmed) return '';
+  const prefixPattern = new RegExp(`^${index + 1}\\.?\\s*`);
+  return trimmed.replace(prefixPattern, '').trim();
+}
+
 function ChoiceProblem({
   problem,
   index,
@@ -31,10 +38,17 @@ function ChoiceProblem({
   selected?: string;
   onSelect: (val: string) => void;
 }) {
+  const normalizedTitle = normalizeQuestionTitle(problem.title, index);
+
   return (
     <div className="mb-8 break-inside-avoid">
       <div className="font-semibold text-slate-800 mb-3 leading-relaxed">
         <span className="text-primary-600 mr-1">{index + 1}.</span>
+        {normalizedTitle && (
+          <span className="mr-1">
+            {normalizedTitle}
+          </span>
+        )}
         <DescriptionRenderer text={problem.description} />
       </div>
       <div className="space-y-2 ml-4">
@@ -66,7 +80,7 @@ function ChoiceProblem({
 export default function ExamTakingPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, updatePoints } = useAuth();
 
   const [problems, setProblems] = useState<Problem[]>([]);
   const [attemptId, setAttemptId] = useState<number | null>(null);
@@ -172,6 +186,9 @@ export default function ExamTakingPage() {
       currentPageNo: currentPage + 1,
       remainingSeconds: syncStateRef.current.remainingSeconds,
     }).then((result) => {
+      if (typeof result.totalPoints === 'number') {
+        updatePoints(result.totalPoints);
+      }
       logEvent('exam_submit_confirmed', { examId: id, attemptId, answers: result.answers, score: result.score }, user.id);
       logEvent('exam_result_viewed', { examId: id, userId: user.id, score: result.score }, user.id);
 
@@ -187,7 +204,7 @@ export default function ExamTakingPage() {
     }).catch((caughtError) => {
       setError(caughtError instanceof Error ? caughtError.message : '시험 제출 중 오류가 발생했습니다.');
     });
-  }, [attemptId, currentPage, id, navigate, user]);
+  }, [attemptId, currentPage, id, navigate, updatePoints, user]);
 
   const handleMemoSave = useCallback(
     async (content: string) => {

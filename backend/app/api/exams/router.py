@@ -507,12 +507,23 @@ def submit_exam(
                     (attempt["id"],),
                 )
                 stored_result = cur.fetchone()
+                cur.execute(
+                    """
+                    SELECT total_points
+                    FROM dashboard.user_stats
+                    WHERE user_id = %s::uuid
+                    """,
+                    (current_user["user_id"],),
+                )
+                stats_row = cur.fetchone()
 
             return {
                 "attemptId": attempt["id"],
                 "passed": bool(stored_result["passed"]) if stored_result else False,
                 "failedBySubjectCutoff": bool(stored_result["failed_by_subject_cutoff"]) if stored_result else False,
                 "scorePercent": float(stored_result["score_percent"]) if stored_result and stored_result["score_percent"] is not None else 0,
+                "awardedPoints": 0,
+                "totalPoints": int(stats_row["total_points"] or 0) if stats_row else 0,
                 **result_payload,
             }
 
@@ -527,6 +538,7 @@ def submit_exam(
         result_payload = build_result_payload(conn, attempt["id"])
         total_question_count = exam["total_question_count"]
         correct_count = result_payload["correctCount"]
+        awarded_points = correct_count
         score_percent = round((correct_count / total_question_count) * 100, 2) if total_question_count else 0
 
         with conn.cursor(row_factory=dict_row) as cur:
@@ -703,25 +715,31 @@ def submit_exam(
                 """
                 INSERT INTO dashboard.user_stats (
                     user_id,
+                    total_points,
                     total_learning_seconds,
                     total_solved_question_count,
                     total_mock_exam_attempt_count,
                     last_mock_exam_at
                 )
-                VALUES (%s, %s, %s, 1, now())
+                VALUES (%s, %s, %s, %s, 1, now())
                 ON CONFLICT (user_id)
                 DO UPDATE SET
+                    total_points = dashboard.user_stats.total_points + EXCLUDED.total_points,
                     total_learning_seconds = dashboard.user_stats.total_learning_seconds + EXCLUDED.total_learning_seconds,
                     total_solved_question_count = dashboard.user_stats.total_solved_question_count + EXCLUDED.total_solved_question_count,
                     total_mock_exam_attempt_count = dashboard.user_stats.total_mock_exam_attempt_count + 1,
                     last_mock_exam_at = EXCLUDED.last_mock_exam_at
+                RETURNING total_points
                 """,
                 (
                     current_user["user_id"],
+                    awarded_points,
                     elapsed_seconds,
                     total_question_count,
                 ),
             )
+            stats_row = cur.fetchone()
+            total_points = int(stats_row["total_points"] or 0) if stats_row else awarded_points
 
     send_amplitude_event(
         event_type="backend_exam_submit_succeeded",
@@ -734,6 +752,8 @@ def submit_exam(
             "correct_count": correct_count,
             "total_question_count": total_question_count,
             "failed_by_subject_cutoff": failed_by_subject_cutoff,
+            "awarded_points": awarded_points,
+            "total_points": total_points,
         },
         insert_id=f"exam-submit-{attempt['id']}",
     )
@@ -743,5 +763,7 @@ def submit_exam(
         "passed": passed,
         "failedBySubjectCutoff": failed_by_subject_cutoff,
         "scorePercent": score_percent,
+        "awardedPoints": awarded_points,
+        "totalPoints": total_points,
         **result_payload,
     }

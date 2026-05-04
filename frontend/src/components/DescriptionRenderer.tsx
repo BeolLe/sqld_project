@@ -149,13 +149,13 @@ function TableBlock({ lines }: { lines: string[] }) {
 
   return (
     <div className="my-2 overflow-x-auto">
-      <table className="text-xs border-collapse border border-slate-300 w-auto">
+      <table className="text-xs border-collapse border border-slate-300 w-full table-auto">
         <thead>
           <tr className="bg-slate-100">
             {header.map((cell, i) => (
               <th
                 key={i}
-                className="border border-slate-300 px-3 py-1.5 text-left font-semibold text-slate-700 whitespace-nowrap"
+                className="border border-slate-300 px-3 py-1.5 text-left align-top font-semibold text-slate-700 whitespace-normal break-words"
               >
                 {cell}
               </th>
@@ -168,7 +168,7 @@ function TableBlock({ lines }: { lines: string[] }) {
               {row.map((cell, ci) => (
                 <td
                   key={ci}
-                  className="border border-slate-300 px-3 py-1 text-slate-600 whitespace-nowrap"
+                  className="border border-slate-300 px-3 py-1 align-top text-slate-600 whitespace-normal break-words"
                 >
                   {cell}
                 </td>

@@ -272,10 +272,25 @@ export default function DashboardPage() {
     totalSolvedQuestionCount: 0,
   };
 
-  const subjectStats = data?.subjectStats ?? [];
+  const subjectStatsByMode = data?.subjectStats ?? {
+    all: [],
+    exam: [],
+    endless: [],
+  };
+  const subjectStats = subjectStatsByMode[subjectTab];
   const recentExams = data?.recentExamResults ?? [];
   const recentSql = data?.recentSqlAttempts ?? [];
   const learningCalendar = data?.learningCalendar ?? [];
+  const subjectEmptyMessage =
+    subjectTab === 'exam'
+      ? '모의고사를 응시하면 과목별 분석을 볼 수 있습니다.'
+      : subjectTab === 'endless'
+        ? '무한풀이를 시작하면 카테고리별 정답률을 볼 수 있습니다.'
+        : '학습 기록이 쌓이면 전체 과목별 분석을 볼 수 있습니다.';
+  const subjectEmptyCta =
+    subjectTab === 'endless'
+      ? { label: '무한풀이 시작', to: '/endless' }
+      : { label: '모의고사 목록', to: '/exams' };
 
   const hasAnyData =
     stats.totalMockExamAttemptCount > 0 || stats.totalSolvedQuestionCount > 0;
@@ -418,9 +433,9 @@ export default function DashboardPage() {
                 </ResponsiveContainer>
               ) : (
                 <EmptyState
-                  message="모의고사를 응시하면 과목별 분석을 볼 수 있습니다."
-                  ctaLabel="모의고사 목록"
-                  ctaTo="/exams"
+                  message={subjectEmptyMessage}
+                  ctaLabel={subjectEmptyCta.label}
+                  ctaTo={subjectEmptyCta.to}
                 />
               )}
             </div>

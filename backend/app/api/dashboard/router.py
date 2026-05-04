@@ -14,6 +14,125 @@ _cache_lock = Lock()
 _summary_cache: dict[str, tuple[float, dict]] = {}
 
 
+def ensure_endless_answers_table(conn) -> None:
+    with conn.cursor() as cur:
+        cur.execute("CREATE SCHEMA IF NOT EXISTS logs")
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS logs.endless_answers (
+                id SERIAL PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES auth.users(user_id),
+                problem_id VARCHAR(64) NOT NULL,
+                selected_answer VARCHAR(5) NOT NULL,
+                is_correct BOOLEAN NOT NULL,
+                category VARCHAR(50),
+                difficulty VARCHAR(20),
+                answered_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_endless_answers_user_id
+            ON logs.endless_answers (user_id)
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_endless_answers_answered_at
+            ON logs.endless_answers (answered_at)
+            """
+        )
+
+
+def fetch_subject_stats_by_mode(cur, user_id: str) -> dict[str, list[dict]]:
+    cur.execute(
+        """
+        WITH exam_answered AS (
+            SELECT
+                COALESCE(NULLIF(q.question_payload->>'category', ''), '미분류') AS category,
+                aaa.selected_choice = ak.correct_answer AS is_correct
+            FROM exam.exam_attempt_answers aaa
+            JOIN exam.exam_attempts aa
+              ON aa.id = aaa.attempt_id
+            JOIN exam.exam_questions q
+              ON q.id = aaa.question_id
+            JOIN exam.answer_keys ak
+              ON ak.question_id = q.id
+            WHERE aa.user_id = %s::uuid
+        ),
+        endless_answered AS (
+            SELECT
+                COALESCE(NULLIF(category, ''), '미분류') AS category,
+                is_correct
+            FROM logs.endless_answers
+            WHERE user_id = %s::uuid
+        ),
+        combined AS (
+            SELECT 'exam'::text AS source_type, category, is_correct
+            FROM exam_answered
+            UNION ALL
+            SELECT 'endless'::text AS source_type, category, is_correct
+            FROM endless_answered
+        ),
+        aggregated AS (
+            SELECT
+                CASE
+                    WHEN GROUPING(source_type) = 1 THEN 'all'
+                    ELSE source_type
+                END AS stat_type,
+                category,
+                COUNT(*) AS solved_count,
+                COUNT(*) FILTER (WHERE is_correct) AS correct_count,
+                ROUND(
+                    COUNT(*) FILTER (WHERE is_correct)::numeric
+                    / NULLIF(COUNT(*), 0) * 100,
+                    2
+                ) AS accuracy_rate
+            FROM combined
+            GROUP BY GROUPING SETS (
+                (source_type, category),
+                (category)
+            )
+        )
+        SELECT
+            stat_type,
+            category,
+            solved_count,
+            correct_count,
+            accuracy_rate
+        FROM aggregated
+        ORDER BY
+            stat_type ASC,
+            solved_count DESC,
+            category ASC
+        """,
+        (user_id, user_id),
+    )
+    rows = cur.fetchall()
+
+    stats_by_mode = {
+        "all": [],
+        "exam": [],
+        "endless": [],
+    }
+    for row in rows:
+        stat_type = row[0]
+        if stat_type not in stats_by_mode:
+            continue
+        stats_by_mode[stat_type].append(
+            {
+                "subjectId": row[1],
+                "subjectName": row[1],
+                "solvedCount": int(row[2] or 0),
+                "correctCount": int(row[3] or 0),
+                "accuracyRate": float(row[4] or 0),
+            }
+        )
+
+    return stats_by_mode
+
+
 @router.get("/summary")
 def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
     user_id = current_user["user_id"]
@@ -31,12 +150,17 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
         "totalLearningSeconds": 0,
         "totalSolvedQuestionCount": 0,
     }
-    subject_stats: list[dict] = []
+    subject_stats = {
+        "all": [],
+        "exam": [],
+        "endless": [],
+    }
     recent_exam_results: list[dict] = []
     recent_sql_attempts: list[dict] = []
     learning_calendar: list[dict] = []
 
     with get_connection() as conn:
+        ensure_endless_answers_table(conn)
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -59,47 +183,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                     "totalSolvedQuestionCount": int(row[3] or 0),
                 }
 
-            cur.execute(
-                """
-                WITH answered AS (
-                    SELECT
-                        COALESCE(NULLIF(q.question_payload->>'category', ''), '미분류') AS category,
-                        aaa.selected_choice,
-                        ak.correct_answer
-                    FROM exam.exam_attempt_answers aaa
-                    JOIN exam.exam_attempts aa
-                      ON aa.id = aaa.attempt_id
-                    JOIN exam.exam_questions q
-                      ON q.id = aaa.question_id
-                    JOIN exam.answer_keys ak
-                      ON ak.question_id = q.id
-                    WHERE aa.user_id = %s::uuid
-                )
-                SELECT
-                    category,
-                    COUNT(*) AS solved_count,
-                    COUNT(*) FILTER (WHERE selected_choice = correct_answer) AS correct_count,
-                    ROUND(
-                        COUNT(*) FILTER (WHERE selected_choice = correct_answer)::numeric
-                        / NULLIF(COUNT(*), 0) * 100,
-                        2
-                    ) AS accuracy_rate
-                FROM answered
-                GROUP BY category
-                ORDER BY COUNT(*) DESC, category ASC
-                """,
-                (user_id,),
-            )
-            subject_stats = [
-                {
-                    "subjectId": row[0],
-                    "subjectName": row[0],
-                    "solvedCount": int(row[1] or 0),
-                    "correctCount": int(row[2] or 0),
-                    "accuracyRate": float(row[3] or 0),
-                }
-                for row in cur.fetchall()
-            ]
+            subject_stats = fetch_subject_stats_by_mode(cur, user_id)
 
             cur.execute(
                 """
@@ -189,6 +273,14 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                     FROM exam.exam_attempts ea
                     WHERE ea.user_id = %s::uuid
                       AND COALESCE(ea.submitted_at, ea.last_saved_at, ea.started_at, ea.created_at) IS NOT NULL
+
+                    UNION ALL
+
+                    SELECT
+                        timezone('Asia/Seoul', lea.answered_at)::date AS learning_date
+                    FROM logs.endless_answers lea
+                    WHERE lea.user_id = %s::uuid
+                      AND lea.answered_at IS NOT NULL
                 )
                 SELECT
                     learning_date::text,
@@ -198,7 +290,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                 GROUP BY learning_date
                 ORDER BY learning_date ASC
                 """,
-                (user_id, user_id),
+                (user_id, user_id, user_id),
             )
             learning_calendar = [
                 {

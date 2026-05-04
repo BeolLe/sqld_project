@@ -100,6 +100,8 @@ export interface ExamSubmitResponse {
   passed: boolean;
   failedBySubjectCutoff: boolean;
   scorePercent: number;
+  awardedPoints?: number;
+  totalPoints?: number | null;
 }
 
 export function submitExam(
