@@ -10,6 +10,7 @@ const TYPE_LABELS: Record<FeedbackType, string> = {
   bug: '버그 제보',
   exam_error: '모의고사 문제 오류',
   sql_error: 'SQL 실습 문제 오류',
+  endless_error: '무한풀이 문제 오류',
 };
 
 const STATUS_LABELS: Record<FeedbackStatus, { text: string; className: string }> = {

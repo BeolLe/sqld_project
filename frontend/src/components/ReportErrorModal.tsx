@@ -34,6 +34,12 @@ export default function ReportErrorModal({
   onClose,
 }: ReportErrorModalProps) {
   const isExam = type === 'exam_error';
+  const issueTargetLabel =
+    type === 'sql_error'
+      ? 'SQL 실습'
+      : type === 'endless_error'
+        ? '무한풀이 문제'
+        : '문제';
   const [problemNo, setProblemNo] = useState(currentProblemNo ?? 1);
   const [subtype, setSubtype] = useState<ErrorSubtype>('wrong_answer');
   const [content, setContent] = useState('');
@@ -59,7 +65,7 @@ export default function ReportErrorModal({
 
     const title = isExam
       ? `모의고사 ${examId}회 ${problemNo}번 - ${ERROR_SUBTYPES.find((s) => s.value === subtype)?.label}`
-      : `${problemTitle ?? 'SQL 실습'} - ${ERROR_SUBTYPES.find((s) => s.value === subtype)?.label}`;
+      : `${problemTitle ?? issueTargetLabel} - ${ERROR_SUBTYPES.find((s) => s.value === subtype)?.label}`;
 
     try {
       setLoading(true);

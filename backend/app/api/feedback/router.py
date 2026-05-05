@@ -13,7 +13,7 @@ from app.services.slack import send_slack_message
 
 router = APIRouter(prefix="/api", tags=["feedback"])
 
-FeedbackType = Literal["suggestion", "bug", "exam_error", "sql_error"]
+FeedbackType = Literal["suggestion", "bug", "exam_error", "sql_error", "endless_error"]
 FeedbackStatus = Literal["pending", "reviewing", "resolved"]
 ErrorSubtype = Literal["wrong_answer", "typo", "explanation_error", "other"]
 
@@ -149,7 +149,7 @@ def create_feedback(
         raise HTTPException(status_code=400, detail="제목을 입력해주세요.")
     if not content:
         raise HTTPException(status_code=400, detail="내용을 입력해주세요.")
-    if req.type in {"exam_error", "sql_error"} and not req.error_subtype:
+    if req.type in {"exam_error", "sql_error", "endless_error"} and not req.error_subtype:
         raise HTTPException(status_code=400, detail="오류 유형을 선택해주세요.")
 
     with get_connection() as conn:
@@ -348,7 +348,7 @@ def update_feedback_admin(
 
 @router.get("/admin/feedback")
 def list_admin_feedback(
-    tab: Literal["all", "service", "sql", "exam"] = Query("all"),
+    tab: Literal["all", "service", "sql", "exam", "endless"] = Query("all"),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     current_user: dict = Depends(get_current_user),
@@ -361,6 +361,7 @@ def list_admin_feedback(
         "service": ("suggestion", "bug"),
         "sql": ("sql_error",),
         "exam": ("exam_error",),
+        "endless": ("endless_error",),
     }
     selected_types = type_filters[tab]
 

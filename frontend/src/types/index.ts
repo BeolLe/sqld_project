@@ -166,7 +166,7 @@ export interface UserProfile {
 
 // ─── 피드백 타입 ──────────────────────────────────────────────────────────────
 
-export type FeedbackType = 'suggestion' | 'bug' | 'exam_error' | 'sql_error';
+export type FeedbackType = 'suggestion' | 'bug' | 'exam_error' | 'sql_error' | 'endless_error';
 export type FeedbackStatus = 'pending' | 'reviewing' | 'resolved';
 export type ErrorSubtype = 'wrong_answer' | 'typo' | 'explanation_error' | 'other';
 
@@ -190,7 +190,7 @@ export interface FeedbackTicket {
 
 // ─── 관리자 페이지 타입 ──────────────────────────────────────────────────────
 
-export type AdminFeedbackTab = 'all' | 'service' | 'sql' | 'exam';
+export type AdminFeedbackTab = 'all' | 'service' | 'sql' | 'exam' | 'endless';
 
 export interface AdminFeedbackListResponse {
   total: number;

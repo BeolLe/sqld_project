@@ -14,6 +14,7 @@ const TAB_CONFIG: { key: AdminFeedbackTab; label: string }[] = [
   { key: 'service', label: '서비스' },
   { key: 'sql', label: 'SQL' },
   { key: 'exam', label: '모의고사' },
+  { key: 'endless', label: '무한풀이' },
 ];
 
 const TYPE_LABELS: Record<FeedbackType, string> = {
@@ -21,6 +22,7 @@ const TYPE_LABELS: Record<FeedbackType, string> = {
   bug: '버그 제보',
   exam_error: '모의고사 오류',
   sql_error: 'SQL 오류',
+  endless_error: '무한풀이 오류',
 };
 
 const STATUS_OPTIONS: { value: FeedbackStatus; label: string; className: string }[] = [

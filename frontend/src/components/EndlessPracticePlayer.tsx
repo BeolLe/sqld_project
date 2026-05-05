@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
-import { RotateCcw, ChevronRight, CheckCircle, XCircle, Shuffle, ChevronLeft } from 'lucide-react';
+import { RotateCcw, ChevronRight, CheckCircle, XCircle, Shuffle, ChevronLeft, Flag } from 'lucide-react';
 import type { Problem } from '../types';
 import DescriptionRenderer from './DescriptionRenderer';
 import { fetchEndlessStats, resetEndlessStats, submitEndlessAnswer } from '../api/endless';
 import { useAuth } from '../contexts/AuthContext';
+import ReportErrorModal from './ReportErrorModal';
 
 function shuffleArray<T>(arr: T[]): T[] {
   const shuffled = [...arr];
@@ -30,6 +31,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
   const [statsLoading, setStatsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const problem = queue[currentIndex] ?? null;
   const isAnswered = selectedAnswer !== null;
@@ -176,8 +178,16 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
                   {correctRate}%
                 </span>
               </>
-            )}
+              )}
           </div>
+          <button
+            onClick={() => setShowReportModal(true)}
+            className="flex items-center gap-1 text-slate-400 hover:text-amber-500 text-sm transition-colors"
+            title="문제 오류 제보"
+          >
+            <Flag className="w-4 h-4" />
+            <span className="hidden sm:inline">오류 제보</span>
+          </button>
           <button
             onClick={() => {
               void handleReset();
@@ -292,6 +302,15 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
           </div>
         )}
       </div>
+
+      {showReportModal && problem && (
+        <ReportErrorModal
+          type="endless_error"
+          problemId={problem.id}
+          problemTitle={problem.title || problem.description.slice(0, 60)}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
     </>
   );
 }
