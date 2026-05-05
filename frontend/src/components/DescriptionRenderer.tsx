@@ -213,16 +213,20 @@ function TableBlock({ lines }: { lines: string[] }) {
 }
 
 function SqlBlock({ lines }: { lines: string[] }) {
+  const displayLines = lines.map((line) => line.replace(/^(\s*)--\s?/, '$1'));
+
   return (
     <pre className="my-2 bg-white text-slate-900 text-xs border border-slate-800 px-4 py-3 overflow-x-auto font-mono leading-relaxed">
-      {lines.join('\n')}
+      {displayLines.join('\n')}
     </pre>
   );
 }
 
 function PreformattedBlock({ lines }: { lines: string[] }) {
+  const displayLines = lines.map((line) => line.replace(/^(\s*)--\s?/, '$1'));
+
   if (lines.length === 1) {
-    const label = lines[0].trim().replace(/^--\s*/, '');
+    const label = displayLines[0].trim();
     return (
       <div className="my-1 text-sm font-semibold text-slate-600">
         {label}
@@ -232,7 +236,7 @@ function PreformattedBlock({ lines }: { lines: string[] }) {
 
   return (
     <pre className="my-2 bg-slate-50 text-slate-800 text-sm border border-slate-200 px-4 py-3 overflow-x-auto whitespace-pre-wrap break-words font-medium leading-relaxed">
-      {lines.join('\n')}
+      {displayLines.join('\n')}
     </pre>
   );
 }
