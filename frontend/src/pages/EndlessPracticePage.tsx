@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shuffle, Home, Loader2, ChevronLeft, ChevronRight, BookOpen, Layers } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchExamList, fetchExamProblems } from '../api/content';
+import { fetchEndlessProblems } from '../api/endless';
 import type { Problem } from '../types';
 import EndlessPracticePlayer from '../components/EndlessPracticePlayer';
 
@@ -41,12 +41,9 @@ export default function EndlessPracticePage() {
     setLoading(true);
     setError(null);
 
-    fetchExamList()
-      .then((exams) =>
-        Promise.all(exams.map((exam) => fetchExamProblems(exam.id)))
-      )
+    fetchEndlessProblems()
       .then((results) => {
-        if (!cancelled) setAllProblems(results.flat());
+        if (!cancelled) setAllProblems(results);
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message);

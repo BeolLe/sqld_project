@@ -30,19 +30,79 @@ def fetch_endless_question(conn, problem_id: str) -> dict | None:
         cur.execute(
             """
             SELECT
-                q.id AS question_id,
-                q.difficulty,
-                q.question_payload->>'category' AS category,
+                p.source_problem_id AS question_id,
+                p.difficulty,
+                c.category_name AS category,
                 ak.correct_answer
-            FROM exam.exam_questions q
-            JOIN exam.answer_keys ak
-              ON ak.question_id = q.id
-            WHERE q.question_payload->>'source_id' = %s
+            FROM endless.problems p
+            JOIN endless.problem_categories c
+              ON c.category_id = p.category_id
+            JOIN endless.problem_answer_keys ak
+              ON ak.problem_id = p.problem_id
+            WHERE p.source_problem_id = %s
+              AND p.is_active = TRUE
             LIMIT 1
             """,
             (problem_id,),
         )
         return cur.fetchone()
+
+
+def list_endless_problems(conn) -> list[dict]:
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT
+                p.source_problem_id,
+                COALESCE(NULLIF(p.title, ''), '') AS title,
+                p.description,
+                p.difficulty,
+                c.category_name,
+                p.correct_rate,
+                p.explanation,
+                p.points,
+                ak.correct_answer,
+                ARRAY_AGG(pc.choice_text ORDER BY pc.choice_no) AS options
+            FROM endless.problems p
+            JOIN endless.problem_categories c
+              ON c.category_id = p.category_id
+            JOIN endless.problem_answer_keys ak
+              ON ak.problem_id = p.problem_id
+            JOIN endless.problem_choices pc
+              ON pc.problem_id = p.problem_id
+            WHERE p.is_active = TRUE
+            GROUP BY
+                p.problem_id,
+                p.source_problem_id,
+                p.title,
+                p.description,
+                p.difficulty,
+                c.category_name,
+                p.correct_rate,
+                p.explanation,
+                p.points,
+                ak.correct_answer
+            ORDER BY p.source_problem_id
+            """
+        )
+        rows = cur.fetchall()
+
+    return [
+        {
+            "id": row["source_problem_id"],
+            "title": row["title"],
+            "description": row["description"],
+            "type": "multiple_choice",
+            "difficulty": row["difficulty"],
+            "category": row["category_name"],
+            "correctRate": float(row["correct_rate"] or 0),
+            "answer": str(row["correct_answer"]),
+            "explanation": row["explanation"] or "",
+            "options": list(row["options"] or []),
+            "points": int(row["points"] or 1),
+        }
+        for row in rows
+    ]
 
 
 def fetch_user_total_points(conn, user_id: str) -> int:
@@ -242,6 +302,13 @@ def save_endless_answer(
         "awardedPoints": awarded_points,
         "totalPoints": total_points,
     }
+
+
+@router.get("/problems")
+def get_endless_problems(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    with get_connection() as conn:
+        return list_endless_problems(conn)
 
 
 @router.get("/stats")

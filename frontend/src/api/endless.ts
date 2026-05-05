@@ -1,4 +1,5 @@
 import { apiFetch } from '../utils/api';
+import type { Problem } from '../types';
 
 export interface EndlessStatsResponse {
   totalAnswered: number;
@@ -9,6 +10,10 @@ export interface EndlessStatsResponse {
   isCorrect?: boolean;
   byCategory: Record<string, { answered: number; correct: number; rate: number }>;
   byDifficulty: Record<string, { answered: number; correct: number; rate: number }>;
+}
+
+export function fetchEndlessProblems() {
+  return apiFetch<Problem[]>('/endless/problems');
 }
 
 export function fetchEndlessStats() {
