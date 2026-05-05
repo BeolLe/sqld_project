@@ -18,11 +18,22 @@ function isSeparatorRow(line: string): boolean {
   return /^\|[\s\-:]+(\|[\s\-:]+)+\|?$/.test(line.trim());
 }
 
+function isDiagramLine(line: string): boolean {
+  const trimmed = line.trim();
+  return (
+    /\|\|--/.test(trimmed) ||
+    /\|--o\{/.test(trimmed) ||
+    /\|--\|\{/.test(trimmed) ||
+    /^[(]\|\| =/.test(trimmed) ||
+    /^[(].*o\{.*[)]$/.test(trimmed)
+  );
+}
+
 /** 파이프로 구분된 테이블 행인지 */
 function isTableRow(line: string): boolean {
   const trimmed = line.trim();
   const pipeCount = (trimmed.match(/\|/g) || []).length;
-  return pipeCount >= 1 && !isSeparatorRow(line);
+  return pipeCount >= 1 && !isSeparatorRow(line) && !isDiagramLine(line);
 }
 
 /** 파이프 행에서 셀 값 추출 */
@@ -77,7 +88,12 @@ function parseInlineTableDefinition(line: string):
 
 function isPreformattedStarter(line: string): boolean {
   const trimmed = line.trim();
-  return trimmed.startsWith('--') || /^\[.+\]$/.test(trimmed) || /^예시\s*:/.test(trimmed);
+  return (
+    trimmed.startsWith('--') ||
+    /^\[.+\]$/.test(trimmed) ||
+    /^예시\s*:/.test(trimmed) ||
+    isDiagramLine(trimmed)
+  );
 }
 
 function isPreformattedContinuation(line: string): boolean {
@@ -86,7 +102,8 @@ function isPreformattedContinuation(line: string): boolean {
     trimmed.startsWith('--') ||
     /^트랜잭션\s+T\d+\s*:/.test(trimmed) ||
     /^데이터 변경\s*:/.test(trimmed) ||
-    /^[가-힣A-Z]\.\s+/.test(trimmed)
+    /^[가-힣A-Z]\.\s+/.test(trimmed) ||
+    isDiagramLine(trimmed)
   );
 }
 

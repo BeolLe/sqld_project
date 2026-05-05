@@ -540,6 +540,7 @@ def submit_exam(
         correct_count = result_payload["correctCount"]
         awarded_points = correct_count
         score_percent = round((correct_count / total_question_count) * 100, 2) if total_question_count else 0
+        passed_total_score = score_percent >= 60
 
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
@@ -564,7 +565,7 @@ def submit_exam(
             failed_by_subject_cutoff = False
             for row in subject_rows:
                 subject_percent = round((row["correct_count"] / row["question_count"]) * 100, 2) if row["question_count"] else 0
-                is_failed_cutoff = subject_percent < 40
+                is_failed_cutoff = passed_total_score and subject_percent < 40
                 failed_by_subject_cutoff = failed_by_subject_cutoff or is_failed_cutoff
                 cur.execute(
                     """
@@ -628,7 +629,7 @@ def submit_exam(
                     ),
                 )
 
-            passed = score_percent >= 60 and not failed_by_subject_cutoff
+            passed = passed_total_score and not failed_by_subject_cutoff
 
             cur.execute(
                 """
