@@ -180,7 +180,7 @@ function TableBlock({ lines }: { lines: string[] }) {
 
   return (
     <div className="my-2 overflow-x-auto">
-      <table className="text-xs border-collapse border border-slate-300 w-full table-auto">
+      <table className="inline-table text-xs border-collapse border border-slate-300 w-auto min-w-[16rem] table-auto">
         <thead>
           <tr className="bg-slate-100">
             {header.map((cell, i) => (
@@ -243,27 +243,30 @@ function PreformattedBlock({ lines }: { lines: string[] }) {
 
 function TextBlock({ lines }: { lines: string[] }) {
   return (
-    <span>
+    <div className="leading-relaxed">
       {lines.map((line, i) => (
         <span key={i}>
           {line}
           {i < lines.length - 1 && <br />}
         </span>
       ))}
-    </span>
+    </div>
   );
 }
 
 /** DB에서 줄바꿈이 유실된 description을 보수적으로 정규화 */
 function normalizeDescription(text: string): string {
-  return text.replace(/\?(?=[A-Za-z가-힣\[])/g, '?\n\n');
+  return text
+    .replace(/\?\s*(?=\[[^\]]+\]\s*테이블)/g, '?\n\n')
+    .replace(/\?\s*(?=예시\s*:)/g, '?\n\n')
+    .replace(/\?(?=[A-Za-z가-힣\[])/g, '?\n\n');
 }
 
 export default function DescriptionRenderer({ text }: { text: string }) {
   const blocks = parseBlocks(normalizeDescription(text));
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       {blocks.map((block, i) => {
         switch (block.type) {
           case 'table':
