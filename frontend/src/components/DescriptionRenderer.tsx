@@ -9,9 +9,9 @@
  */
 
 const SQL_KEYWORDS =
-  /^(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|MERGE|GRANT|REVOKE|COMMIT|ROLLBACK|SAVEPOINT|WITH|TRUNCATE)\b/i;
+  /^(SELECT\b|INSERT\b|UPDATE\b|DELETE\b|CREATE\b|ALTER\b|DROP\s+(TABLE|VIEW|INDEX|SEQUENCE|SYNONYM)\b.+|MERGE\s+INTO\b|GRANT\b.+\bTO\b.+|REVOKE\b.+\bFROM\b.+|COMMIT\s*;?$|ROLLBACK(?:\s+TO\s+[A-Za-z0-9_$#]+)?\s*;?$|SAVEPOINT\s+[A-Za-z0-9_$#]+\s*;?$|WITH\b|TRUNCATE\b)/i;
 const SQL_INLINE_KEYWORDS =
-  /^--.+|^(SET|FROM|WHERE|ORDER|GROUP|HAVING|JOIN|LEFT|RIGHT|FULL|CROSS|INNER|OUTER|ON|AND|OR|IN|NOT|EXISTS|UNION|INTERSECT|MINUS|EXCEPT|START|CONNECT|PARTITION|OVER|CASE|WHEN|THEN|ELSE|END|VALUES|INTO|AS|BETWEEN|LIKE|IS|NULL|DISTINCT|ALL|ANY|SOME|LIMIT|FETCH|OFFSET)\b/i;
+  /^--.+|^(SET|FROM|WHERE|ORDER|GROUP|HAVING|JOIN|LEFT|RIGHT|FULL|CROSS|INNER|OUTER|ON|AND|OR|IN|NOT|EXISTS|UNION|INTERSECT|MINUS|EXCEPT|START|CONNECT|PARTITION|OVER|CASE|WHEN|THEN|ELSE|END|VALUES|INTO|AS|BETWEEN|LIKE|IS|NULL|DISTINCT|ALL|ANY|SOME|LIMIT|FETCH|OFFSET|USING)\b/i;
 
 /** 파이프 구분선 행인지 (|------|------| 형태) */
 function isSeparatorRow(line: string): boolean {
@@ -35,8 +35,44 @@ function parseCells(line: string): string[] {
 }
 
 interface Block {
-  type: 'text' | 'table' | 'sql' | 'preformatted';
+  type: 'text' | 'table' | 'sql' | 'preformatted' | 'inline-table';
   lines: string[];
+}
+
+function isInlineTableDefinitionLine(line: string): boolean {
+  return /^\[[^\]]+\]\s*테이블\s*:\s*.+$/.test(line.trim());
+}
+
+function parseInlineTableDefinition(line: string):
+  | { title: string; headers: string[]; rows: string[][] }
+  | null {
+  const match = line.trim().match(/^\[([^\]]+)\]\s*테이블\s*:\s*(.+)$/);
+  if (!match) return null;
+
+  const title = `${match[1]} 테이블`;
+  const body = match[2].trim();
+
+  const tupleMatches = [...body.matchAll(/\(([^)]*)\)/g)];
+  if (tupleMatches.length > 0) {
+    const rows = tupleMatches
+      .map((tuple) => tuple[1].split(',').map((cell) => cell.trim()))
+      .filter((cells) => cells.length >= 2);
+
+    if (rows.length > 0 && rows.every((cells) => cells.length === rows[0].length)) {
+      return { title, headers: [], rows };
+    }
+  }
+
+  const headers = body
+    .split(',')
+    .map((cell) => cell.trim())
+    .filter(Boolean);
+
+  if (headers.length >= 2) {
+    return { title, headers, rows: [] };
+  }
+
+  return null;
 }
 
 function isPreformattedStarter(line: string): boolean {
@@ -96,6 +132,13 @@ function parseBlocks(description: string): Block[] {
 
     // 빈 줄은 현재 블록 종료
     if (trimmed === '') {
+      flush();
+      continue;
+    }
+
+    if (isInlineTableDefinitionLine(line)) {
+      flush();
+      current = { type: 'inline-table', lines: [line] };
       flush();
       continue;
     }
@@ -212,6 +255,53 @@ function TableBlock({ lines }: { lines: string[] }) {
   );
 }
 
+function InlineTableDefinitionBlock({ line }: { line: string }) {
+  const parsed = parseInlineTableDefinition(line);
+  if (!parsed) {
+    return <TextBlock lines={[line]} />;
+  }
+
+  return (
+    <div className="my-2">
+      <div className="mb-1 text-sm font-semibold text-slate-700">{parsed.title}</div>
+      <div className="overflow-x-auto">
+        <table className="inline-table text-xs border-collapse border border-slate-300 w-auto min-w-[16rem] table-auto">
+          {parsed.headers.length > 0 && (
+            <thead>
+              <tr className="bg-slate-100">
+                {parsed.headers.map((cell, i) => (
+                  <th
+                    key={i}
+                    className="border border-slate-300 px-3 py-1.5 text-left align-top font-semibold text-slate-700 whitespace-normal break-words"
+                  >
+                    {cell}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+          )}
+          {parsed.rows.length > 0 && (
+            <tbody>
+              {parsed.rows.map((row, ri) => (
+                <tr key={ri} className={ri % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                  {row.map((cell, ci) => (
+                    <td
+                      key={ci}
+                      className="border border-slate-300 px-3 py-1 align-top text-slate-600 whitespace-normal break-words"
+                    >
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          )}
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function SqlBlock({ lines }: { lines: string[] }) {
   const displayLines = lines.map((line) => line.replace(/^(\s*)--\s?/, '$1'));
 
@@ -257,6 +347,7 @@ function TextBlock({ lines }: { lines: string[] }) {
 /** DB에서 줄바꿈이 유실된 description을 보수적으로 정규화 */
 function normalizeDescription(text: string): string {
   return text
+    .replace(/;\s*(?=의\s+[^\n?]*\?)/g, ';\n\n')
     .replace(/\?\s*(?=\[[^\]]+\]\s*테이블)/g, '?\n\n')
     .replace(/\?\s*(?=예시\s*:)/g, '?\n\n')
     .replace(/\?(?=[A-Za-z가-힣\[])/g, '?\n\n');
@@ -271,6 +362,8 @@ export default function DescriptionRenderer({ text }: { text: string }) {
         switch (block.type) {
           case 'table':
             return <TableBlock key={i} lines={block.lines} />;
+          case 'inline-table':
+            return <InlineTableDefinitionBlock key={i} line={block.lines[0]} />;
           case 'sql':
             return <SqlBlock key={i} lines={block.lines} />;
           case 'preformatted':
