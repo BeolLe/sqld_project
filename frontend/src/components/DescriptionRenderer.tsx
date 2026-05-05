@@ -22,7 +22,7 @@ function isSeparatorRow(line: string): boolean {
 function isTableRow(line: string): boolean {
   const trimmed = line.trim();
   const pipeCount = (trimmed.match(/\|/g) || []).length;
-  return pipeCount >= 2 && !isSeparatorRow(line);
+  return pipeCount >= 1 && !isSeparatorRow(line);
 }
 
 /** 파이프 행에서 셀 값 추출 */
