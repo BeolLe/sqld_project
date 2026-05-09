@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shuffle, Home, Loader2, ChevronLeft, ChevronRight, BookOpen, Layers } from 'lucide-react';
+import { Shuffle, Home, Loader2, ChevronLeft, ChevronRight, BookOpen, Layers, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchEndlessProblems } from '../api/endless';
 import type { Problem } from '../types';
@@ -32,7 +32,7 @@ export default function EndlessPracticePage() {
 
   const [step, setStep] = useState<Step>('mode-select');
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isLoggedIn || isInitializing) return;
@@ -61,12 +61,12 @@ export default function EndlessPracticePage() {
   );
 
   const filteredProblems = useMemo(() => {
-    if (!selectedCategory) return allProblems;
-    return allProblems.filter((p) => p.category === selectedCategory);
-  }, [allProblems, selectedCategory]);
+    if (selectedCategories.length === 0) return allProblems;
+    return allProblems.filter((p) => selectedCategories.includes(p.category));
+  }, [allProblems, selectedCategories]);
 
   const handleModeAll = () => {
-    setSelectedCategory(null);
+    setSelectedCategories([]);
     setStep('playing');
   };
 
@@ -76,21 +76,41 @@ export default function EndlessPracticePage() {
 
   const handleSubjectSelect = (subject: string) => {
     setSelectedSubject(subject);
+    setSelectedCategories([]);
     setStep('category-select');
   };
 
-  const handleCategorySelect = (category: string) => {
-    setSelectedCategory(category);
+  const handleToggleCategory = (category: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(category)
+        ? prev.filter((c) => c !== category)
+        : [...prev, category],
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (!selectedSubject) return;
+    const subjectCategories = getCategoriesForSubject(selectedSubject, allCategories);
+    const allSelected = subjectCategories.every((c) => selectedCategories.includes(c));
+    if (allSelected) {
+      setSelectedCategories([]);
+    } else {
+      setSelectedCategories([...subjectCategories]);
+    }
+  };
+
+  const handleStartPlaying = () => {
     setStep('playing');
   };
 
   const handleBack = () => {
     if (step === 'playing') {
-      setSelectedCategory(null);
+      setSelectedCategories([]);
       setSelectedSubject(null);
       setStep('mode-select');
     } else if (step === 'category-select') {
       setSelectedSubject(null);
+      setSelectedCategories([]);
       setStep('subject-select');
     } else if (step === 'subject-select') {
       setStep('mode-select');
@@ -142,16 +162,18 @@ export default function EndlessPracticePage() {
 
   // 플레이 모드
   if (step === 'playing') {
-    const playProblems = selectedCategory ? filteredProblems : allProblems;
-    const playLabel = selectedCategory
-      ? `${SUBJECT_MAP[selectedSubject ?? '']?.label ?? ''} > ${selectedCategory}`
-      : '전체 랜덤';
+    const playProblems = selectedCategories.length > 0 ? filteredProblems : allProblems;
+    const playLabel = selectedCategories.length === 0
+      ? '전체 랜덤'
+      : selectedCategories.length <= 3
+        ? `${SUBJECT_MAP[selectedSubject ?? '']?.label ?? ''} > ${selectedCategories.join(', ')}`
+        : `${SUBJECT_MAP[selectedSubject ?? '']?.label ?? ''} > ${selectedCategories.length}개 카테고리`;
 
     return (
       <div className="min-h-screen bg-slate-50">
         <div className="max-w-3xl mx-auto px-4 py-6">
           <EndlessPracticePlayer
-            key={selectedCategory ?? 'all'}
+            key={selectedCategories.join(',') || 'all'}
             problems={playProblems}
             label={playLabel}
             onBack={handleBack}
@@ -248,29 +270,85 @@ export default function EndlessPracticePage() {
           </div>
         )}
 
-        {/* Step 3: 세부 카테고리 선택 */}
-        {step === 'category-select' && selectedSubject && (
-          <div>
-            <p className="text-sm text-slate-500 mb-4">
-              {SUBJECT_MAP[selectedSubject].label} — {SUBJECT_MAP[selectedSubject].description}
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {getCategoriesForSubject(selectedSubject, allCategories).map((cat) => {
-                const count = allProblems.filter((p) => p.category === cat).length;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => handleCategorySelect(cat)}
-                    className="bg-white rounded-xl shadow-sm border border-slate-200 px-4 py-4 text-left hover:border-primary-300 hover:shadow-md transition-all"
-                  >
-                    <h3 className="text-sm font-semibold text-sqld-navy">{cat}</h3>
-                    <p className="text-xs text-slate-400 mt-1">{count}문제</p>
-                  </button>
-                );
-              })}
+        {/* Step 3: 세부 카테고리 선택 (복수 선택) */}
+        {step === 'category-select' && selectedSubject && (() => {
+          const subjectCategories = getCategoriesForSubject(selectedSubject, allCategories);
+          const isAllSelected = subjectCategories.length > 0 && subjectCategories.every((c) => selectedCategories.includes(c));
+
+          return (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-slate-500">
+                  {SUBJECT_MAP[selectedSubject].label} — {SUBJECT_MAP[selectedSubject].description}
+                </p>
+                <button
+                  onClick={handleSelectAll}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    isAllSelected
+                      ? 'bg-primary-100 text-primary-700 hover:bg-primary-200'
+                      : 'text-primary-600 hover:bg-primary-50'
+                  }`}
+                >
+                  {isAllSelected ? '전체 해제' : '전체 선택'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {subjectCategories.map((cat) => {
+                  const isSelected = selectedCategories.includes(cat);
+                  const count = allProblems.filter((p) => p.category === cat).length;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => handleToggleCategory(cat)}
+                      className={`rounded-xl shadow-sm border px-4 py-4 text-left transition-all ${
+                        isSelected
+                          ? 'border-primary-400 bg-primary-50 shadow-md'
+                          : 'border-slate-200 bg-white hover:border-primary-300 hover:shadow-md'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="text-sm font-semibold text-sqld-navy">{cat}</h3>
+                          <p className="text-xs text-slate-400 mt-1">{count}문제</p>
+                        </div>
+                        <div
+                          className={`shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${
+                            isSelected
+                              ? 'bg-primary-600 border-primary-600'
+                              : 'border-slate-300'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-6">
+                {selectedCategories.length > 0 ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-slate-500 text-center">
+                      {selectedCategories.length}개 카테고리 · {filteredProblems.length}문제 선택됨
+                    </p>
+                    <button
+                      onClick={handleStartPlaying}
+                      className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                    >
+                      시작하기 <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-400 text-center">
+                    풀고 싶은 카테고리를 선택하세요
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
