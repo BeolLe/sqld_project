@@ -8,6 +8,7 @@ export interface User {
   isAdmin: boolean;
   createdAt: string;
   authProvider?: 'local' | 'google';
+  showEventPopup?: boolean;
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
