@@ -844,7 +844,7 @@ def mask_email(email: str) -> str:
 
 
 def create_password_reset_token(*, cur, user_id: str, email: str) -> tuple[str, datetime]:
-    raw_token = secrets.token_urlsafe(32)
+    raw_token = f"{secrets.randbelow(1_000_000):06d}"
     token_hash = hash_verification_token(raw_token)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
 
@@ -2221,9 +2221,9 @@ def request_password_reset(req: PasswordResetRequest):
                 [
                     "SolSQLD 비밀번호 재설정을 요청하셨습니다.",
                     "",
-                    f"재설정 토큰: {reset_token}",
+                    f"인증 코드: {reset_token}",
                     "",
-                    "토큰은 5분 동안 유효하며 1회만 사용할 수 있습니다.",
+                    "인증 코드는 5분 동안 유효하며 1회만 사용할 수 있습니다.",
                     "본인이 요청하지 않았다면 이 메일을 무시해주세요.",
                 ]
             ),
@@ -2239,9 +2239,9 @@ def request_password_reset(req: PasswordResetRequest):
 
 @router.post("/password-reset/confirm")
 def confirm_password_reset(req: PasswordResetConfirmRequest):
-    token = req.token.strip()
-    if not token:
-        raise HTTPException(status_code=400, detail="인증 토큰을 입력해주세요.")
+    token = "".join(ch for ch in req.token.strip() if ch.isdigit())
+    if len(token) != 6:
+        raise HTTPException(status_code=400, detail="6자리 인증 코드를 입력해주세요.")
     if len(req.new_password) < 8:
         raise HTTPException(status_code=400, detail="새 비밀번호는 8자 이상이어야 합니다.")
 
