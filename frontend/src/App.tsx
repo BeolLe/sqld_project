@@ -31,6 +31,7 @@ function PageFallback() {
 interface EventModalResponse {
   activeModal: {
     campaignKey: string;
+    phaseCode: 'phase1' | 'phase2';
   } | null;
 }
 
@@ -45,12 +46,12 @@ function AppShell() {
     mode: hasPendingSocialSignup ? 'signup' : 'login',
   });
   const [showEventPopup, setShowEventPopup] = useState(false);
-  const [activeCampaignKey, setActiveCampaignKey] = useState<string | null>(null);
+  const [activeCampaign, setActiveCampaign] = useState<EventModalResponse['activeModal']>(null);
 
   useEffect(() => {
     if (!user || authModal.open) {
       setShowEventPopup(false);
-      setActiveCampaignKey(null);
+      setActiveCampaign(null);
       return;
     }
 
@@ -61,12 +62,12 @@ function AppShell() {
         const response = await apiFetch<EventModalResponse>('/events/modal');
         if (cancelled) return;
         setShowEventPopup(Boolean(response.activeModal));
-        setActiveCampaignKey(response.activeModal?.campaignKey ?? null);
+        setActiveCampaign(response.activeModal);
       } catch (error) {
         if (cancelled) return;
         console.error('이벤트 팝업 노출 여부 조회 실패', error);
         setShowEventPopup(false);
-        setActiveCampaignKey(null);
+        setActiveCampaign(null);
       }
     }
 
@@ -95,19 +96,22 @@ function AppShell() {
     setAuthModal((prev) => ({ ...prev, open: false }));
   }
 
-  function closeEventPopup(dismissForToday: boolean) {
-    const campaignKey = activeCampaignKey;
+  function closeEventPopup(dismissForToday: boolean, hideUntilCampaignEnd = false) {
+    const campaign = activeCampaign;
     setShowEventPopup(false);
 
-    if (!dismissForToday || !campaignKey) {
+    if ((!dismissForToday && !hideUntilCampaignEnd) || !campaign) {
       return;
     }
 
-    void apiFetch(`/events/modal/${campaignKey}/dismiss`, {
+    void apiFetch(`/events/modal/${campaign.campaignKey}/dismiss`, {
       method: 'POST',
-      body: JSON.stringify({ hide_for_today: true }),
+      body: JSON.stringify({
+        hide_for_today: dismissForToday,
+        hide_until_campaign_end: hideUntilCampaignEnd,
+      }),
     }).catch((error) => {
-      console.error('이벤트 팝업 하루 숨김 처리 실패', error);
+      console.error('이벤트 팝업 숨김 처리 실패', error);
     });
   }
 
@@ -170,7 +174,12 @@ function AppShell() {
         />
       )}
 
-      {showEventPopup && <EventPopup onClose={closeEventPopup} />}
+      {showEventPopup && (
+        <EventPopup
+          phaseCode={activeCampaign?.phaseCode ?? 'phase1'}
+          onClose={closeEventPopup}
+        />
+      )}
     </>
   );
 }

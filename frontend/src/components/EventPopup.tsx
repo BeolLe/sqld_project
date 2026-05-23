@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { X, Gift, BookOpen, ArrowRight } from 'lucide-react';
 
 interface EventPopupProps {
-  onClose: (dismissForToday: boolean) => void;
+  phaseCode: 'phase1' | 'phase2';
+  onClose: (dismissForToday: boolean, hideUntilCampaignEnd?: boolean) => void;
 }
 
-export default function EventPopup({ onClose }: EventPopupProps) {
+export default function EventPopup({ phaseCode, onClose }: EventPopupProps) {
   const navigate = useNavigate();
   const [dismissChecked, setDismissChecked] = useState(false);
 
@@ -15,7 +16,7 @@ export default function EventPopup({ onClose }: EventPopupProps) {
   }
 
   function handleExamClick() {
-    onClose(dismissChecked);
+    onClose(dismissChecked, phaseCode === 'phase1');
     navigate('/exams');
   }
 

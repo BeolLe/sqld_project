@@ -20,6 +20,7 @@ PHONE_DIGITS_RE = re.compile(r"\D")
 
 class PopupCampaignDismissRequest(BaseModel):
     hide_for_today: bool = True
+    hide_until_campaign_end: bool = False
 
 
 class PopupCampaignResponseUpsertRequest(BaseModel):
@@ -231,16 +232,11 @@ def dismiss_modal_for_today(
     req: PopupCampaignDismissRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    if not req.hide_for_today:
-        raise HTTPException(status_code=400, detail="hide_for_today must be true")
-
-    hidden_until = end_of_today_kst()
-
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """
-                SELECT campaign_id, campaign_key
+                SELECT campaign_id, campaign_key, exposure_end_at
                 FROM event.popup_campaigns
                 WHERE campaign_key = %s
                   AND is_active = true
@@ -250,6 +246,16 @@ def dismiss_modal_for_today(
             campaign = cur.fetchone()
             if not campaign:
                 raise HTTPException(status_code=404, detail="campaign not found")
+
+            if req.hide_until_campaign_end:
+                hidden_until = campaign["exposure_end_at"]
+            elif req.hide_for_today:
+                hidden_until = end_of_today_kst()
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="either hide_for_today or hide_until_campaign_end must be true",
+                )
 
             cur.execute(
                 """
@@ -272,7 +278,7 @@ def dismiss_modal_for_today(
     return {
         "campaignKey": campaign_key,
         "hiddenUntil": hidden_until.isoformat(),
-        "message": "modal dismissed for today",
+        "message": "modal dismissed",
     }
 
 
