@@ -2,28 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Gift, BookOpen, ArrowRight } from 'lucide-react';
 
-const POPUP_DISMISS_KEY = 'event_popup_dismissed_date';
-
-function isDismissedToday(): boolean {
-  const dismissed = localStorage.getItem(POPUP_DISMISS_KEY);
-  if (!dismissed) return false;
-  const today = new Date().toISOString().slice(0, 10);
-  return dismissed === today;
-}
-
-function dismissForToday() {
-  const today = new Date().toISOString().slice(0, 10);
-  localStorage.setItem(POPUP_DISMISS_KEY, today);
-}
-
 interface EventPopupProps {
-  onClose: () => void;
-}
-
-export function shouldShowEventPopup(backendFlag: boolean): boolean {
-  if (!backendFlag) return false;
-  if (isDismissedToday()) return false;
-  return true;
+  onClose: (dismissForToday: boolean) => void;
 }
 
 export default function EventPopup({ onClose }: EventPopupProps) {
@@ -31,17 +11,11 @@ export default function EventPopup({ onClose }: EventPopupProps) {
   const [dismissChecked, setDismissChecked] = useState(false);
 
   function handleClose() {
-    if (dismissChecked) {
-      dismissForToday();
-    }
-    onClose();
+    onClose(dismissChecked);
   }
 
   function handleExamClick() {
-    if (dismissChecked) {
-      dismissForToday();
-    }
-    onClose();
+    onClose(dismissChecked);
     navigate('/exams');
   }
 

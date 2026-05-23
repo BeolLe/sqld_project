@@ -4,7 +4,8 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ExamScheduleProvider } from './contexts/ExamScheduleContext';
 import Header from './components/Header';
 import AuthModal from './components/AuthModal';
-import EventPopup, { shouldShowEventPopup } from './components/EventPopup';
+import EventPopup from './components/EventPopup';
+import { apiFetch } from './utils/api';
 import MainPage from './pages/MainPage';
 import DashboardPage from './pages/DashboardPage';
 import ExamListPage from './pages/ExamListPage';
@@ -27,6 +28,12 @@ function PageFallback() {
   );
 }
 
+interface EventModalResponse {
+  activeModal: {
+    campaignKey: string;
+  } | null;
+}
+
 function AppShell() {
   const { user } = useAuth();
   const searchParams = new URLSearchParams(window.location.search);
@@ -38,6 +45,37 @@ function AppShell() {
     mode: hasPendingSocialSignup ? 'signup' : 'login',
   });
   const [showEventPopup, setShowEventPopup] = useState(false);
+  const [activeCampaignKey, setActiveCampaignKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user || authModal.open) {
+      setShowEventPopup(false);
+      setActiveCampaignKey(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadActiveEventModal() {
+      try {
+        const response = await apiFetch<EventModalResponse>('/events/modal');
+        if (cancelled) return;
+        setShowEventPopup(Boolean(response.activeModal));
+        setActiveCampaignKey(response.activeModal?.campaignKey ?? null);
+      } catch (error) {
+        if (cancelled) return;
+        console.error('이벤트 팝업 노출 여부 조회 실패', error);
+        setShowEventPopup(false);
+        setActiveCampaignKey(null);
+      }
+    }
+
+    void loadActiveEventModal();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authModal.open, user]);
 
   useEffect(() => {
     const currentSearchParams = new URLSearchParams(window.location.search);
@@ -49,18 +87,28 @@ function AppShell() {
     }
   }, []);
 
-  useEffect(() => {
-    if (!authModal.open && user && shouldShowEventPopup(user.showEventPopup ?? false)) {
-      setShowEventPopup(true);
-    }
-  }, [authModal.open, user]);
-
   function openAuth(mode: AuthMode) {
     setAuthModal({ open: true, mode });
   }
 
   function closeAuth() {
     setAuthModal((prev) => ({ ...prev, open: false }));
+  }
+
+  function closeEventPopup(dismissForToday: boolean) {
+    const campaignKey = activeCampaignKey;
+    setShowEventPopup(false);
+
+    if (!dismissForToday || !campaignKey) {
+      return;
+    }
+
+    void apiFetch(`/events/modal/${campaignKey}/dismiss`, {
+      method: 'POST',
+      body: JSON.stringify({ hide_for_today: true }),
+    }).catch((error) => {
+      console.error('이벤트 팝업 하루 숨김 처리 실패', error);
+    });
   }
 
   return (
@@ -122,9 +170,7 @@ function AppShell() {
         />
       )}
 
-      {showEventPopup && (
-        <EventPopup onClose={() => setShowEventPopup(false)} />
-      )}
+      {showEventPopup && <EventPopup onClose={closeEventPopup} />}
     </>
   );
 }
