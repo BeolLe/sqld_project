@@ -289,7 +289,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     }
     try {
       setLoading(true);
-      const res = await apiFetch<{ maskedEmail: string }>('/api/auth/find-email', {
+      const res = await apiFetch<{ maskedEmail: string }>('/auth/find-email', {
         method: 'POST',
         body: JSON.stringify({ nickname: findNickname.trim() }),
       });
@@ -313,7 +313,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     }
     try {
       setLoading(true);
-      await apiFetch<{ message: string }>('/api/auth/password-reset/request', {
+      await apiFetch<{ message: string }>('/auth/password-reset/request', {
         method: 'POST',
         body: JSON.stringify({ email: findEmail.trim() }),
       });
@@ -352,7 +352,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     }
     try {
       setLoading(true);
-      await apiFetch<{ message: string }>('/api/auth/password-reset/confirm', {
+      await apiFetch<{ message: string }>('/auth/password-reset/confirm', {
         method: 'POST',
         body: JSON.stringify({
           token: resetToken.trim(),
