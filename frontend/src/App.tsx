@@ -1,9 +1,10 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ExamScheduleProvider } from './contexts/ExamScheduleContext';
 import Header from './components/Header';
 import AuthModal from './components/AuthModal';
+import EventPopup, { shouldShowEventPopup } from './components/EventPopup';
 import MainPage from './pages/MainPage';
 import DashboardPage from './pages/DashboardPage';
 import ExamListPage from './pages/ExamListPage';
@@ -27,6 +28,7 @@ function PageFallback() {
 }
 
 function AppShell() {
+  const { user } = useAuth();
   const searchParams = new URLSearchParams(window.location.search);
   const hasPendingSocialSignup =
     !!window.sessionStorage.getItem('pendingSocialSignup') ||
@@ -35,6 +37,14 @@ function AppShell() {
     open: hasPendingSocialSignup,
     mode: hasPendingSocialSignup ? 'signup' : 'login',
   });
+  const [showEventPopup, setShowEventPopup] = useState(false);
+  const loginPendingRef = useRef(false);
+
+  useEffect(() => {
+    if (user && !loginPendingRef.current) {
+      loginPendingRef.current = true;
+    }
+  }, [user]);
 
   useEffect(() => {
     const currentSearchParams = new URLSearchParams(window.location.search);
@@ -52,6 +62,10 @@ function AppShell() {
 
   function closeAuth() {
     setAuthModal((prev) => ({ ...prev, open: false }));
+    if (loginPendingRef.current && shouldShowEventPopup(user?.showEventPopup ?? false)) {
+      loginPendingRef.current = false;
+      setShowEventPopup(true);
+    }
   }
 
   return (
@@ -111,6 +125,10 @@ function AppShell() {
           onClose={closeAuth}
           onModeChange={(mode) => setAuthModal({ open: true, mode })}
         />
+      )}
+
+      {showEventPopup && (
+        <EventPopup onClose={() => setShowEventPopup(false)} />
       )}
     </>
   );

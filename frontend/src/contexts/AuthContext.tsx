@@ -67,6 +67,7 @@ interface MeResponse {
   is_admin?: boolean;
   isAdmin?: boolean;
   auth_provider?: 'local' | 'google';
+  show_event_popup?: boolean;
 }
 
 function toUser(me: MeResponse): User {
@@ -78,6 +79,7 @@ function toUser(me: MeResponse): User {
     isAdmin: me.is_admin ?? me.isAdmin ?? false,
     createdAt: new Date().toISOString(),
     authProvider: me.auth_provider ?? 'local',
+    showEventPopup: me.show_event_popup ?? false,
   };
 }
 
