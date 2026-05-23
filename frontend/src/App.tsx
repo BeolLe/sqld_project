@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ExamScheduleProvider } from './contexts/ExamScheduleContext';
@@ -38,13 +38,6 @@ function AppShell() {
     mode: hasPendingSocialSignup ? 'signup' : 'login',
   });
   const [showEventPopup, setShowEventPopup] = useState(false);
-  const loginPendingRef = useRef(false);
-
-  useEffect(() => {
-    if (user && !loginPendingRef.current) {
-      loginPendingRef.current = true;
-    }
-  }, [user]);
 
   useEffect(() => {
     const currentSearchParams = new URLSearchParams(window.location.search);
@@ -56,16 +49,18 @@ function AppShell() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!authModal.open && user && shouldShowEventPopup(user.showEventPopup ?? false)) {
+      setShowEventPopup(true);
+    }
+  }, [authModal.open, user]);
+
   function openAuth(mode: AuthMode) {
     setAuthModal({ open: true, mode });
   }
 
   function closeAuth() {
     setAuthModal((prev) => ({ ...prev, open: false }));
-    if (loginPendingRef.current && shouldShowEventPopup(user?.showEventPopup ?? false)) {
-      loginPendingRef.current = false;
-      setShowEventPopup(true);
-    }
   }
 
   return (
