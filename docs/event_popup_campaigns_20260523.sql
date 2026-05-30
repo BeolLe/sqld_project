@@ -106,6 +106,26 @@ INSERT INTO event.popup_campaigns (
 ) VALUES
 (
     'sqld_61_phase1',
+    '제61회 SQLD 시험 전 설문 이벤트',
+    'phase1',
+    '2026-05-23 00:00:00+09',
+    '2026-05-30 23:59:59+09',
+    '2026-05-23 00:00:00+09',
+    '2026-05-30 23:59:59+09',
+    '{"min_points": 100, "recent_signup_after": "2026-05-16T00:00:00+09:00", "recent_signup_min_points": 10}'::jsonb,
+    '{
+      "modalType": "sqld_phase1",
+      "fields": [
+        {"key": "will_take_exam", "label": "61회차 SQLD 시험에 응시하실 예정인가요?", "type": "boolean", "required": true},
+        {"key": "phone_number", "label": "전화번호", "type": "phone", "required": true},
+        {"key": "phone_consent_agreed", "label": "개인정보 수집 및 이용에 동의합니다.", "type": "boolean", "required": true},
+        {"key": "notice", "type": "text", "value": "시험 종료 후 일주일 뒤 기프티콘 안내가 갈 수 있습니다."}
+      ]
+    }'::jsonb,
+    true
+),
+(
+    'sqld_61_exam_day_cheer',
     '제61회 SQLD 시험 응원 팝업',
     'cheer',
     '2026-05-31 00:00:00+09',
