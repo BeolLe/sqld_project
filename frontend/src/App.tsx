@@ -5,7 +5,9 @@ import { ExamScheduleProvider } from './contexts/ExamScheduleContext';
 import Header from './components/Header';
 import AuthModal from './components/AuthModal';
 import EventPopup from './components/EventPopup';
+import SurveyPopup, { shouldShowSurveyPopup } from './components/SurveyPopup';
 import { apiFetch } from './utils/api';
+import { fetchSurveyStatus } from './api/survey';
 import MainPage from './pages/MainPage';
 import DashboardPage from './pages/DashboardPage';
 import ExamListPage from './pages/ExamListPage';
@@ -47,6 +49,7 @@ function AppShell() {
   });
   const [showEventPopup, setShowEventPopup] = useState(false);
   const [activeCampaign, setActiveCampaign] = useState<EventModalResponse['activeModal']>(null);
+  const [showSurveyPopup, setShowSurveyPopup] = useState(false);
 
   useEffect(() => {
     if (!user || authModal.open) {
@@ -77,6 +80,16 @@ function AppShell() {
       cancelled = true;
     };
   }, [authModal.open, user]);
+
+  useEffect(() => {
+    if (!user || authModal.open) return;
+    if (!shouldShowSurveyPopup()) return;
+    fetchSurveyStatus()
+      .then((submitted) => {
+        if (!submitted) setShowSurveyPopup(true);
+      })
+      .catch(() => setShowSurveyPopup(true));
+  }, [user, authModal.open]);
 
   useEffect(() => {
     const currentSearchParams = new URLSearchParams(window.location.search);
@@ -179,6 +192,10 @@ function AppShell() {
           phaseCode={activeCampaign?.phaseCode ?? 'phase1'}
           onClose={closeEventPopup}
         />
+      )}
+
+      {showSurveyPopup && (
+        <SurveyPopup onClose={() => setShowSurveyPopup(false)} />
       )}
     </>
   );
