@@ -1,44 +1,22 @@
 import { useState } from 'react';
 import { Gift, Send, CheckCircle, X, ChevronDown } from 'lucide-react';
-import { submitSurvey } from '../api/survey';
+import { apiFetch } from '../utils/api';
 
-const SURVEY_DISMISS_KEY = 'survey_popup_dismissed_date';
-const SURVEY_SUBMITTED_KEY = 'survey_submitted';
-
-function isDismissedToday(): boolean {
-  const dismissed = localStorage.getItem(SURVEY_DISMISS_KEY);
-  if (!dismissed) return false;
-  return dismissed === new Date().toISOString().slice(0, 10);
+interface FormField {
+  key: string;
+  type: string;
+  label: string;
 }
-
-function dismissForToday() {
-  localStorage.setItem(SURVEY_DISMISS_KEY, new Date().toISOString().slice(0, 10));
-}
-
-export function shouldShowSurveyPopup(): boolean {
-  if (isDismissedToday()) return false;
-  if (localStorage.getItem(SURVEY_SUBMITTED_KEY) === 'true') return false;
-  return true;
-}
-
-type ExamResult = 'passed' | 'failed' | 'pending' | 'not_taken';
-
-const EXAM_RESULT_OPTIONS: { value: ExamResult; label: string }[] = [
-  { value: 'passed', label: '합격' },
-  { value: 'failed', label: '불합격' },
-  { value: 'pending', label: '결과 미확인' },
-  { value: 'not_taken', label: '미응시' },
-];
 
 interface SurveyPopupProps {
-  onClose: () => void;
+  campaignKey: string;
+  formSchema: { fields: FormField[] };
+  onClose: (dismissForToday: boolean, hideUntilCampaignEnd?: boolean) => void;
 }
 
-export default function SurveyPopup({ onClose }: SurveyPopupProps) {
-  const [helpfulness, setHelpfulness] = useState(0);
-  const [examResult, setExamResult] = useState<ExamResult | ''>('');
+export default function SurveyPopup({ campaignKey, formSchema, onClose }: SurveyPopupProps) {
+  const [answers, setAnswers] = useState<Record<string, boolean>>({});
   const [phone, setPhone] = useState('');
-  const [comment, setComment] = useState('');
   const [privacyConsent, setPrivacyConsent] = useState(false);
   const [showPrivacyDetail, setShowPrivacyDetail] = useState(false);
   const [dismissChecked, setDismissChecked] = useState(false);
@@ -64,13 +42,18 @@ export default function SurveyPopup({ onClose }: SurveyPopupProps) {
 
   function validate(): boolean {
     const next: Record<string, string> = {};
-    if (helpfulness === 0) next.helpfulness = '도움 정도를 선택해주세요';
-    if (!examResult) next.examResult = '시험 결과를 선택해주세요';
+    for (const field of formSchema.fields) {
+      if (answers[field.key] === undefined) {
+        next[field.key] = '필수 항목입니다';
+      }
+    }
     const digits = phone.replace(/\D/g, '');
     if (!digits || digits.length < 10 || digits.length > 11) {
       next.phone = '올바른 전화번호를 입력해주세요';
     }
-    if (!privacyConsent) next.privacyConsent = '개인정보 수집 및 제3자 제공에 동의해주세요';
+    if (!privacyConsent) {
+      next.privacyConsent = '개인정보 수집 및 제3자 제공에 동의해주세요';
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -79,13 +62,14 @@ export default function SurveyPopup({ onClose }: SurveyPopupProps) {
     if (!validate()) return;
     setSubmitting(true);
     try {
-      await submitSurvey({
-        helpfulness,
-        exam_result: examResult,
-        phone: phone.replace(/\D/g, ''),
-        comment,
+      await apiFetch(`/events/modal/${campaignKey}/response`, {
+        method: 'POST',
+        body: JSON.stringify({
+          phone_number: phone.replace(/\D/g, ''),
+          phone_consent_agreed: true,
+          answers,
+        }),
       });
-      localStorage.setItem(SURVEY_SUBMITTED_KEY, 'true');
       setSubmitted(true);
     } catch {
       setErrors({ submit: '설문 제출에 실패했습니다. 다시 시도해주세요.' });
@@ -95,14 +79,13 @@ export default function SurveyPopup({ onClose }: SurveyPopupProps) {
   }
 
   function handleClose() {
-    if (dismissChecked) dismissForToday();
-    onClose();
+    onClose(dismissChecked);
   }
 
   if (submitted) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => onClose(false)} />
         <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-8 text-center">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-slate-800 mb-2">설문이 제출되었습니다!</h3>
@@ -112,7 +95,7 @@ export default function SurveyPopup({ onClose }: SurveyPopupProps) {
             당첨자에게는 개별 연락드리겠습니다.
           </p>
           <button
-            onClick={onClose}
+            onClick={() => onClose(false)}
             className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 px-8 rounded-lg transition-colors"
           >
             확인
@@ -149,74 +132,54 @@ export default function SurveyPopup({ onClose }: SurveyPopupProps) {
 
         {/* Form */}
         <div className="px-8 py-6 max-h-[60vh] overflow-y-auto space-y-6">
-          {/* Q1 */}
-          <div>
-            <p className="text-sm font-semibold text-slate-700 mb-3">
-              Q1. SolSQLD가 SQLD 시험 준비에 도움이 되었나요?{' '}
-              <span className="text-red-500">*</span>
-            </p>
-            <div className="flex gap-2">
-              {[1, 2, 3, 4, 5].map((score) => (
-                <button
-                  key={score}
-                  type="button"
-                  onClick={() => {
-                    setHelpfulness(score);
-                    clearError('helpfulness');
-                  }}
-                  className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-all ${
-                    helpfulness === score
-                      ? 'bg-primary-600 text-white border-primary-600'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-primary-300'
-                  }`}
-                >
-                  {score}
-                </button>
-              ))}
+          {/* Dynamic fields from formSchema */}
+          {formSchema.fields.map((field, idx) => (
+            <div key={field.key}>
+              <p className="text-sm font-semibold text-slate-700 mb-3">
+                Q{idx + 1}. {field.label} <span className="text-red-500">*</span>
+              </p>
+              {field.type === 'boolean' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAnswers((prev) => ({ ...prev, [field.key]: true }));
+                      clearError(field.key);
+                    }}
+                    className={`py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                      answers[field.key] === true
+                        ? 'bg-primary-600 text-white border-primary-600'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-primary-300'
+                    }`}
+                  >
+                    예
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAnswers((prev) => ({ ...prev, [field.key]: false }));
+                      clearError(field.key);
+                    }}
+                    className={`py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                      answers[field.key] === false
+                        ? 'bg-primary-600 text-white border-primary-600'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-primary-300'
+                    }`}
+                  >
+                    아니오
+                  </button>
+                </div>
+              )}
+              {errors[field.key] && (
+                <p className="text-xs text-red-500 mt-1">{errors[field.key]}</p>
+              )}
             </div>
-            <div className="flex justify-between text-xs text-slate-400 mt-1 px-1">
-              <span>전혀 아니다</span>
-              <span>매우 그렇다</span>
-            </div>
-            {errors.helpfulness && (
-              <p className="text-xs text-red-500 mt-1">{errors.helpfulness}</p>
-            )}
-          </div>
+          ))}
 
-          {/* Q2 */}
-          <div>
-            <p className="text-sm font-semibold text-slate-700 mb-3">
-              Q2. SQLD 시험 결과는 어떻게 되었나요?{' '}
-              <span className="text-red-500">*</span>
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {EXAM_RESULT_OPTIONS.map(({ value, label }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => {
-                    setExamResult(value);
-                    clearError('examResult');
-                  }}
-                  className={`py-2.5 rounded-lg border text-sm font-medium transition-all ${
-                    examResult === value
-                      ? 'bg-primary-600 text-white border-primary-600'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-primary-300'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {errors.examResult && (
-              <p className="text-xs text-red-500 mt-1">{errors.examResult}</p>
-            )}
-          </div>
-
-          {/* Q3 */}
+          {/* Phone number + privacy consent */}
           <div>
             <p className="text-sm font-semibold text-slate-700 mb-2">
-              Q3. 기프티콘 수령용 전화번호 <span className="text-red-500">*</span>
+              기프티콘 수령용 전화번호 <span className="text-red-500">*</span>
             </p>
             <input
               type="tel"
@@ -309,20 +272,6 @@ export default function SurveyPopup({ onClose }: SurveyPopupProps) {
             {errors.privacyConsent && (
               <p className="text-xs text-red-500 mt-1">{errors.privacyConsent}</p>
             )}
-          </div>
-
-          {/* Q4 */}
-          <div>
-            <p className="text-sm font-semibold text-slate-700 mb-2">
-              Q4. 건의사항이나 의견이 있으시면 자유롭게 남겨주세요
-            </p>
-            <textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="(선택 사항)"
-              rows={3}
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
-            />
           </div>
 
           {errors.submit && (
