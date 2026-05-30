@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { X, Sparkles } from 'lucide-react';
 
 interface ExamCheerPopupProps {
@@ -6,10 +5,8 @@ interface ExamCheerPopupProps {
 }
 
 export default function ExamCheerPopup({ onClose }: ExamCheerPopupProps) {
-  const [dismissChecked, setDismissChecked] = useState(false);
-
   function handleClose() {
-    onClose(dismissChecked);
+    onClose(false);
   }
 
   return (
@@ -48,21 +45,10 @@ export default function ExamCheerPopup({ onClose }: ExamCheerPopupProps) {
         <div className="px-8 py-5 text-center">
           <button
             onClick={handleClose}
-            className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition-colors mb-4"
+            className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition-colors"
           >
             시험 보러 가기 💪
           </button>
-          <div className="flex items-center justify-center">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={dismissChecked}
-                onChange={(e) => setDismissChecked(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-              />
-              <span className="text-xs text-slate-400">오늘 하루 안 보기</span>
-            </label>
-          </div>
         </div>
       </div>
     </div>
