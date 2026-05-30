@@ -1,27 +1,15 @@
+import { useState } from 'react';
 import { X, Sparkles } from 'lucide-react';
 
-const CHEER_SHOWN_KEY = 'exam_cheer_61_shown';
-
-export function shouldShowCheerPopup(): boolean {
-  const now = new Date();
-  const isExamDay =
-    now.getFullYear() === 2026 && now.getMonth() === 4 && now.getDate() === 31;
-  if (!isExamDay) return false;
-  return localStorage.getItem(CHEER_SHOWN_KEY) !== 'true';
-}
-
-function markShown() {
-  localStorage.setItem(CHEER_SHOWN_KEY, 'true');
-}
-
 interface ExamCheerPopupProps {
-  onClose: () => void;
+  onClose: (dismissForToday: boolean, hideUntilCampaignEnd?: boolean) => void;
 }
 
 export default function ExamCheerPopup({ onClose }: ExamCheerPopupProps) {
+  const [dismissChecked, setDismissChecked] = useState(false);
+
   function handleClose() {
-    markShown();
-    onClose();
+    onClose(dismissChecked);
   }
 
   return (
@@ -60,10 +48,21 @@ export default function ExamCheerPopup({ onClose }: ExamCheerPopupProps) {
         <div className="px-8 py-5 text-center">
           <button
             onClick={handleClose}
-            className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition-colors"
+            className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition-colors mb-4"
           >
             시험 보러 가기 💪
           </button>
+          <div className="flex items-center justify-center">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={dismissChecked}
+                onChange={(e) => setDismissChecked(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-xs text-slate-400">오늘 하루 안 보기</span>
+            </label>
+          </div>
         </div>
       </div>
     </div>

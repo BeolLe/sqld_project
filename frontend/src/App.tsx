@@ -6,7 +6,7 @@ import Header from './components/Header';
 import AuthModal from './components/AuthModal';
 import EventPopup from './components/EventPopup';
 import SurveyPopup from './components/SurveyPopup';
-import ExamCheerPopup, { shouldShowCheerPopup } from './components/ExamCheerPopup';
+import ExamCheerPopup from './components/ExamCheerPopup';
 import { apiFetch } from './utils/api';
 import MainPage from './pages/MainPage';
 import DashboardPage from './pages/DashboardPage';
@@ -38,7 +38,7 @@ interface FormField {
 
 interface ActiveModal {
   campaignKey: string;
-  phaseCode: 'phase1' | 'phase2';
+  phaseCode: 'phase1' | 'phase2' | 'cheer';
   formSchema?: { fields: FormField[] };
 }
 
@@ -58,8 +58,6 @@ function AppShell() {
   });
   const [showEventPopup, setShowEventPopup] = useState(false);
   const [activeCampaign, setActiveCampaign] = useState<ActiveModal | null>(null);
-  const [showCheerPopup, setShowCheerPopup] = useState(false);
-
   useEffect(() => {
     if (!user || authModal.open) {
       setShowEventPopup(false);
@@ -89,12 +87,6 @@ function AppShell() {
       cancelled = true;
     };
   }, [authModal.open, user]);
-
-  useEffect(() => {
-    if (user && !authModal.open && shouldShowCheerPopup()) {
-      setShowCheerPopup(true);
-    }
-  }, [user, authModal.open]);
 
   useEffect(() => {
     const currentSearchParams = new URLSearchParams(window.location.search);
@@ -192,12 +184,10 @@ function AppShell() {
         />
       )}
 
-      {showCheerPopup && (
-        <ExamCheerPopup onClose={() => setShowCheerPopup(false)} />
-      )}
-
       {showEventPopup && activeCampaign && (
-        activeCampaign.phaseCode === 'phase2' && activeCampaign.formSchema ? (
+        activeCampaign.phaseCode === 'cheer' ? (
+          <ExamCheerPopup onClose={closeEventPopup} />
+        ) : activeCampaign.phaseCode === 'phase2' && activeCampaign.formSchema ? (
           <SurveyPopup
             campaignKey={activeCampaign.campaignKey}
             formSchema={activeCampaign.formSchema}
