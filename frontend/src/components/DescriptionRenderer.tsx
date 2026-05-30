@@ -160,34 +160,8 @@ function parseBlocks(description: string): Block[] {
       continue;
     }
 
-    // 테이블 행 감지
-    if (isTableRow(line) || isSeparatorRow(line)) {
-      if (current?.type === 'table') {
-        current.lines.push(line);
-      } else {
-        flush();
-        current = { type: 'table', lines: [line] };
-      }
-      continue;
-    }
-
-    // 예시 데이터/상황 블록 감지
-    if (isPreformattedStarter(line)) {
-      if (current?.type === 'preformatted') {
-        current.lines.push(line);
-      } else {
-        flush();
-        current = { type: 'preformatted', lines: [line] };
-      }
-      continue;
-    }
-
-    if (current?.type === 'preformatted' && isPreformattedContinuation(line)) {
-      current.lines.push(line);
-      continue;
-    }
-
-    // SQL 블록 감지 (SQL 키워드로 시작하는 줄)
+    // SQL 블록 감지 (SQL 키워드로 시작하는 줄) — 테이블보다 먼저 검사해야
+    // SELECT 'A' || 'B' 같은 SQL의 || 연산자가 테이블 구분자로 오인되지 않는다
     if (SQL_KEYWORDS.test(trimmed)) {
       if (current?.type === 'sql') {
         current.lines.push(line);
@@ -213,6 +187,33 @@ function parseBlocks(description: string): Block[] {
 
     // SQL 블록 안의 서브 라인 (괄호, 콤마 등으로 이어지는 줄)
     if (current?.type === 'sql' && /^[\s(,)]/.test(line)) {
+      current.lines.push(line);
+      continue;
+    }
+
+    // 테이블 행 감지
+    if (isTableRow(line) || isSeparatorRow(line)) {
+      if (current?.type === 'table') {
+        current.lines.push(line);
+      } else {
+        flush();
+        current = { type: 'table', lines: [line] };
+      }
+      continue;
+    }
+
+    // 예시 데이터/상황 블록 감지
+    if (isPreformattedStarter(line)) {
+      if (current?.type === 'preformatted') {
+        current.lines.push(line);
+      } else {
+        flush();
+        current = { type: 'preformatted', lines: [line] };
+      }
+      continue;
+    }
+
+    if (current?.type === 'preformatted' && isPreformattedContinuation(line)) {
       current.lines.push(line);
       continue;
     }

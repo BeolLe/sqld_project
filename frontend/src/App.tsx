@@ -5,6 +5,7 @@ import { ExamScheduleProvider } from './contexts/ExamScheduleContext';
 import Header from './components/Header';
 import AuthModal from './components/AuthModal';
 import EventPopup from './components/EventPopup';
+import SurveyPopup from './components/SurveyPopup';
 import { apiFetch } from './utils/api';
 import MainPage from './pages/MainPage';
 import DashboardPage from './pages/DashboardPage';
@@ -28,11 +29,20 @@ function PageFallback() {
   );
 }
 
+interface FormField {
+  key: string;
+  type: string;
+  label: string;
+}
+
+interface ActiveModal {
+  campaignKey: string;
+  phaseCode: 'phase1' | 'phase2';
+  formSchema?: { fields: FormField[] };
+}
+
 interface EventModalResponse {
-  activeModal: {
-    campaignKey: string;
-    phaseCode: 'phase1' | 'phase2';
-  } | null;
+  activeModal: ActiveModal | null;
 }
 
 function AppShell() {
@@ -46,7 +56,7 @@ function AppShell() {
     mode: hasPendingSocialSignup ? 'signup' : 'login',
   });
   const [showEventPopup, setShowEventPopup] = useState(false);
-  const [activeCampaign, setActiveCampaign] = useState<EventModalResponse['activeModal']>(null);
+  const [activeCampaign, setActiveCampaign] = useState<ActiveModal | null>(null);
 
   useEffect(() => {
     if (!user || authModal.open) {
@@ -174,11 +184,19 @@ function AppShell() {
         />
       )}
 
-      {showEventPopup && (
-        <EventPopup
-          phaseCode={activeCampaign?.phaseCode ?? 'phase1'}
-          onClose={closeEventPopup}
-        />
+      {showEventPopup && activeCampaign && (
+        activeCampaign.phaseCode === 'phase2' && activeCampaign.formSchema ? (
+          <SurveyPopup
+            campaignKey={activeCampaign.campaignKey}
+            formSchema={activeCampaign.formSchema}
+            onClose={closeEventPopup}
+          />
+        ) : (
+          <EventPopup
+            phaseCode={activeCampaign.phaseCode}
+            onClose={closeEventPopup}
+          />
+        )
       )}
     </>
   );
