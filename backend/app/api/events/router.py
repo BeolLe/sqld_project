@@ -98,6 +98,9 @@ def is_campaign_eligible(*, campaign: dict, user_profile: dict) -> bool:
     created_at = user_profile.get("created_at")
     created_at_dt = created_at if isinstance(created_at, datetime) else None
 
+    if campaign["phase_code"] == "cheer":
+        return True
+
     if campaign["phase_code"] == "phase1":
         min_points = int(rule.get("min_points") or 0)
         if points >= min_points:
@@ -203,6 +206,7 @@ def fetch_visible_campaign_rows(user_id: str) -> list[dict]:
                   AND c.exposure_end_at >= %s
                 ORDER BY
                   CASE c.phase_code
+                    WHEN 'cheer' THEN 0
                     WHEN 'phase1' THEN 1
                     WHEN 'phase2' THEN 2
                     ELSE 99
