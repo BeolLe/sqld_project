@@ -110,7 +110,15 @@ function AppShell() {
     const campaign = activeCampaign;
     setShowEventPopup(false);
 
-    if ((!dismissForToday && !hideUntilCampaignEnd) || !campaign) {
+    if (!campaign) {
+      return;
+    }
+
+    const shouldHideUntilCampaignEnd =
+      hideUntilCampaignEnd || campaign.phaseCode === 'cheer';
+    const shouldPersistDismiss = dismissForToday || shouldHideUntilCampaignEnd;
+
+    if (!shouldPersistDismiss) {
       return;
     }
 
@@ -118,7 +126,7 @@ function AppShell() {
       method: 'POST',
       body: JSON.stringify({
         hide_for_today: dismissForToday,
-        hide_until_campaign_end: hideUntilCampaignEnd,
+        hide_until_campaign_end: shouldHideUntilCampaignEnd,
       }),
     }).catch((error) => {
       console.error('이벤트 팝업 숨김 처리 실패', error);
