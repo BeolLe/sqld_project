@@ -314,7 +314,9 @@ export default function DashboardPage() {
             return (
               <div className="inline-flex items-center gap-2 mt-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
                 <Calendar className="w-4 h-4 text-blue-500" />
-                <span className="text-sm font-bold text-blue-700">D-{dday}</span>
+                <span className="text-sm font-bold text-blue-700">
+                  {dday === 0 ? 'D-Day' : `D-${dday}`}
+                </span>
                 <span className="text-sm text-blue-600">
                   (시험일: {formatDateFull(next.examDate)})
                 </span>

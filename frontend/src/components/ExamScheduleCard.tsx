@@ -24,7 +24,9 @@ function ScheduleStatus({ schedule }: { schedule: ExamSchedule }) {
   const regEnd = new Date(schedule.registrationEnd);
   regEnd.setHours(23, 59, 59);
   const examDate = new Date(schedule.examDate);
+  examDate.setHours(0, 0, 0, 0);
   const resultDate = new Date(schedule.resultDate);
+  resultDate.setHours(0, 0, 0, 0);
 
   if (today >= regStart && today <= regEnd) {
     return (
@@ -45,6 +47,13 @@ function ScheduleStatus({ schedule }: { schedule: ExamSchedule }) {
     return (
       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
         D-{dday}
+      </span>
+    );
+  }
+  if (today.getTime() === examDate.getTime()) {
+    return (
+      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+        D-Day
       </span>
     );
   }
@@ -88,7 +97,9 @@ export default function ExamScheduleCard() {
           </div>
           {nextExam && dday !== null && dday >= 0 && (
             <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-2">
-              <span className="text-2xl font-extrabold text-blue-400">D-{dday}</span>
+              <span className="text-2xl font-extrabold text-blue-400">
+                {dday === 0 ? 'D-Day' : `D-${dday}`}
+              </span>
               <span className="text-xs text-slate-400">
                 다음 시험 | {nextExam.roundLabel} {formatExamDate(nextExam.examDate)}
               </span>
