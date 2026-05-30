@@ -6,6 +6,7 @@ import Header from './components/Header';
 import AuthModal from './components/AuthModal';
 import EventPopup from './components/EventPopup';
 import SurveyPopup from './components/SurveyPopup';
+import ExamCheerPopup, { shouldShowCheerPopup } from './components/ExamCheerPopup';
 import { apiFetch } from './utils/api';
 import MainPage from './pages/MainPage';
 import DashboardPage from './pages/DashboardPage';
@@ -57,6 +58,7 @@ function AppShell() {
   });
   const [showEventPopup, setShowEventPopup] = useState(false);
   const [activeCampaign, setActiveCampaign] = useState<ActiveModal | null>(null);
+  const [showCheerPopup, setShowCheerPopup] = useState(false);
 
   useEffect(() => {
     if (!user || authModal.open) {
@@ -87,6 +89,12 @@ function AppShell() {
       cancelled = true;
     };
   }, [authModal.open, user]);
+
+  useEffect(() => {
+    if (user && !authModal.open && shouldShowCheerPopup()) {
+      setShowCheerPopup(true);
+    }
+  }, [user, authModal.open]);
 
   useEffect(() => {
     const currentSearchParams = new URLSearchParams(window.location.search);
@@ -182,6 +190,10 @@ function AppShell() {
           onClose={closeAuth}
           onModeChange={(mode) => setAuthModal({ open: true, mode })}
         />
+      )}
+
+      {showCheerPopup && (
+        <ExamCheerPopup onClose={() => setShowCheerPopup(false)} />
       )}
 
       {showEventPopup && activeCampaign && (
