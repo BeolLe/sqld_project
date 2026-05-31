@@ -43,25 +43,11 @@ interface ActiveModal {
 }
 
 interface EventModalResponse {
+  items: ActiveModal[];
   activeModal: ActiveModal | null;
 }
 
 const PHASE2_PREVIEW_HOSTS = new Set(['test_dummies.selfronny.com']);
-
-const PHASE2_PREVIEW_CAMPAIGN: ActiveModal = {
-  campaignKey: 'sqld_61_phase2',
-  phaseCode: 'phase2',
-  formSchema: {
-    fields: [
-      { key: 'took_exam', type: 'boolean', label: '61회차 SQLD 시험에 응시하셨나요?' },
-      { key: 'felt_improvement', type: 'boolean', label: '성적 향상이 있었다고 느끼셨나요?' },
-      { key: 'passed_exam', type: 'boolean', label: '합격하셨나요?' },
-      { key: 'phone_number', type: 'phone', label: '전화번호' },
-      { key: 'phone_consent_agreed', type: 'boolean', label: '개인정보 수집 및 이용에 동의합니다.' },
-      { key: 'notice', type: 'text', label: '시험 종료 후 일주일 뒤 기프티콘 안내가 갈 수 있습니다.' },
-    ],
-  },
-};
 
 function AppShell() {
   const { user } = useAuth();
@@ -86,15 +72,17 @@ function AppShell() {
     let cancelled = false;
 
     async function loadActiveEventModal() {
-      if (isPhase2PreviewHost) {
-        setShowEventPopup(true);
-        setActiveCampaign(PHASE2_PREVIEW_CAMPAIGN);
-        return;
-      }
-
       try {
         const response = await apiFetch<EventModalResponse>('/events/modal');
         if (cancelled) return;
+        if (isPhase2PreviewHost) {
+          const previewCampaign =
+            response.items.find((item) => item.campaignKey === 'sqld_61_phase2') ?? null;
+          setShowEventPopup(Boolean(previewCampaign));
+          setActiveCampaign(previewCampaign);
+          return;
+        }
+
         setShowEventPopup(Boolean(response.activeModal));
         setActiveCampaign(response.activeModal);
       } catch (error) {
