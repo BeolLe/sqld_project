@@ -5,7 +5,6 @@ import { ExamScheduleProvider } from './contexts/ExamScheduleContext';
 import Header from './components/Header';
 import AuthModal from './components/AuthModal';
 import EventPopup from './components/EventPopup';
-import SurveyPopup from './components/SurveyPopup';
 import SurveyPopupLegacy from './components/SurveyPopupLegacy';
 import ExamCheerPopup from './components/ExamCheerPopup';
 import { apiFetch } from './utils/api';
@@ -49,7 +48,6 @@ interface EventModalResponse {
 
 function AppShell() {
   const { user } = useAuth();
-  const isTestPreviewHost = window.location.hostname === 'test_dummies.selfronny.com';
   const searchParams = new URLSearchParams(window.location.search);
   const hasPendingSocialSignup =
     !!window.sessionStorage.getItem('pendingSocialSignup') ||
@@ -197,15 +195,9 @@ function AppShell() {
       {showEventPopup && activeCampaign && (
         activeCampaign.phaseCode === 'cheer' ? (
           <ExamCheerPopup onClose={closeEventPopup} />
-        ) : isTestPreviewHost && activeCampaign.phaseCode === 'phase2' ? (
+        ) : activeCampaign.phaseCode === 'phase2' ? (
           <SurveyPopupLegacy
             campaignKey={activeCampaign.campaignKey}
-            onClose={closeEventPopup}
-          />
-        ) : activeCampaign.phaseCode === 'phase2' && activeCampaign.formSchema ? (
-          <SurveyPopup
-            campaignKey={activeCampaign.campaignKey}
-            formSchema={activeCampaign.formSchema}
             onClose={closeEventPopup}
           />
         ) : (
