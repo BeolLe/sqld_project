@@ -75,16 +75,12 @@ function AppShell() {
       try {
         const response = await apiFetch<EventModalResponse>('/events/modal');
         if (cancelled) return;
-        if (isPhase2PreviewHost) {
-          const previewCampaign =
-            response.items.find((item) => item.campaignKey === 'sqld_61_phase2') ?? null;
-          setShowEventPopup(Boolean(previewCampaign));
-          setActiveCampaign(previewCampaign);
-          return;
-        }
+        const nextCampaign = isPhase2PreviewHost
+          ? response.items.find((item) => item.campaignKey === 'sqld_61_phase2') ?? response.activeModal
+          : response.activeModal;
 
-        setShowEventPopup(Boolean(response.activeModal));
-        setActiveCampaign(response.activeModal);
+        setShowEventPopup(Boolean(nextCampaign));
+        setActiveCampaign(nextCampaign);
       } catch (error) {
         if (cancelled) return;
         console.error('이벤트 팝업 노출 여부 조회 실패', error);
