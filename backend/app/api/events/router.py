@@ -3,9 +3,10 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from psycopg.rows import dict_row
 
@@ -16,6 +17,8 @@ router = APIRouter(prefix="/api/events", tags=["events"])
 
 KST = ZoneInfo("Asia/Seoul")
 PHONE_DIGITS_RE = re.compile(r"\D")
+PHASE2_PREVIEW_HOSTS = {"test_dummies.selfronny.com"}
+PHASE2_PREVIEW_CAMPAIGN_KEY = "sqld_61_phase2"
 
 
 class PopupCampaignDismissRequest(BaseModel):
@@ -44,6 +47,25 @@ def parse_datetime_value(raw: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed
+
+
+def extract_request_hostname(value: str | None) -> str | None:
+    if not value:
+        return None
+    candidate = value.split(",")[0].strip()
+    if "://" in candidate:
+        return urlparse(candidate).hostname
+    return candidate.split(":")[0].strip().lower() or None
+
+
+def is_phase2_preview_request(request) -> bool:
+    candidates = (
+        extract_request_hostname(request.headers.get("x-forwarded-host")),
+        extract_request_hostname(request.headers.get("host")),
+        extract_request_hostname(request.headers.get("origin")),
+        extract_request_hostname(request.headers.get("referer")),
+    )
+    return any(host in PHASE2_PREVIEW_HOSTS for host in candidates if host)
 
 
 def end_of_today_kst() -> datetime:
@@ -92,7 +114,7 @@ def has_campaign_response(*, user_id: str, campaign_key: str) -> bool:
             return cur.fetchone() is not None
 
 
-def is_campaign_eligible(*, campaign: dict, user_profile: dict) -> bool:
+def is_campaign_eligible(*, campaign: dict, user_profile: dict, allow_phase2_preview: bool = False) -> bool:
     rule = campaign.get("eligibility_rule") or {}
     points = int(user_profile.get("total_points") or 0)
     created_at = user_profile.get("created_at")
@@ -114,6 +136,8 @@ def is_campaign_eligible(*, campaign: dict, user_profile: dict) -> bool:
         return False
 
     if campaign["phase_code"] == "phase2":
+        if allow_phase2_preview and campaign["campaign_key"] == PHASE2_PREVIEW_CAMPAIGN_KEY:
+            return True
         required_campaign_key = rule.get("requires_campaign_key")
         if not required_campaign_key:
             return False
@@ -167,7 +191,7 @@ def validate_response_payload(req: PopupCampaignResponseUpsertRequest) -> str:
     return phone_number
 
 
-def fetch_visible_campaign_rows(user_id: str) -> list[dict]:
+def fetch_visible_campaign_rows(user_id: str, *, allow_phase2_preview: bool = False) -> list[dict]:
     now = datetime.now(UTC)
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
@@ -202,8 +226,10 @@ def fetch_visible_campaign_rows(user_id: str) -> list[dict]:
                   ON v.campaign_id = c.campaign_id
                  AND v.user_id = %s
                 WHERE c.is_active = true
-                  AND c.exposure_start_at <= %s
-                  AND c.exposure_end_at >= %s
+                  AND (
+                    (c.exposure_start_at <= %s AND c.exposure_end_at >= %s)
+                    OR (%s AND c.campaign_key = %s)
+                  )
                 ORDER BY
                   CASE c.phase_code
                     WHEN 'cheer' THEN 0
@@ -213,17 +239,36 @@ def fetch_visible_campaign_rows(user_id: str) -> list[dict]:
                   END,
                   c.campaign_id ASC
                 """,
-                (now, user_id, user_id, now, now),
+                (
+                    now,
+                    user_id,
+                    user_id,
+                    now,
+                    now,
+                    allow_phase2_preview,
+                    PHASE2_PREVIEW_CAMPAIGN_KEY,
+                ),
             )
             return cur.fetchall()
 
 
 @router.get("/modal")
-def get_active_modal(current_user: dict = Depends(get_current_user)):
+def get_active_modal(request: Request, current_user: dict = Depends(get_current_user)):
     user_profile = load_user_profile(current_user["user_id"])
-    rows = fetch_visible_campaign_rows(current_user["user_id"])
+    allow_phase2_preview = is_phase2_preview_request(request)
+    rows = fetch_visible_campaign_rows(
+        current_user["user_id"],
+        allow_phase2_preview=allow_phase2_preview,
+    )
     items = [
-        build_campaign_payload(row, eligible=is_campaign_eligible(campaign=row, user_profile=user_profile))
+        build_campaign_payload(
+            row,
+            eligible=is_campaign_eligible(
+                campaign=row,
+                user_profile=user_profile,
+                allow_phase2_preview=allow_phase2_preview,
+            ),
+        )
         for row in rows
     ]
     active_modal = next((item for item in items if item["showModal"]), None)
@@ -290,11 +335,15 @@ def dismiss_modal_for_today(
 def submit_modal_response(
     campaign_key: str,
     req: PopupCampaignResponseUpsertRequest,
+    request: Request,
     current_user: dict = Depends(get_current_user),
 ):
     user_profile = load_user_profile(current_user["user_id"])
     now = datetime.now(UTC)
     phone_number = validate_response_payload(req)
+    allow_phase2_preview = (
+        campaign_key == PHASE2_PREVIEW_CAMPAIGN_KEY and is_phase2_preview_request(request)
+    )
 
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
@@ -321,9 +370,16 @@ def submit_modal_response(
 
             if not campaign or not campaign["is_active"]:
                 raise HTTPException(status_code=404, detail="campaign not found")
-            if now < campaign["response_open_at"] or now > campaign["response_close_at"]:
+            if (
+                not allow_phase2_preview
+                and (now < campaign["response_open_at"] or now > campaign["response_close_at"])
+            ):
                 raise HTTPException(status_code=400, detail="campaign response window is closed")
-            if not is_campaign_eligible(campaign=campaign, user_profile=user_profile):
+            if not is_campaign_eligible(
+                campaign=campaign,
+                user_profile=user_profile,
+                allow_phase2_preview=allow_phase2_preview,
+            ):
                 raise HTTPException(status_code=403, detail="campaign not eligible")
 
             cur.execute(
