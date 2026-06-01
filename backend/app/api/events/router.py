@@ -96,20 +96,31 @@ def load_user_profile(user_id: str) -> dict:
     return row
 
 
-def has_campaign_response(*, user_id: str, campaign_key: str) -> bool:
+def has_campaign_response_or_view(*, user_id: str, campaign_key: str) -> bool:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT 1
-                FROM event.popup_campaign_responses r
-                JOIN event.popup_campaigns c
-                  ON c.campaign_id = r.campaign_id
-                WHERE r.user_id = %s
-                  AND c.campaign_key = %s
+                FROM event.popup_campaigns c
+                WHERE c.campaign_key = %s
+                  AND (
+                    EXISTS (
+                      SELECT 1
+                      FROM event.popup_campaign_responses r
+                      WHERE r.campaign_id = c.campaign_id
+                        AND r.user_id = %s
+                    )
+                    OR EXISTS (
+                      SELECT 1
+                      FROM event.popup_campaign_views v
+                      WHERE v.campaign_id = c.campaign_id
+                        AND v.user_id = %s
+                    )
+                  )
                 LIMIT 1
                 """,
-                (user_id, campaign_key),
+                (campaign_key, user_id, user_id),
             )
             return cur.fetchone() is not None
 
@@ -141,7 +152,10 @@ def is_campaign_eligible(*, campaign: dict, user_profile: dict, allow_phase2_pre
         required_campaign_key = rule.get("requires_campaign_key")
         if not required_campaign_key:
             return False
-        return has_campaign_response(user_id=user_profile["user_id"], campaign_key=required_campaign_key)
+        return has_campaign_response_or_view(
+            user_id=user_profile["user_id"],
+            campaign_key=required_campaign_key,
+        )
 
     return False
 
