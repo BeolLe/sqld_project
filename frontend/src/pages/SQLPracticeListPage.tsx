@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ChevronRight, SlidersHorizontal } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { useAuthModal } from '../contexts/AuthModalContext';
 import { logEvent } from '../utils/eventLogger';
 import type { Difficulty } from '../types';
 import { fetchSQLPracticeList, type SQLPracticeListItem } from '../api/content';
@@ -20,6 +22,8 @@ type SortKey = 'default' | 'difficulty_asc' | 'difficulty_desc' | 'rate_asc' | '
 
 export default function SQLPracticeListPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { openAuthModal } = useAuthModal();
   const [problems, setProblems] = useState<SQLPracticeListItem[]>([]);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -120,6 +124,10 @@ export default function SQLPracticeListPage() {
             <div
               key={problem.id}
               onClick={() => {
+                if (!user) {
+                  openAuthModal('login');
+                  return;
+                }
                 logEvent('sql_problem_clicked', { problem_id: problem.id, difficulty: problem.difficulty, category: problem.category, correct_rate: problem.correctRate });
                 navigate(`/sql-practice/${problem.id}`);
               }}

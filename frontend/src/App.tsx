@@ -1,7 +1,8 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ExamScheduleProvider } from './contexts/ExamScheduleContext';
+import AuthModalContext from './contexts/AuthModalContext';
 import Header from './components/Header';
 import AuthModal from './components/AuthModal';
 import EventPopup from './components/EventPopup';
@@ -98,9 +99,9 @@ function AppShell() {
     }
   }, []);
 
-  function openAuth(mode: AuthMode) {
+  const openAuth = useCallback((mode: AuthMode) => {
     setAuthModal({ open: true, mode });
-  }
+  }, []);
 
   function closeAuth() {
     setAuthModal((prev) => ({ ...prev, open: false }));
@@ -134,6 +135,7 @@ function AppShell() {
   }
 
   return (
+    <AuthModalContext.Provider value={{ openAuthModal: openAuth }}>
     <>
       {/* 모의고사 풀이 화면은 헤더 없이 */}
       <Routes>
@@ -208,6 +210,7 @@ function AppShell() {
         )
       )}
     </>
+    </AuthModalContext.Provider>
   );
 }
 
