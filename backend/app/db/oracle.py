@@ -11,9 +11,8 @@ def init_oracle_pool():
         return oracle_pool
 
     # Always Free ADB session budget is small enough that pool size must stay
-    # aligned with deployment concurrency. Current assumption:
-    # replicas=1, uvicorn workers=1, pool max=8 -> up to 8 DB sessions.
-    # If replicas or workers increase, lower this value or recalculate.
+    # aligned with deployment concurrency. Use TIMEDWAIT so acquire() fails
+    # fast when the pool is exhausted instead of waiting indefinitely.
     oracle_pool = oracledb.create_pool(
         user=settings.ORACLE_USER,
         password=settings.ORACLE_PASSWORD,
@@ -24,8 +23,9 @@ def init_oracle_pool():
         min=1,
         max=8,
         increment=1,
-        getmode=oracledb.POOL_GETMODE_WAIT,
-        timeout=300,
+        getmode=oracledb.POOL_GETMODE_TIMEDWAIT,
+        timeout=10,
+        wait_timeout=10000,
         ping_interval=60,
     )
     return oracle_pool
