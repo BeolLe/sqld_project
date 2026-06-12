@@ -57,6 +57,12 @@ class Settings:
 
     SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
     FEEDBACK_SLACK_WEBHOOK_URL = os.getenv("FEEDBACK_SLACK_WEBHOOK_URL", "")
+    SQL_EXECUTION_SLOW_SLACK_WEBHOOK_URL = os.getenv(
+        "SQL_EXECUTION_SLOW_SLACK_WEBHOOK_URL", ""
+    )
+    SQL_EXECUTION_SLOW_ALERT_THRESHOLD_MS = int(
+        os.getenv("SQL_EXECUTION_SLOW_ALERT_THRESHOLD_MS", "10000")
+    )
 
     SMTP_HOST = os.getenv("SMTP_HOST", "")
     SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))

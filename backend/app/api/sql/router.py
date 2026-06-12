@@ -135,6 +135,66 @@ def extract_oracle_error_code(message: str) -> str | None:
     return message.split(":", 1)[0].strip()
 
 
+def notify_slow_sql_execution(
+    *,
+    elapsed_ms: int,
+    request_id: str,
+    practice_id: str,
+    action: str,
+    statement_type: str,
+    scope_key: str | None,
+    user_id: str | None,
+    success: bool,
+    timings: dict[str, int],
+    error_message: str | None = None,
+) -> None:
+    if elapsed_ms < settings.SQL_EXECUTION_SLOW_ALERT_THRESHOLD_MS:
+        return
+
+    webhook_url = settings.SQL_EXECUTION_SLOW_SLACK_WEBHOOK_URL
+    if not webhook_url:
+        logger.info(
+            "slow sql slack webhook not configured; skipping alert request_id=%s",
+            request_id,
+        )
+        return
+
+    status_text = "success" if success else "failed"
+    detail_lines = [
+        f"- request_id: `{request_id}`",
+        f"- practice_id: `{practice_id}`",
+        f"- action: `{action}`",
+        f"- statement_type: `{statement_type}`",
+        f"- user_id: `{user_id or 'anonymous'}`",
+        f"- scope_key: `{scope_key or '-'}`",
+        f"- elapsed_ms: `{elapsed_ms}`",
+        f"- status: `{status_text}`",
+    ]
+    if error_message:
+        detail_lines.append(f"- error: `{error_message[:500]}`")
+
+    send_slack_message(
+        text=f"[SolSQLD] 느린 SQL 실행 감지 ({elapsed_ms}ms)",
+        blocks=[
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*느린 SQL 실행 감지*\n" + "\n".join(detail_lines),
+                },
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*timings*\n```{timings}```",
+                },
+            },
+        ],
+        webhook_url=webhook_url,
+    )
+
+
 def fetch_expected_result(practice_code: str) -> dict | None:
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
@@ -620,6 +680,18 @@ def execute_sql(
                         timing_marks,
                         str(exc),
                     )
+                    notify_slow_sql_execution(
+                        elapsed_ms=elapsed_ms,
+                        request_id=request_id,
+                        practice_id=req.practice_id,
+                        action=action,
+                        statement_type=statement_type,
+                        scope_key=scope_key,
+                        user_id=user_id,
+                        success=False,
+                        timings=timing_marks,
+                        error_message=str(exc),
+                    )
                     if action == "submit":
                         send_amplitude_event(
                             event_type="backend_sql_submit_failed",
@@ -749,6 +821,17 @@ def execute_sql(
                     scope_key,
                     len(serialized_rows),
                     timing_marks,
+                )
+                notify_slow_sql_execution(
+                    elapsed_ms=elapsed_ms,
+                    request_id=request_id,
+                    practice_id=req.practice_id,
+                    action=action,
+                    statement_type=statement_type,
+                    scope_key=scope_key,
+                    user_id=user_id,
+                    success=True,
+                    timings=timing_marks,
                 )
 
                 response = {
