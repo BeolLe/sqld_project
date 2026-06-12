@@ -11,8 +11,8 @@ def init_oracle_pool():
         return oracle_pool
 
     # Always Free ADB session budget is small enough that pool size must stay
-    # aligned with deployment concurrency. Use TIMEDWAIT so acquire() fails
-    # fast when the pool is exhausted instead of waiting indefinitely.
+    # conservative. timeout controls idle pooled sessions; wait_timeout
+    # controls how long acquire() waits in TIMEDWAIT mode.
     oracle_pool = oracledb.create_pool(
         user=settings.ORACLE_USER,
         password=settings.ORACLE_PASSWORD,
@@ -20,13 +20,13 @@ def init_oracle_pool():
         config_dir=settings.ORACLE_WALLET_PATH,
         wallet_location=settings.ORACLE_WALLET_PATH,
         wallet_password=settings.ORACLE_WALLET_PASSWORD,
-        min=1,
-        max=8,
-        increment=1,
+        min=settings.ORACLE_POOL_MIN,
+        max=settings.ORACLE_POOL_MAX,
+        increment=settings.ORACLE_POOL_INCREMENT,
         getmode=oracledb.POOL_GETMODE_TIMEDWAIT,
-        timeout=10,
-        wait_timeout=10000,
-        ping_interval=60,
+        timeout=settings.ORACLE_POOL_IDLE_TIMEOUT_SECONDS,
+        wait_timeout=settings.ORACLE_POOL_WAIT_TIMEOUT_MS,
+        ping_interval=settings.ORACLE_POOL_PING_INTERVAL_SECONDS,
     )
     return oracle_pool
 

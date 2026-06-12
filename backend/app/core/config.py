@@ -18,6 +18,18 @@ class Settings:
     ORACLE_DSN = os.getenv("ORACLE_DSN", "")
     ORACLE_WALLET_PATH = os.getenv("ORACLE_WALLET_PATH", "")
     ORACLE_WALLET_PASSWORD = os.getenv("ORACLE_WALLET_PASSWORD", "")
+    ORACLE_POOL_MIN = int(os.getenv("ORACLE_POOL_MIN", "1"))
+    ORACLE_POOL_MAX = int(os.getenv("ORACLE_POOL_MAX", "8"))
+    ORACLE_POOL_INCREMENT = int(os.getenv("ORACLE_POOL_INCREMENT", "1"))
+    ORACLE_POOL_IDLE_TIMEOUT_SECONDS = int(
+        os.getenv("ORACLE_POOL_IDLE_TIMEOUT_SECONDS", "10")
+    )
+    ORACLE_POOL_WAIT_TIMEOUT_MS = int(
+        os.getenv("ORACLE_POOL_WAIT_TIMEOUT_MS", "10000")
+    )
+    ORACLE_POOL_PING_INTERVAL_SECONDS = int(
+        os.getenv("ORACLE_POOL_PING_INTERVAL_SECONDS", "60")
+    )
 
     POSTGRES_HOST = os.getenv("POSTGRES_HOST", "")
     POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5432"))
