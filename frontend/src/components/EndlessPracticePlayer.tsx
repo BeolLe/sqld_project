@@ -1,10 +1,95 @@
-import { useState, useCallback, useEffect } from 'react';
-import { RotateCcw, ChevronRight, CheckCircle, XCircle, Shuffle, ChevronLeft, Flag } from 'lucide-react';
-import type { Problem } from '../types';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { RotateCcw, ChevronRight, CheckCircle, XCircle, Shuffle, ChevronLeft, Flag, Sparkles } from 'lucide-react';
+import type { Problem, AIExplainRequest } from '../types';
 import DescriptionRenderer from './DescriptionRenderer';
 import { fetchEndlessStats, resetEndlessStats, submitEndlessAnswer } from '../api/endless';
 import { useAuth } from '../contexts/AuthContext';
 import ReportErrorModal from './ReportErrorModal';
+import AIStreamPanel from './AIStreamPanel';
+import { useAIStream } from '../hooks/useAIStream';
+import { useAIUsage } from '../contexts/AIUsageContext';
+import { logEvent } from '../utils/eventLogger';
+
+function EndlessWrongItemAI({
+  problem,
+  userAnswer,
+}: {
+  problem: Problem;
+  userAnswer: string;
+}) {
+  const { status, text, usage: streamUsage, error, start, retry } = useAIStream();
+  const { usage, applyUsage } = useAIUsage();
+
+  const remaining = usage?.explain.remaining;
+  const limit = usage?.explain.limit;
+  const isExhausted = remaining === 0;
+
+  const buttonLabel =
+    usage != null
+      ? `AI 맞춤 해설 보기 (${remaining}/${limit})`
+      : 'AI 맞춤 해설 보기';
+
+  const handleClick = () => {
+    if (isExhausted || status === 'streaming') return;
+    const body: AIExplainRequest = {
+      problem_id: problem.id,
+      user_answer: userAnswer || '미답변',
+      correct_answer: problem.answer,
+      problem_title: problem.title,
+      options: problem.options ?? [],
+      explanation: problem.explanation,
+      source: 'endless',
+    };
+    start(body);
+    logEvent('ai_explain_requested', {
+      problem_id: problem.id,
+      source: 'endless',
+      remaining: usage?.explain.remaining ?? null,
+    });
+  };
+
+  const prevStatusRef = useRef<typeof status>('idle');
+  useEffect(() => {
+    const prevStatus = prevStatusRef.current;
+    prevStatusRef.current = status;
+    if (status === 'done' && prevStatus !== 'done') {
+      if (streamUsage) {
+        logEvent('ai_explain_completed', {
+          problem_id: problem.id,
+          source: 'endless',
+          input: streamUsage.input,
+          output: streamUsage.output,
+        });
+        applyUsage(streamUsage);
+      }
+    }
+    if (status === 'error' && prevStatus !== 'error') {
+      logEvent('ai_explain_failed', {
+        problem_id: problem.id,
+        source: 'endless',
+        error_message: error,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={handleClick}
+        disabled={isExhausted || status === 'streaming'}
+        title={isExhausted ? '일일 한도 초과' : undefined}
+        className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        <Sparkles className="w-3.5 h-3.5" />
+        {buttonLabel}
+      </button>
+      {status !== 'idle' && (
+        <AIStreamPanel status={status} text={text} error={error} onRetry={retry} />
+      )}
+    </div>
+  );
+}
 
 function shuffleArray<T>(arr: T[]): T[] {
   const shuffled = [...arr];
@@ -288,6 +373,12 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
                   {isCorrect ? '정답입니다!' : `오답 — 정답은 ${problem.answer}번`}
                 </p>
                 <p className="text-sm text-slate-700 leading-relaxed">{problem.explanation}</p>
+                {!isCorrect && selectedAnswer !== null && (
+                  <EndlessWrongItemAI
+                    problem={problem}
+                    userAnswer={selectedAnswer}
+                  />
+                )}
               </div>
             </div>
 

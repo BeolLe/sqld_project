@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shuffle, Home, Loader2, ChevronLeft, ChevronRight, BookOpen, Layers, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAuthModal } from '../contexts/AuthModalContext';
 import { fetchEndlessProblems } from '../api/endless';
 import type { Problem } from '../types';
 import EndlessPracticePlayer from '../components/EndlessPracticePlayer';
@@ -24,6 +25,7 @@ function getCategoriesForSubject(subject: string, allCategories: string[]): stri
 
 export default function EndlessPracticePage() {
   const { isLoggedIn, isInitializing } = useAuth();
+  const { openAuthModal } = useAuthModal();
   const navigate = useNavigate();
 
   const [allProblems, setAllProblems] = useState<Problem[]>([]);
@@ -124,6 +126,12 @@ export default function EndlessPracticePage() {
       </div>
     );
   }
+
+  useEffect(() => {
+    if (!isLoggedIn && !isInitializing) {
+      openAuthModal('login');
+    }
+  }, [isLoggedIn, isInitializing, openAuthModal]);
 
   if (!isLoggedIn) {
     return (

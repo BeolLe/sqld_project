@@ -1,8 +1,12 @@
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useState } from 'react';
-import { Trophy, XCircle, CheckCircle, RotateCcw, Flag } from 'lucide-react';
-import type { Problem } from '../types';
+import { useState, useEffect, useRef } from 'react';
+import { Trophy, XCircle, CheckCircle, RotateCcw, Flag, Sparkles } from 'lucide-react';
+import type { Problem, AIExplainRequest } from '../types';
 import ReportErrorModal from '../components/ReportErrorModal';
+import AIStreamPanel from '../components/AIStreamPanel';
+import { useAIStream } from '../hooks/useAIStream';
+import { useAIUsage } from '../contexts/AIUsageContext';
+import { logEvent } from '../utils/eventLogger';
 
 interface ResultState {
   score: number;
@@ -10,6 +14,82 @@ interface ResultState {
   problems: Problem[];
   passed?: boolean;
   failedBySubjectCutoff?: boolean;
+}
+
+function WrongItemAI({ problem, userAnswer }: { problem: Problem; userAnswer: string }) {
+  const { status, text, usage: streamUsage, error, start, retry } = useAIStream();
+  const { usage, applyUsage } = useAIUsage();
+
+  const remaining = usage?.explain.remaining;
+  const limit = usage?.explain.limit;
+  const isExhausted = remaining === 0;
+
+  const buttonLabel =
+    usage != null
+      ? `AI 맞춤 해설 보기 (${remaining}/${limit})`
+      : 'AI 맞춤 해설 보기';
+
+  const handleClick = () => {
+    if (isExhausted || status === 'streaming') return;
+    const body: AIExplainRequest = {
+      problem_id: problem.id,
+      user_answer: userAnswer || '미답변',
+      correct_answer: problem.answer,
+      problem_title: problem.title,
+      options: problem.options ?? [],
+      explanation: problem.explanation,
+      source: 'exam',
+    };
+    start(body);
+    logEvent('ai_explain_requested', {
+      problem_id: problem.id,
+      source: 'exam',
+      remaining: usage?.explain.remaining ?? null,
+    });
+  };
+
+  // 완료/실패 시 이벤트 로깅 및 낙관적 사용량 적용 (전환 1회만 감지)
+  const prevStatusRef = useRef<typeof status>('idle');
+  useEffect(() => {
+    const prevStatus = prevStatusRef.current;
+    prevStatusRef.current = status;
+    if (status === 'done' && prevStatus !== 'done') {
+      if (streamUsage) {
+        logEvent('ai_explain_completed', {
+          problem_id: problem.id,
+          source: 'exam',
+          input: streamUsage.input,
+          output: streamUsage.output,
+        });
+        applyUsage(streamUsage);
+      }
+    }
+    if (status === 'error' && prevStatus !== 'error') {
+      logEvent('ai_explain_failed', {
+        problem_id: problem.id,
+        source: 'exam',
+        error_message: error,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={handleClick}
+        disabled={isExhausted || status === 'streaming'}
+        title={isExhausted ? '일일 한도 초과' : undefined}
+        className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        <Sparkles className="w-3.5 h-3.5" />
+        {buttonLabel}
+      </button>
+      {status !== 'idle' && (
+        <AIStreamPanel status={status} text={text} error={error} onRetry={retry} />
+      )}
+    </div>
+  );
 }
 
 export default function ExamResultPage() {
@@ -117,6 +197,7 @@ export default function ExamResultPage() {
                     <p className="mt-2 text-slate-600 leading-relaxed border-l-2 border-primary-300 pl-3">
                       {problem.explanation}
                     </p>
+                    <WrongItemAI problem={problem} userAnswer={answers[problem.id]} />
                   </div>
                 </li>
               ))}

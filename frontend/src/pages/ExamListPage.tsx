@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, FileText, ChevronRight } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { useAuthModal } from '../contexts/AuthModalContext';
 import { logEvent } from '../utils/eventLogger';
 import type { Difficulty } from '../types';
 import { fetchExamList, type ExamListItem } from '../api/content';
@@ -19,6 +21,8 @@ const DIFFICULTY_COLOR: Record<Difficulty, string> = {
 
 export default function ExamListPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { openAuthModal } = useAuthModal();
   const [exams, setExams] = useState<ExamListItem[]>([]);
   const [error, setError] = useState('');
 
@@ -56,6 +60,10 @@ export default function ExamListPage() {
               key={exam.id}
               className="bg-white border border-slate-200 rounded-xl p-5 hover:border-primary-400 hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
               onClick={() => {
+                if (!user) {
+                  openAuthModal('login');
+                  return;
+                }
                 logEvent('exam_card_clicked', { exam_id: exam.id, exam_round: exam.round, difficulty: exam.avgDifficulty });
                 navigate(`/exams/${exam.id}/taking`);
               }}

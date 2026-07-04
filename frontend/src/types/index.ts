@@ -88,7 +88,11 @@ export type EventType =
   | 'sql_problem_clicked'
   | 'sql_practice_viewed'
   // System
-  | 'system_points_awarded';
+  | 'system_points_awarded'
+  // AI
+  | 'ai_explain_requested'
+  | 'ai_explain_completed'
+  | 'ai_explain_failed';
 
 export interface EventLog {
   id: string;
@@ -249,6 +253,37 @@ export interface ExamSchedule {
   examDate: string | null;
   resultDate: string | null;
 }
+
+// ─── AI 기능 타입 ────────────────────────────────────────────────────────────
+
+export interface AIUsageBucket {
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
+export interface AIUsageResponse {
+  explain: AIUsageBucket;
+  sql_review: AIUsageBucket;
+  study_plan: AIUsageBucket;
+  plan_type: string;
+  reset_at: string;
+}
+
+export interface AIExplainRequest {
+  problem_id: string;
+  user_answer: string;
+  correct_answer: string;
+  problem_title: string;
+  options: string[];
+  explanation: string;
+  source: 'exam' | 'endless';
+}
+
+export type AIStreamEvent =
+  | { type: 'token'; content: string }
+  | { type: 'done'; usage: { input: number; output: number } }
+  | { type: 'error'; message: string };
 
 // ─── UI 상태 타입 ────────────────────────────────────────────────────────────
 
