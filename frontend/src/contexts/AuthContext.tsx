@@ -238,6 +238,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.alert(redirectAuthError);
     }
 
+    if (import.meta.env.VITE_AI_MOCK === '1') {
+      setUser({
+        id: 'mock-user',
+        email: 'mock@solsqld.dev',
+        nickname: '테스트 사용자',
+        points: 320,
+        isAdmin: false,
+        createdAt: new Date().toISOString(),
+        authProvider: 'local',
+      });
+      setIsInitializing(false);
+      return;
+    }
+
     loadCurrentUser()
       .then((me) => {
         if (redirectAuthSuccess) {
