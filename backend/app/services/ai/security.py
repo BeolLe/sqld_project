@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import re
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 
 _SECRET_PATTERNS = (
@@ -20,6 +23,12 @@ def redact_secrets(value: Any) -> Any:
         return [redact_secrets(item) for item in value]
     if isinstance(value, tuple):
         return [redact_secrets(item) for item in value]
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return str(value)
     if not isinstance(value, str):
         return value
 
