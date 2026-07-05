@@ -21,7 +21,10 @@ def build_explanation_context(
                 cur.execute(
                     """
                     SELECT
-                        question.id::text AS problem_id,
+                        COALESCE(
+                            question.question_payload->>'source_id',
+                            'exam_q_' || question.question_no::text
+                        ) AS problem_id,
                         question.question_text,
                         question.choice_payload AS options,
                         answer.selected_choice AS user_answer,
@@ -36,7 +39,10 @@ def build_explanation_context(
                       ON answer_key.question_id = question.id
                     WHERE attempt.id = %s::bigint
                       AND attempt.user_id = %s::uuid
-                      AND question.id::text = %s
+                      AND COALESCE(
+                          question.question_payload->>'source_id',
+                          'exam_q_' || question.question_no::text
+                      ) = %s
                     """,
                     (attempt_id, user_id, problem_id),
                 )
