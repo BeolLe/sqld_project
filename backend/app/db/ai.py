@@ -187,7 +187,8 @@ def create_request_and_reserve(
     route: dict[str, Any],
     client_request: dict[str, Any],
     context: dict[str, Any],
-) -> tuple[str, dict[str, int]]:
+    quota_exempt: bool = False,
+) -> tuple[str, dict[str, Any]]:
     usage_date = datetime.now(ZoneInfo("Asia/Seoul")).date()
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -195,9 +196,9 @@ def create_request_and_reserve(
                 """
                 INSERT INTO ai.requests (
                     user_id, use_case, source_type, source_id, idempotency_key,
-                    provider_model_id, model_tier, status
+                    provider_model_id, model_tier, status, quota_exempt
                 )
-                VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, 'received')
+                VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, 'received', %s)
                 RETURNING request_id
                 """,
                 (
@@ -208,28 +209,31 @@ def create_request_and_reserve(
                     idempotency_key,
                     route["provider_model_id"],
                     route["model_tier"],
+                    quota_exempt,
                 ),
             )
             request_id = str(cur.fetchone()[0])
-            cur.execute(
-                """
-                INSERT INTO ai.daily_usage (
-                    user_id, use_case, usage_date, daily_limit, reserved_count
-                ) VALUES (%s::uuid, %s, %s, %s, 1)
-                ON CONFLICT (user_id, use_case, usage_date)
-                DO UPDATE SET
-                    daily_limit = EXCLUDED.daily_limit,
-                    reserved_count = ai.daily_usage.reserved_count + 1,
-                    updated_at = now()
-                WHERE ai.daily_usage.used_count + ai.daily_usage.reserved_count
-                    < EXCLUDED.daily_limit
-                RETURNING daily_limit, used_count, reserved_count
-                """,
-                (user_id, use_case, usage_date, route["daily_limit"]),
-            )
-            usage = cur.fetchone()
-            if not usage:
-                raise ValueError("AI_DAILY_QUOTA_EXCEEDED")
+            usage = None
+            if not quota_exempt:
+                cur.execute(
+                    """
+                    INSERT INTO ai.daily_usage (
+                        user_id, use_case, usage_date, daily_limit, reserved_count
+                    ) VALUES (%s::uuid, %s, %s, %s, 1)
+                    ON CONFLICT (user_id, use_case, usage_date)
+                    DO UPDATE SET
+                        daily_limit = EXCLUDED.daily_limit,
+                        reserved_count = ai.daily_usage.reserved_count + 1,
+                        updated_at = now()
+                    WHERE ai.daily_usage.used_count + ai.daily_usage.reserved_count
+                        < EXCLUDED.daily_limit
+                    RETURNING daily_limit, used_count, reserved_count
+                    """,
+                    (user_id, use_case, usage_date, route["daily_limit"]),
+                )
+                usage = cur.fetchone()
+                if not usage:
+                    raise ValueError("AI_DAILY_QUOTA_EXCEEDED")
             cur.execute(
                 """
                 INSERT INTO ai.request_contents (
@@ -238,14 +242,19 @@ def create_request_and_reserve(
                 """,
                 (request_id, Jsonb(client_request), Jsonb(context)),
             )
-            cur.execute(
-                """
-                INSERT INTO ai.usage_events (
-                    request_id, user_id, use_case, usage_date, event_type
-                ) VALUES (%s::uuid, %s::uuid, %s, %s, 'reserve')
-                """,
-                (request_id, user_id, use_case, usage_date),
-            )
+            if not quota_exempt:
+                cur.execute(
+                    """
+                    INSERT INTO ai.usage_events (
+                        request_id, user_id, use_case, usage_date, event_type
+                    ) VALUES (%s::uuid, %s::uuid, %s, %s, 'reserve')
+                    """,
+                    (request_id, user_id, use_case, usage_date),
+                )
+    if quota_exempt:
+        return request_id, {
+            "limit": 0, "used": 0, "reserved": 0, "unlimited": True,
+        }
     return request_id, {
         "limit": usage[0],
         "used": usage[1],
@@ -268,34 +277,37 @@ def complete_request(
     stop_reason: str | None,
     provider_latency_ms: int,
     total_latency_ms: int,
-) -> dict[str, int]:
+    quota_exempt: bool = False,
+) -> dict[str, Any]:
     usage_date = datetime.now(ZoneInfo("Asia/Seoul")).date()
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE ai.daily_usage
-                SET reserved_count = reserved_count - 1,
-                    used_count = used_count + 1,
-                    updated_at = now()
-                WHERE user_id = %s::uuid AND use_case = %s AND usage_date = %s
-                  AND reserved_count > 0
-                RETURNING daily_limit, used_count, reserved_count
-                """,
-                (user_id, use_case, usage_date),
-            )
-            usage = cur.fetchone()
-            if not usage:
-                raise RuntimeError("AI quota reservation disappeared")
-            cur.execute(
-                """
-                INSERT INTO ai.usage_events (
-                    request_id, user_id, use_case, usage_date, event_type
-                ) VALUES (%s::uuid, %s::uuid, %s, %s, 'consume')
-                ON CONFLICT (request_id, event_type) DO NOTHING
-                """,
-                (request_id, user_id, use_case, usage_date),
-            )
+            usage = None
+            if not quota_exempt:
+                cur.execute(
+                    """
+                    UPDATE ai.daily_usage
+                    SET reserved_count = reserved_count - 1,
+                        used_count = used_count + 1,
+                        updated_at = now()
+                    WHERE user_id = %s::uuid AND use_case = %s AND usage_date = %s
+                      AND reserved_count > 0
+                    RETURNING daily_limit, used_count, reserved_count
+                    """,
+                    (user_id, use_case, usage_date),
+                )
+                usage = cur.fetchone()
+                if not usage:
+                    raise RuntimeError("AI quota reservation disappeared")
+                cur.execute(
+                    """
+                    INSERT INTO ai.usage_events (
+                        request_id, user_id, use_case, usage_date, event_type
+                    ) VALUES (%s::uuid, %s::uuid, %s, %s, 'consume')
+                    ON CONFLICT (request_id, event_type) DO NOTHING
+                    """,
+                    (request_id, user_id, use_case, usage_date),
+                )
             cur.execute(
                 """
                 UPDATE ai.requests
@@ -327,6 +339,8 @@ def complete_request(
                 """,
                 (Jsonb(provider_response), response_text, request_id),
             )
+    if quota_exempt:
+        return {"limit": 0, "used": 0, "reserved": 0, "unlimited": True}
     return {"limit": usage[0], "used": usage[1], "reserved": usage[2]}
 
 
@@ -356,28 +370,30 @@ def mark_provider_requested(
 def fail_request(
     *, request_id: str, user_id: str, use_case: str, status: str,
     error_code: str, error_detail: str, response_text: str,
+    quota_exempt: bool = False,
 ) -> None:
     usage_date = datetime.now(ZoneInfo("Asia/Seoul")).date()
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE ai.daily_usage
-                SET reserved_count = reserved_count - 1, updated_at = now()
-                WHERE user_id = %s::uuid AND use_case = %s AND usage_date = %s
-                  AND reserved_count > 0
-                """,
-                (user_id, use_case, usage_date),
-            )
-            cur.execute(
-                """
-                INSERT INTO ai.usage_events (
-                    request_id, user_id, use_case, usage_date, event_type
-                ) VALUES (%s::uuid, %s::uuid, %s, %s, 'refund')
-                ON CONFLICT (request_id, event_type) DO NOTHING
-                """,
-                (request_id, user_id, use_case, usage_date),
-            )
+            if not quota_exempt:
+                cur.execute(
+                    """
+                    UPDATE ai.daily_usage
+                    SET reserved_count = reserved_count - 1, updated_at = now()
+                    WHERE user_id = %s::uuid AND use_case = %s AND usage_date = %s
+                      AND reserved_count > 0
+                    """,
+                    (user_id, use_case, usage_date),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO ai.usage_events (
+                        request_id, user_id, use_case, usage_date, event_type
+                    ) VALUES (%s::uuid, %s::uuid, %s, %s, 'refund')
+                    ON CONFLICT (request_id, event_type) DO NOTHING
+                    """,
+                    (request_id, user_id, use_case, usage_date),
+                )
             cur.execute(
                 """
                 UPDATE ai.requests SET status = %s, error_code = %s,
@@ -423,7 +439,7 @@ def save_cache(
             )
 
 
-def get_usage(user_id: str) -> dict[str, Any]:
+def get_usage(user_id: str, *, is_admin: bool = False) -> dict[str, Any]:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -442,8 +458,11 @@ def get_usage(user_id: str) -> dict[str, Any]:
                     SELECT DISTINCT ON (route.use_case)
                         route.use_case,
                         route.daily_limit,
-                        route.plan_code
+                        route.plan_code,
+                        model.provider
                     FROM ai.model_routes AS route
+                    JOIN ai.provider_models AS model
+                      ON model.provider_model_id = route.provider_model_id
                     CROSS JOIN current_plan
                     WHERE route.plan_code IN (current_plan.plan_code, 'free')
                       AND route.is_active = true
@@ -456,7 +475,8 @@ def get_usage(user_id: str) -> dict[str, Any]:
                     routes.daily_limit,
                     COALESCE(usage.used_count, 0),
                     COALESCE(usage.reserved_count, 0),
-                    (SELECT plan_code FROM current_plan)
+                    (SELECT plan_code FROM current_plan),
+                    routes.provider
                 FROM routes
                 LEFT JOIN ai.daily_usage AS usage
                   ON usage.user_id = %s::uuid
@@ -470,7 +490,9 @@ def get_usage(user_id: str) -> dict[str, Any]:
     items = [
         {
             "useCase": row[0], "limit": row[1], "used": row[2],
-            "reserved": row[3], "remaining": max(row[1] - row[2] - row[3], 0),
+            "reserved": row[3],
+            "remaining": max(row[1] - row[2] - row[3], 0),
+            "unlimited": bool(is_admin and row[5] == "google"),
         }
         for row in rows
     ]

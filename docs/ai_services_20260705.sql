@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS ai.requests (
         )
     ),
     cache_hit BOOLEAN NOT NULL DEFAULT false,
+    quota_exempt BOOLEAN NOT NULL DEFAULT false,
     input_tokens INTEGER NULL CHECK (input_tokens IS NULL OR input_tokens >= 0),
     output_tokens INTEGER NULL CHECK (output_tokens IS NULL OR output_tokens >= 0),
     cache_creation_input_tokens INTEGER NOT NULL DEFAULT 0 CHECK (cache_creation_input_tokens >= 0),

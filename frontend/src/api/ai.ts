@@ -17,6 +17,7 @@ export async function fetchAIUsage(): Promise<AIUsageResponse> {
       used: number;
       limit: number;
       remaining: number;
+      unlimited?: boolean;
     }>;
     planType: string;
   }>('/ai/usage');

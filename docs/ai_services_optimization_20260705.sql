@@ -9,7 +9,8 @@ ALTER TABLE ai.requests
     ADD COLUMN IF NOT EXISTS cache_creation_input_tokens INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS cache_read_input_tokens INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS first_token_latency_ms INTEGER NULL,
-    ADD COLUMN IF NOT EXISTS stop_reason TEXT NULL;
+    ADD COLUMN IF NOT EXISTS stop_reason TEXT NULL,
+    ADD COLUMN IF NOT EXISTS quota_exempt BOOLEAN NOT NULL DEFAULT false;
 
 UPDATE ai.model_routes
 SET input_token_limit = CASE WHEN use_case = 'sql_review' THEN 8000 ELSE 6000 END,

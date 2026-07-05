@@ -81,6 +81,7 @@ async def explain(
         idempotency_key=request.headers.get("idempotency-key"),
         force_refresh=payload.force_refresh,
         quality_mode=payload.quality_mode,
+        is_admin=current_user["is_admin"],
     )
     return _streaming_response(prepared)
 
@@ -105,6 +106,7 @@ async def sql_review(
         idempotency_key=request.headers.get("idempotency-key"),
         force_refresh=payload.force_refresh,
         quality_mode=payload.quality_mode,
+        is_admin=current_user["is_admin"],
     )
     return _streaming_response(prepared)
 
@@ -129,13 +131,16 @@ async def study_plan(
         idempotency_key=request.headers.get("idempotency-key"),
         force_refresh=payload.force_refresh,
         quality_mode=payload.quality_mode,
+        is_admin=current_user["is_admin"],
     )
     return _streaming_response(prepared)
 
 
 @router.get("/usage")
 def usage(current_user: dict = Depends(get_current_user)):
-    return ai_db.get_usage(current_user["user_id"])
+    return ai_db.get_usage(
+        current_user["user_id"], is_admin=current_user["is_admin"]
+    )
 
 
 @router.post("/feedback", status_code=204)

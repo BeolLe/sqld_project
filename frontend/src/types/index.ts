@@ -260,6 +260,7 @@ export interface AIUsageBucket {
   used: number;
   limit: number;
   remaining: number;
+  unlimited?: boolean;
 }
 
 export interface AIUsageResponse {

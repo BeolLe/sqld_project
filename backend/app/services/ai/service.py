@@ -36,9 +36,10 @@ class PreparedRequest:
     cache_scope: str
     cache_ttl_seconds: int
     request_id: str
-    usage: dict[str, int] | None
+    usage: dict[str, Any] | None
     cached_text: str | None
     owns_slot: bool
+    quota_exempt: bool = False
 
 
 def _sse(payload: dict[str, Any]) -> str:
@@ -127,6 +128,7 @@ class AIService:
         idempotency_key: str | None,
         force_refresh: bool,
         quality_mode: str,
+        is_admin: bool = False,
     ) -> PreparedRequest:
         context = redact_secrets(await run_in_threadpool(context_builder))
         if quality_mode == "standard":
@@ -135,6 +137,7 @@ class AIService:
             route = await run_in_threadpool(ai_db.resolve_model_route, user_id, use_case)
         if route["provider"] == "anthropic" and not settings.ANTHROPIC_API_KEY:
             route = await run_in_threadpool(ai_db.resolve_free_model_route, use_case)
+        quota_exempt = is_admin and route["provider"] == "google"
         estimated_input_tokens = estimate_tokens(SYSTEM_PROMPTS[use_case], context)
         if estimated_input_tokens > route["input_token_limit"]:
             raise HTTPException(status_code=413, detail="AI_INPUT_TOKEN_LIMIT")
@@ -194,6 +197,7 @@ class AIService:
                     "systemPrompt": SYSTEM_PROMPTS[use_case],
                     "data": context,
                 },
+                quota_exempt=quota_exempt,
             )
         except ValueError as exc:
             if (
@@ -201,6 +205,7 @@ class AIService:
                 and route["plan_code"] != "free"
             ):
                 route = await run_in_threadpool(ai_db.resolve_free_model_route, use_case)
+                quota_exempt = is_admin and route["provider"] == "google"
                 cache_material = "|".join(
                     [
                         owner,
@@ -252,6 +257,7 @@ class AIService:
                             "systemPrompt": SYSTEM_PROMPTS[use_case],
                             "data": context,
                         },
+                        quota_exempt=quota_exempt,
                     )
                 except BaseException:
                     await self._release_slot(user_id)
@@ -269,6 +275,7 @@ class AIService:
             user_id, use_case, source_type, source_id, route, context,
             client_request, cache_key, context_hash, cache_scope,
             cache_ttl_seconds, request_id, usage, None, True,
+            quota_exempt,
         )
 
     async def stream(self, prepared: PreparedRequest) -> AsyncIterator[str]:
@@ -351,6 +358,7 @@ class AIService:
                 stop_reason=provider_usage.stop_reason,
                 provider_latency_ms=provider_latency_ms,
                 total_latency_ms=total_latency_ms,
+                quota_exempt=prepared.quota_exempt,
             )
             await run_in_threadpool(
                 ai_db.save_cache,
@@ -372,7 +380,7 @@ class AIService:
                     "requestId": prepared.request_id,
                     "cacheHit": False,
                     "modelTier": prepared.route["model_tier"],
-                    "usageCharged": True,
+                    "usageCharged": not prepared.quota_exempt,
                     "usage": {
                         "input": provider_usage.input_tokens or 0,
                         "output": provider_usage.output_tokens or 0,
@@ -399,6 +407,7 @@ class AIService:
                 error_code="CLIENT_DISCONNECTED",
                 error_detail="SSE client disconnected",
                 response_text="".join(response_parts),
+                quota_exempt=prepared.quota_exempt,
             )
             raise
         except (httpx.TimeoutException, TimeoutError) as exc:
@@ -411,6 +420,7 @@ class AIService:
                 error_code="AI_PROVIDER_TIMEOUT",
                 error_detail=_sanitize_error(exc),
                 response_text="".join(response_parts),
+                quota_exempt=prepared.quota_exempt,
             )
             yield _sse({"type": "error", "code": "AI_PROVIDER_TIMEOUT", "message": "AI 응답 시간이 초과되었습니다."})
         except Exception as exc:
@@ -423,6 +433,7 @@ class AIService:
                 error_code="AI_PROVIDER_FAILED",
                 error_detail=_sanitize_error(exc),
                 response_text="".join(response_parts),
+                quota_exempt=prepared.quota_exempt,
             )
             yield _sse({"type": "error", "code": "AI_PROVIDER_FAILED", "message": "AI 응답 생성에 실패했습니다."})
         finally:

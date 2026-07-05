@@ -24,11 +24,14 @@ function EndlessWrongItemAI({
 
   const remaining = usage?.explain.remaining;
   const limit = usage?.explain.limit;
-  const isExhausted = remaining === 0;
+  const unlimited = usage?.explain.unlimited === true;
+  const isExhausted = !unlimited && remaining === 0;
 
   const buttonLabel =
     usage != null
-      ? `AI 맞춤 해설 보기 (${remaining}/${limit})`
+      ? unlimited
+        ? 'AI 맞춤 해설 보기 (관리자 무제한)'
+        : `AI 맞춤 해설 보기 (${remaining}/${limit})`
       : 'AI 맞춤 해설 보기';
 
   const handleClick = () => {
