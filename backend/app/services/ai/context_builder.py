@@ -27,14 +27,15 @@ def build_explanation_context(
                         ) AS problem_id,
                         question.question_text,
                         question.choice_payload AS options,
-                        answer.selected_choice AS user_answer,
+                        COALESCE(answer.selected_choice, '미답변') AS user_answer,
                         answer_key.correct_answer,
                         answer_key.explanation
                     FROM exam.exam_attempts AS attempt
-                    JOIN exam.exam_attempt_answers AS answer
-                      ON answer.attempt_id = attempt.id
                     JOIN exam.exam_questions AS question
-                      ON question.id = answer.question_id
+                      ON question.exam_id = attempt.exam_id
+                    LEFT JOIN exam.exam_attempt_answers AS answer
+                      ON answer.attempt_id = attempt.id
+                     AND answer.question_id = question.id
                     JOIN exam.answer_keys AS answer_key
                       ON answer_key.question_id = question.id
                     WHERE attempt.id = %s::bigint
@@ -75,7 +76,10 @@ def build_explanation_context(
                 raise HTTPException(status_code=422, detail="unsupported explanation source")
             row = cur.fetchone()
     if not row:
-        raise HTTPException(status_code=404, detail="AI explanation source not found")
+        raise HTTPException(
+            status_code=404,
+            detail="해당 응시 기록 또는 문제를 찾을 수 없습니다.",
+        )
     return {"source": source, **dict(row)}
 
 
