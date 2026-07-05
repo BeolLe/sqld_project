@@ -237,6 +237,7 @@ def save_endless_answer(
                     difficulty
                 )
                 VALUES (%s::uuid, %s, %s, %s, %s, %s)
+                RETURNING id
                 """,
                 (
                     current_user["user_id"],
@@ -247,6 +248,7 @@ def save_endless_answer(
                     difficulty,
                 ),
             )
+            answer_id = cur.fetchone()["id"]
             cur.execute(
                 """
                 INSERT INTO dashboard.user_stats (
@@ -298,6 +300,7 @@ def save_endless_answer(
 
     return {
         **stats,
+        "answerId": answer_id,
         "isCorrect": is_correct,
         "awardedPoints": awarded_points,
         "totalPoints": total_points,

@@ -9,6 +9,7 @@ import { useAIUsage } from '../contexts/AIUsageContext';
 import { logEvent } from '../utils/eventLogger';
 
 interface ResultState {
+  attemptId: number;
   score: number;
   answers: Record<string, string>;
   problems: Problem[];
@@ -16,9 +17,9 @@ interface ResultState {
   failedBySubjectCutoff?: boolean;
 }
 
-function WrongItemAI({ problem, userAnswer }: { problem: Problem; userAnswer: string }) {
+function WrongItemAI({ problem, userAnswer, attemptId }: { problem: Problem; userAnswer: string; attemptId: number }) {
   const { status, text, usage: streamUsage, error, start, retry } = useAIStream();
-  const { usage, applyUsage } = useAIUsage();
+  const { usage, refreshUsage } = useAIUsage();
 
   const remaining = usage?.explain.remaining;
   const limit = usage?.explain.limit;
@@ -32,6 +33,7 @@ function WrongItemAI({ problem, userAnswer }: { problem: Problem; userAnswer: st
   const handleClick = () => {
     if (isExhausted || status === 'streaming') return;
     const body: AIExplainRequest = {
+      attempt_id: String(attemptId),
       problem_id: problem.id,
       user_answer: userAnswer || '미답변',
       correct_answer: problem.answer,
@@ -61,7 +63,7 @@ function WrongItemAI({ problem, userAnswer }: { problem: Problem; userAnswer: st
           input: streamUsage.input,
           output: streamUsage.output,
         });
-        applyUsage(streamUsage);
+        void refreshUsage();
       }
     }
     if (status === 'error' && prevStatus !== 'error') {
@@ -197,7 +199,11 @@ export default function ExamResultPage() {
                     <p className="mt-2 text-slate-600 leading-relaxed border-l-2 border-primary-300 pl-3">
                       {problem.explanation}
                     </p>
-                    <WrongItemAI problem={problem} userAnswer={answers[problem.id]} />
+                    <WrongItemAI
+                      problem={problem}
+                      userAnswer={answers[problem.id]}
+                      attemptId={state.attemptId}
+                    />
                   </div>
                 </li>
               ))}

@@ -13,12 +13,14 @@ import { logEvent } from '../utils/eventLogger';
 function EndlessWrongItemAI({
   problem,
   userAnswer,
+  attemptId,
 }: {
   problem: Problem;
   userAnswer: string;
+  attemptId: number;
 }) {
   const { status, text, usage: streamUsage, error, start, retry } = useAIStream();
-  const { usage, applyUsage } = useAIUsage();
+  const { usage, refreshUsage } = useAIUsage();
 
   const remaining = usage?.explain.remaining;
   const limit = usage?.explain.limit;
@@ -32,6 +34,7 @@ function EndlessWrongItemAI({
   const handleClick = () => {
     if (isExhausted || status === 'streaming') return;
     const body: AIExplainRequest = {
+      attempt_id: String(attemptId),
       problem_id: problem.id,
       user_answer: userAnswer || '미답변',
       correct_answer: problem.answer,
@@ -60,7 +63,7 @@ function EndlessWrongItemAI({
           input: streamUsage.input,
           output: streamUsage.output,
         });
-        applyUsage(streamUsage);
+        void refreshUsage();
       }
     }
     if (status === 'error' && prevStatus !== 'error') {
@@ -111,6 +114,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
   const [queue, setQueue] = useState<Problem[]>(() => shuffleArray(problems));
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [answerId, setAnswerId] = useState<number | null>(null);
   const [totalAnswered, setTotalAnswered] = useState(0);
   const [totalCorrect, setTotalCorrect] = useState(0);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -167,6 +171,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
           difficulty: problem.difficulty,
         });
         setSelectedAnswer(option);
+        setAnswerId(stats.answerId ?? null);
         setTotalAnswered(stats.totalAnswered ?? 0);
         setTotalCorrect(stats.totalCorrect ?? 0);
         if (typeof stats.totalPoints === 'number') {
@@ -190,6 +195,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
       setCurrentIndex(nextIndex);
     }
     setSelectedAnswer(null);
+    setAnswerId(null);
   }, [currentIndex, queue.length, problems]);
 
   const handleReset = useCallback(async () => {
@@ -197,6 +203,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
     setQueue(shuffleArray(problems));
     setCurrentIndex(0);
     setSelectedAnswer(null);
+    setAnswerId(null);
 
     try {
       const stats = await resetEndlessStats();
@@ -373,10 +380,11 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
                   {isCorrect ? '정답입니다!' : `오답 — 정답은 ${problem.answer}번`}
                 </p>
                 <p className="text-sm text-slate-700 leading-relaxed">{problem.explanation}</p>
-                {!isCorrect && selectedAnswer !== null && (
+                {!isCorrect && selectedAnswer !== null && answerId !== null && (
                   <EndlessWrongItemAI
                     problem={problem}
                     userAnswer={selectedAnswer}
+                    attemptId={answerId}
                   />
                 )}
               </div>

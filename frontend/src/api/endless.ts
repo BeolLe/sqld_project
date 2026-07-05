@@ -25,6 +25,7 @@ export interface EndlessStatsResponse {
   totalPoints?: number | null;
   awardedPoints?: number;
   isCorrect?: boolean;
+  answerId?: number;
   byCategory: Record<string, { answered: number; correct: number; rate: number }>;
   byDifficulty: Record<string, { answered: number; correct: number; rate: number }>;
 }

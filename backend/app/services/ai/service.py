@@ -268,6 +268,7 @@ class AIService:
                     "cacheHit": True,
                     "modelTier": prepared.route["model_tier"],
                     "usageCharged": False,
+                    "usage": {"input": 0, "output": 0},
                 }
             )
             return
@@ -339,6 +340,10 @@ class AIService:
                     "modelTier": prepared.route["model_tier"],
                     "usageCharged": True,
                     "usage": {
+                        "input": provider_usage.input_tokens,
+                        "output": provider_usage.output_tokens,
+                    },
+                    "quota": {
                         **usage,
                         "remaining": max(usage["limit"] - usage["used"] - usage["reserved"], 0),
                     },
@@ -367,7 +372,7 @@ class AIService:
                 error_detail=_sanitize_error(exc),
                 response_text="".join(response_parts),
             )
-            yield _sse({"type": "error", "code": "AI_PROVIDER_TIMEOUT"})
+            yield _sse({"type": "error", "code": "AI_PROVIDER_TIMEOUT", "message": "AI 응답 시간이 초과되었습니다."})
         except Exception as exc:
             await run_in_threadpool(
                 ai_db.fail_request,
@@ -379,7 +384,7 @@ class AIService:
                 error_detail=_sanitize_error(exc),
                 response_text="".join(response_parts),
             )
-            yield _sse({"type": "error", "code": "AI_PROVIDER_FAILED"})
+            yield _sse({"type": "error", "code": "AI_PROVIDER_FAILED", "message": "AI 응답 생성에 실패했습니다."})
         finally:
             if prepared.owns_slot:
                 await self._release_slot(prepared.user_id)

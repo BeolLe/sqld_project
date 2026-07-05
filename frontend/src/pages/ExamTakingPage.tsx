@@ -180,6 +180,7 @@ export default function ExamTakingPage() {
 
       navigate(`/exams/${id}/result`, {
         state: {
+          attemptId: result.attemptId,
           score: result.score,
           answers: result.answers,
           problems: result.problems,
