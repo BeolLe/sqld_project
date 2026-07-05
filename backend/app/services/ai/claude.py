@@ -32,9 +32,13 @@ class ClaudeProvider:
         if not settings.ANTHROPIC_API_KEY:
             raise RuntimeError("ANTHROPIC_API_KEY is not configured")
 
+        system_block = {"type": "text", "text": request.system_prompt}
+        if request.cache_system_prompt:
+            system_block["cache_control"] = {"type": "ephemeral"}
+
         payload = {
             "model": request.model,
-            "system": request.system_prompt,
+            "system": [system_block],
             "messages": [
                 {
                     "role": "user",
@@ -69,16 +73,28 @@ class ClaudeProvider:
                     continue
                 data = json.loads(line[5:].strip())
                 if event_type == "message_start":
-                    usage.input_tokens = (data.get("message", {}).get("usage") or {}).get(
-                        "input_tokens"
+                    message_usage = data.get("message", {}).get("usage") or {}
+                    usage.input_tokens = message_usage.get("input_tokens")
+                    usage.cache_creation_input_tokens = int(
+                        message_usage.get("cache_creation_input_tokens") or 0
+                    )
+                    usage.cache_read_input_tokens = int(
+                        message_usage.get("cache_read_input_tokens") or 0
                     )
                 elif event_type == "content_block_delta":
                     token = (data.get("delta") or {}).get("text")
                     if token:
                         yield str(token)
                 elif event_type == "message_delta":
-                    usage.output_tokens = (data.get("usage") or {}).get("output_tokens")
-                    usage.raw = data.get("usage") or {}
+                    message_usage = data.get("usage") or {}
+                    usage.output_tokens = message_usage.get("output_tokens")
+                    usage.stop_reason = (data.get("delta") or {}).get("stop_reason")
+                    usage.raw = {
+                        **message_usage,
+                        "cache_creation_input_tokens": usage.cache_creation_input_tokens,
+                        "cache_read_input_tokens": usage.cache_read_input_tokens,
+                        "stop_reason": usage.stop_reason,
+                    }
 
     async def close(self) -> None:
         if self._client is not None:

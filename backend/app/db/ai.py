@@ -35,7 +35,10 @@ def resolve_model_route(user_id: str, use_case: str) -> dict[str, Any]:
                     model.provider_model_id,
                     model.provider,
                     model.model_code,
-                    model.model_tier
+                    model.model_tier,
+                    route.input_token_limit,
+                    route.max_output_tokens,
+                    route.provider_cache_enabled
                 FROM ai.model_routes AS route
                 JOIN ai.provider_models AS model
                   ON model.provider_model_id = route.provider_model_id
@@ -62,6 +65,9 @@ def resolve_model_route(user_id: str, use_case: str) -> dict[str, Any]:
         "provider": row[4],
         "model": row[5],
         "model_tier": row[6],
+        "input_token_limit": row[7],
+        "max_output_tokens": row[8],
+        "provider_cache_enabled": row[9],
     }
 
 
@@ -73,7 +79,9 @@ def resolve_free_model_route(use_case: str) -> dict[str, Any]:
                 SELECT
                     route.route_id, route.plan_code, route.daily_limit,
                     model.provider_model_id, model.provider,
-                    model.model_code, model.model_tier
+                    model.model_code, model.model_tier,
+                    route.input_token_limit, route.max_output_tokens,
+                    route.provider_cache_enabled
                 FROM ai.model_routes AS route
                 JOIN ai.provider_models AS model
                   ON model.provider_model_id = route.provider_model_id
@@ -92,7 +100,8 @@ def resolve_free_model_route(use_case: str) -> dict[str, Any]:
     return {
         "route_id": row[0], "plan_code": row[1], "daily_limit": row[2],
         "provider_model_id": row[3], "provider": row[4], "model": row[5],
-        "model_tier": row[6],
+        "model_tier": row[6], "input_token_limit": row[7],
+        "max_output_tokens": row[8], "provider_cache_enabled": row[9],
     }
 
 
@@ -253,6 +262,10 @@ def complete_request(
     provider_response: dict[str, Any],
     input_tokens: int | None,
     output_tokens: int | None,
+    cache_creation_input_tokens: int,
+    cache_read_input_tokens: int,
+    first_token_latency_ms: int | None,
+    stop_reason: str | None,
     provider_latency_ms: int,
     total_latency_ms: int,
 ) -> dict[str, int]:
@@ -287,6 +300,9 @@ def complete_request(
                 """
                 UPDATE ai.requests
                 SET status = 'succeeded', input_tokens = %s, output_tokens = %s,
+                    cache_creation_input_tokens = %s,
+                    cache_read_input_tokens = %s,
+                    first_token_latency_ms = %s, stop_reason = %s,
                     provider_latency_ms = %s, total_latency_ms = %s,
                     completed_at = now(), updated_at = now()
                 WHERE request_id = %s::uuid
@@ -294,6 +310,10 @@ def complete_request(
                 (
                     input_tokens,
                     output_tokens,
+                    cache_creation_input_tokens,
+                    cache_read_input_tokens,
+                    first_token_latency_ms,
+                    stop_reason,
                     provider_latency_ms,
                     total_latency_ms,
                     request_id,

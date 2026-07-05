@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS ai.model_routes (
     provider_model_id BIGINT NOT NULL
         REFERENCES ai.provider_models(provider_model_id),
     daily_limit INTEGER NOT NULL CHECK (daily_limit >= 0),
+    input_token_limit INTEGER NOT NULL DEFAULT 6000 CHECK (input_token_limit > 0),
+    max_output_tokens INTEGER NOT NULL DEFAULT 900 CHECK (max_output_tokens > 0),
+    provider_cache_enabled BOOLEAN NOT NULL DEFAULT true,
     priority INTEGER NOT NULL DEFAULT 100,
     is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -96,6 +99,10 @@ CREATE TABLE IF NOT EXISTS ai.requests (
     cache_hit BOOLEAN NOT NULL DEFAULT false,
     input_tokens INTEGER NULL CHECK (input_tokens IS NULL OR input_tokens >= 0),
     output_tokens INTEGER NULL CHECK (output_tokens IS NULL OR output_tokens >= 0),
+    cache_creation_input_tokens INTEGER NOT NULL DEFAULT 0 CHECK (cache_creation_input_tokens >= 0),
+    cache_read_input_tokens INTEGER NOT NULL DEFAULT 0 CHECK (cache_read_input_tokens >= 0),
+    first_token_latency_ms INTEGER NULL CHECK (first_token_latency_ms IS NULL OR first_token_latency_ms >= 0),
+    stop_reason TEXT NULL,
     provider_latency_ms INTEGER NULL CHECK (
         provider_latency_ms IS NULL OR provider_latency_ms >= 0
     ),
@@ -210,9 +217,13 @@ ON CONFLICT (provider, model_code) DO UPDATE SET
     updated_at = now();
 
 INSERT INTO ai.model_routes (
-    plan_code, use_case, provider_model_id, daily_limit, priority
+    plan_code, use_case, provider_model_id, daily_limit,
+    input_token_limit, max_output_tokens, provider_cache_enabled, priority
 )
-SELECT 'free', use_case, models.provider_model_id, 3, 100
+SELECT 'free', use_case, models.provider_model_id, 3,
+    CASE use_case WHEN 'sql_review' THEN 8000 ELSE 6000 END,
+    CASE use_case WHEN 'sql_review' THEN 1100 ELSE 900 END,
+    true, 100
 FROM ai.provider_models AS models
 CROSS JOIN (VALUES ('explanation'), ('sql_review'), ('study_plan')) AS cases(use_case)
 WHERE models.provider = 'google'
@@ -220,13 +231,24 @@ WHERE models.provider = 'google'
 ON CONFLICT (plan_code, use_case, priority) DO UPDATE SET
     provider_model_id = EXCLUDED.provider_model_id,
     daily_limit = EXCLUDED.daily_limit,
+    input_token_limit = EXCLUDED.input_token_limit,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    provider_cache_enabled = EXCLUDED.provider_cache_enabled,
     is_active = true,
     updated_at = now();
 
 INSERT INTO ai.model_routes (
-    plan_code, use_case, provider_model_id, daily_limit, priority
+    plan_code, use_case, provider_model_id, daily_limit,
+    input_token_limit, max_output_tokens, provider_cache_enabled, priority
 )
-SELECT 'premium', use_case, models.provider_model_id, 30, 100
+SELECT 'premium', use_case, models.provider_model_id, 30,
+    CASE use_case WHEN 'sql_review' THEN 8000 ELSE 6000 END,
+    CASE use_case
+        WHEN 'explanation' THEN 1200
+        WHEN 'sql_review' THEN 1600
+        ELSE 1200
+    END,
+    false, 100
 FROM ai.provider_models AS models
 CROSS JOIN (VALUES ('explanation'), ('sql_review'), ('study_plan')) AS cases(use_case)
 WHERE models.provider = 'anthropic'
@@ -234,6 +256,9 @@ WHERE models.provider = 'anthropic'
 ON CONFLICT (plan_code, use_case, priority) DO UPDATE SET
     provider_model_id = EXCLUDED.provider_model_id,
     daily_limit = EXCLUDED.daily_limit,
+    input_token_limit = EXCLUDED.input_token_limit,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    provider_cache_enabled = EXCLUDED.provider_cache_enabled,
     is_active = true,
     updated_at = now();
 

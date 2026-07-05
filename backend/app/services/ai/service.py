@@ -19,6 +19,7 @@ from app.services.ai.claude import ClaudeProvider
 from app.services.ai.gemini import GeminiProvider
 from app.services.ai.prompts import SYSTEM_PROMPTS
 from app.services.ai.provider import AIProviderRequest, AIProviderUsage
+from app.services.ai.security import estimate_tokens, redact_secrets
 
 
 @dataclass(slots=True)
@@ -61,7 +62,10 @@ class AIService:
         self._semaphore = asyncio.Semaphore(settings.AI_MAX_CONCURRENT_REQUESTS)
         self._active_users: set[str] = set()
         self._active_users_lock = asyncio.Lock()
-        self._provider_request_times: deque[float] = deque()
+        self._provider_request_times: dict[str, deque[float]] = {
+            "google": deque(),
+            "anthropic": deque(),
+        }
         self._provider_rate_lock = asyncio.Lock()
 
     async def close(self) -> None:
@@ -86,22 +90,28 @@ class AIService:
         async with self._active_users_lock:
             self._active_users.discard(user_id)
 
-    async def _reserve_provider_rate(self) -> None:
+    async def _reserve_provider_rate(self, provider: str) -> None:
         now = monotonic()
+        request_times = self._provider_request_times.setdefault(provider, deque())
+        limit = (
+            settings.AI_ANTHROPIC_RPM_LIMIT
+            if provider == "anthropic"
+            else settings.AI_GEMINI_RPM_LIMIT
+        )
         async with self._provider_rate_lock:
-            while self._provider_request_times and now - self._provider_request_times[0] >= 60:
-                self._provider_request_times.popleft()
-            if len(self._provider_request_times) >= settings.AI_PROVIDER_RPM_LIMIT:
+            while request_times and now - request_times[0] >= 60:
+                request_times.popleft()
+            if len(request_times) >= limit:
                 retry_after = max(
                     1,
-                    round(60 - (now - self._provider_request_times[0])),
+                    round(60 - (now - request_times[0])),
                 )
                 raise HTTPException(
                     status_code=429,
                     detail="AI_PROVIDER_RATE_LIMIT",
                     headers={"Retry-After": str(retry_after)},
                 )
-            self._provider_request_times.append(now)
+            request_times.append(now)
 
     async def prepare(
         self,
@@ -118,13 +128,16 @@ class AIService:
         force_refresh: bool,
         quality_mode: str,
     ) -> PreparedRequest:
-        context = await run_in_threadpool(context_builder)
+        context = redact_secrets(await run_in_threadpool(context_builder))
         if quality_mode == "standard":
             route = await run_in_threadpool(ai_db.resolve_free_model_route, use_case)
         else:
             route = await run_in_threadpool(ai_db.resolve_model_route, user_id, use_case)
         if route["provider"] == "anthropic" and not settings.ANTHROPIC_API_KEY:
             route = await run_in_threadpool(ai_db.resolve_free_model_route, use_case)
+        estimated_input_tokens = estimate_tokens(SYSTEM_PROMPTS[use_case], context)
+        if estimated_input_tokens > route["input_token_limit"]:
+            raise HTTPException(status_code=413, detail="AI_INPUT_TOKEN_LIMIT")
         context_json = json.dumps(context, ensure_ascii=False, sort_keys=True, default=str)
         context_hash = hashlib.sha256(context_json.encode()).hexdigest()
         owner = user_id if cache_scope == "user" else "shared"
@@ -167,7 +180,7 @@ class AIService:
 
         await self._acquire_slot(user_id)
         try:
-            await self._reserve_provider_rate()
+            await self._reserve_provider_rate(route["provider"])
             request_id, usage = await run_in_threadpool(
                 ai_db.create_request_and_reserve,
                 user_id=user_id,
@@ -279,6 +292,7 @@ class AIService:
 
         started = monotonic()
         provider_started = monotonic()
+        first_token_latency_ms: int | None = None
         response_parts: list[str] = []
         provider_usage = AIProviderUsage()
         try:
@@ -286,7 +300,15 @@ class AIService:
                 model=prepared.route["model"],
                 system_prompt=SYSTEM_PROMPTS[prepared.use_case],
                 context=prepared.context,
-                max_output_tokens=settings.AI_MAX_OUTPUT_TOKENS,
+                max_output_tokens=min(
+                    prepared.route["max_output_tokens"],
+                    settings.AI_MAX_OUTPUT_TOKENS,
+                ),
+                cache_system_prompt=(
+                    prepared.route["provider"] == "anthropic"
+                    and prepared.route["provider_cache_enabled"]
+                    and settings.AI_CLAUDE_PROMPT_CACHE_ENABLED
+                ),
             )
             await run_in_threadpool(
                 ai_db.mark_provider_requested,
@@ -297,9 +319,17 @@ class AIService:
                     "systemPrompt": request.system_prompt,
                     "context": request.context,
                     "maxOutputTokens": request.max_output_tokens,
+                    "estimatedInputTokens": estimate_tokens(
+                        request.system_prompt, request.context
+                    ),
+                    "providerCacheEnabled": request.cache_system_prompt,
                 },
             )
             async for token in provider.stream(request, provider_usage):
+                if first_token_latency_ms is None:
+                    first_token_latency_ms = round(
+                        (monotonic() - provider_started) * 1000
+                    )
                 response_parts.append(token)
                 yield _sse({"type": "token", "content": token})
 
@@ -315,6 +345,10 @@ class AIService:
                 provider_response=provider_usage.raw,
                 input_tokens=provider_usage.input_tokens,
                 output_tokens=provider_usage.output_tokens,
+                cache_creation_input_tokens=provider_usage.cache_creation_input_tokens,
+                cache_read_input_tokens=provider_usage.cache_read_input_tokens,
+                first_token_latency_ms=first_token_latency_ms,
+                stop_reason=provider_usage.stop_reason,
                 provider_latency_ms=provider_latency_ms,
                 total_latency_ms=total_latency_ms,
             )
@@ -340,8 +374,14 @@ class AIService:
                     "modelTier": prepared.route["model_tier"],
                     "usageCharged": True,
                     "usage": {
-                        "input": provider_usage.input_tokens,
-                        "output": provider_usage.output_tokens,
+                        "input": provider_usage.input_tokens or 0,
+                        "output": provider_usage.output_tokens or 0,
+                        "cacheCreationInput": provider_usage.cache_creation_input_tokens,
+                        "cacheReadInput": provider_usage.cache_read_input_tokens,
+                    },
+                    "performance": {
+                        "firstTokenLatencyMs": first_token_latency_ms,
+                        "stopReason": provider_usage.stop_reason,
                     },
                     "quota": {
                         **usage,

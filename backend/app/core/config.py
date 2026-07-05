@@ -86,10 +86,22 @@ class Settings:
         os.getenv("AI_MAX_CONCURRENT_REQUESTS", "15")
     )
     AI_PROVIDER_RPM_LIMIT = int(os.getenv("AI_PROVIDER_RPM_LIMIT", "15"))
+    AI_GEMINI_RPM_LIMIT = int(
+        os.getenv("AI_GEMINI_RPM_LIMIT", str(AI_PROVIDER_RPM_LIMIT))
+    )
+    AI_ANTHROPIC_RPM_LIMIT = int(
+        os.getenv("AI_ANTHROPIC_RPM_LIMIT", str(AI_PROVIDER_RPM_LIMIT))
+    )
     AI_PROVIDER_TIMEOUT_SECONDS = float(
         os.getenv("AI_PROVIDER_TIMEOUT_SECONDS", "60")
     )
-    AI_MAX_OUTPUT_TOKENS = int(os.getenv("AI_MAX_OUTPUT_TOKENS", "1200"))
+    AI_MAX_OUTPUT_TOKENS = int(os.getenv("AI_MAX_OUTPUT_TOKENS", "1600"))
+    AI_DEFAULT_INPUT_TOKEN_LIMIT = int(
+        os.getenv("AI_DEFAULT_INPUT_TOKEN_LIMIT", "6000")
+    )
+    AI_CLAUDE_PROMPT_CACHE_ENABLED = (
+        os.getenv("AI_CLAUDE_PROMPT_CACHE_ENABLED", "false").lower() == "true"
+    )
     AI_SHARED_CACHE_TTL_SECONDS = int(
         os.getenv("AI_SHARED_CACHE_TTL_SECONDS", "3600")
     )

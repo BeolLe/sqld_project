@@ -15,6 +15,9 @@ ROUTE = {
     "provider": "google",
     "model": "gemini-3.1-flash-lite",
     "model_tier": "standard",
+    "input_token_limit": 6000,
+    "max_output_tokens": 900,
+    "provider_cache_enabled": True,
 }
 
 

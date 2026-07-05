@@ -283,7 +283,14 @@ export interface AIExplainRequest {
 
 export type AIStreamEvent =
   | { type: 'token'; content: string }
-  | { type: 'done'; usage: { input: number; output: number } }
+  | {
+      type: 'done';
+      requestId: string;
+      cacheHit: boolean;
+      modelTier: string;
+      usageCharged: boolean;
+      usage: { input: number; output: number };
+    }
   | { type: 'error'; message: string };
 
 // ─── UI 상태 타입 ────────────────────────────────────────────────────────────

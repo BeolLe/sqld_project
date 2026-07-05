@@ -82,8 +82,13 @@ class GeminiProvider:
                 if usage_metadata:
                     usage.input_tokens = usage_metadata.get("promptTokenCount")
                     usage.output_tokens = usage_metadata.get("candidatesTokenCount")
+                    usage.cache_read_input_tokens = int(
+                        usage_metadata.get("cachedContentTokenCount") or 0
+                    )
                     usage.raw = usage_metadata
                 for candidate in data.get("candidates") or []:
+                    if candidate.get("finishReason"):
+                        usage.stop_reason = str(candidate["finishReason"])
                     content = candidate.get("content") or {}
                     for part in content.get("parts") or []:
                         token = part.get("text")

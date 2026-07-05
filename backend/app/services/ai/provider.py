@@ -11,12 +11,16 @@ class AIProviderRequest:
     system_prompt: str
     context: dict[str, Any]
     max_output_tokens: int
+    cache_system_prompt: bool = False
 
 
 @dataclass(slots=True)
 class AIProviderUsage:
     input_tokens: int | None = None
     output_tokens: int | None = None
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
+    stop_reason: str | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
 

@@ -11,13 +11,48 @@ export async function fetchAIUsage(): Promise<AIUsageResponse> {
       reset_at: '2026-07-05T00:00:00+09:00',
     };
   }
-  return apiFetch<AIUsageResponse>('/ai/usage');
+  const response = await apiFetch<{
+    items: Array<{
+      useCase: 'explanation' | 'sql_review' | 'study_plan';
+      used: number;
+      limit: number;
+      remaining: number;
+    }>;
+    planType: string;
+  }>('/ai/usage');
+  const usage = Object.fromEntries(
+    response.items.map((item) => [item.useCase, item]),
+  );
+  const empty = { used: 0, limit: 0, remaining: 0 };
+  return {
+    explain: usage.explanation ?? empty,
+    sql_review: usage.sql_review ?? empty,
+    study_plan: usage.study_plan ?? empty,
+    plan_type: response.planType,
+    reset_at: new Date().toISOString(),
+  };
 }
 
 export interface AIStreamHandlers {
   onToken: (t: string) => void;
   onDone: (u: { input: number; output: number }) => void;
   onError: (m: string) => void;
+  onDoneEvent?: (event: AIStreamDoneEvent) => void;
+}
+
+export interface AIStreamDoneEvent {
+  type: 'done';
+  requestId: string;
+  cacheHit: boolean;
+  modelTier: string;
+  usageCharged: boolean;
+  usage: {
+    input: number;
+    output: number;
+    cacheCreationInput?: number;
+    cacheReadInput?: number;
+  };
+  performance?: { firstTokenLatencyMs: number | null; stopReason: string | null };
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -63,9 +98,18 @@ export async function streamAIExplain(
     return mockStream(body, handlers, signal);
   }
 
+  return streamAIRequest('/ai/explain', body, handlers, signal);
+}
+
+export async function streamAIRequest(
+  path: '/ai/explain' | '/ai/sql-review' | '/ai/study-plan',
+  body: object,
+  handlers: AIStreamHandlers,
+  signal: AbortSignal,
+): Promise<void> {
   let res: Response;
   try {
-    res = await apiRequest('/ai/explain', {
+    res = await apiRequest(path, {
       method: 'POST',
       body: JSON.stringify(body),
       signal,
@@ -115,7 +159,9 @@ export async function streamAIExplain(
           if (event.type === 'token') {
             handlers.onToken(event.content);
           } else if (event.type === 'done') {
-            handlers.onDone(event.usage);
+            const doneEvent = event as AIStreamDoneEvent;
+            handlers.onDone(doneEvent.usage);
+            handlers.onDoneEvent?.(doneEvent);
           } else if (event.type === 'error') {
             handlers.onError(event.message);
           }
