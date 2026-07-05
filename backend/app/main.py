@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from app.api.auth.router import router as auth_router, validate_csrf_request
+from app.api.ai.router import router as ai_router
 from app.api.content.router import router as content_router
 from app.api.dashboard.router import router as dashboard_router
 from app.api.endless.router import router as endless_router
@@ -13,6 +14,7 @@ from app.api.sql.router import router as sql_router
 from app.api.feedback.router import router as feedback_router
 from app.db.oracle import check_oracle, close_oracle_pool, init_oracle_pool
 from app.db.postgres import check_postgres, close_postgres_pool, init_postgres_pool
+from app.services.ai import ai_service
 
 
 @asynccontextmanager
@@ -22,6 +24,7 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
+        await ai_service.close()
         close_oracle_pool()
         close_postgres_pool()
 
@@ -41,6 +44,7 @@ async def csrf_guard_middleware(request, call_next):
 
 
 app.include_router(auth_router)
+app.include_router(ai_router)
 app.include_router(dashboard_router)
 app.include_router(content_router)
 app.include_router(endless_router)

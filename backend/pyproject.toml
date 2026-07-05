@@ -13,4 +13,5 @@ dependencies = [
     "pwdlib[argon2]",
     "PyJWT",
     "email-validator",
+    "httpx>=0.28.1",
 ]

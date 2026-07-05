@@ -64,6 +64,42 @@ class Settings:
         os.getenv("SQL_EXECUTION_SLOW_ALERT_THRESHOLD_MS", "10000")
     )
 
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_API_BASE_URL = os.getenv(
+        "GEMINI_API_BASE_URL",
+        "https://generativelanguage.googleapis.com/v1beta",
+    ).rstrip("/")
+    GEMINI_DEFAULT_MODEL = os.getenv(
+        "GEMINI_DEFAULT_MODEL",
+        "gemini-3.1-flash-lite",
+    )
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+    ANTHROPIC_API_BASE_URL = os.getenv(
+        "ANTHROPIC_API_BASE_URL",
+        "https://api.anthropic.com/v1",
+    ).rstrip("/")
+    ANTHROPIC_DEFAULT_MODEL = os.getenv(
+        "ANTHROPIC_DEFAULT_MODEL",
+        "claude-haiku-4-5",
+    )
+    AI_MAX_CONCURRENT_REQUESTS = int(
+        os.getenv("AI_MAX_CONCURRENT_REQUESTS", "15")
+    )
+    AI_PROVIDER_RPM_LIMIT = int(os.getenv("AI_PROVIDER_RPM_LIMIT", "15"))
+    AI_PROVIDER_TIMEOUT_SECONDS = float(
+        os.getenv("AI_PROVIDER_TIMEOUT_SECONDS", "60")
+    )
+    AI_MAX_OUTPUT_TOKENS = int(os.getenv("AI_MAX_OUTPUT_TOKENS", "1200"))
+    AI_SHARED_CACHE_TTL_SECONDS = int(
+        os.getenv("AI_SHARED_CACHE_TTL_SECONDS", "3600")
+    )
+    AI_USER_CACHE_TTL_SECONDS = int(
+        os.getenv("AI_USER_CACHE_TTL_SECONDS", "3600")
+    )
+    AI_STUDY_PLAN_CACHE_TTL_SECONDS = int(
+        os.getenv("AI_STUDY_PLAN_CACHE_TTL_SECONDS", "86400")
+    )
+
     SMTP_HOST = os.getenv("SMTP_HOST", "")
     SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
