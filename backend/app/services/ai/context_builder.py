@@ -56,12 +56,12 @@ def build_explanation_context(
                         COALESCE(answer_key.answer_commentary, problem.explanation) AS explanation
                     FROM logs.endless_answers AS answer
                     JOIN endless.problems AS problem
-                      ON problem.problem_id::text = answer.problem_id
+                      ON problem.source_problem_id = answer.problem_id
                     JOIN endless.problem_answer_keys AS answer_key
                       ON answer_key.problem_id = problem.problem_id
                     WHERE answer.id = %s::bigint
                       AND answer.user_id = %s::uuid
-                      AND problem.problem_id::text = %s
+                      AND problem.source_problem_id = %s
                     """,
                     (attempt_id, user_id, problem_id),
                 )
