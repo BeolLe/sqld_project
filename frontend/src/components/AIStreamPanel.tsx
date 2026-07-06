@@ -11,6 +11,22 @@ interface AIStreamPanelProps {
   onRetry: () => void;
 }
 
+/**
+ * CommonMark 규칙상 **강조** 내용이 따옴표/괄호 등 구두점으로 끝나고
+ * 뒤에 공백 없이 글자(주로 한글 조사)가 바로 붙으면 닫는 델리미터로
+ * 인식되지 않아 별표(**)가 그대로 노출된다. 구두점과 닫는 ** 사이에
+ * 폭 없는 공백(zero-width space)을 넣어 우회한다.
+ */
+const ZERO_WIDTH_SPACE = '\u200B';
+
+function normalizeMarkdownEmphasis(text: string): string {
+  return text.replace(
+    /\*\*([^\n*]+?)\*\*/g,
+    (match, inner: string) =>
+      /[\p{P}\p{S}]$/u.test(inner) ? `**${inner}${ZERO_WIDTH_SPACE}**` : match,
+  );
+}
+
 const markdownComponents: Components = {
   h3: ({ children }) => (
     <h3 className="text-sm font-bold text-slate-800 mt-3 mb-1.5 first:mt-0">{children}</h3>
@@ -19,7 +35,7 @@ const markdownComponents: Components = {
     <p className="text-[13px] text-slate-700 leading-[1.8] mb-2">{children}</p>
   ),
   strong: ({ children }) => (
-    <strong className="font-semibold text-slate-800">{children}</strong>
+    <strong className="font-bold text-primary-700">{children}</strong>
   ),
   code: ({ className, children }) => {
     const isBlock = /language-/.test(className ?? '');
@@ -73,7 +89,7 @@ export default function AIStreamPanel({ status, text, error, onRetry }: AIStream
         {(status === 'streaming' || status === 'done') && text && (
           <div>
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {text}
+              {normalizeMarkdownEmphasis(text)}
             </ReactMarkdown>
             {status === 'streaming' && (
               <span className="inline-block w-0.5 h-3.5 bg-primary-500 animate-pulse ml-0.5" />
