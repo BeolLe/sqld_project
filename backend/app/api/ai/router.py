@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 class ExplanationRequest(BaseModel):
     source: Literal["exam", "endless"]
-    attempt_id: str
+    attempt_id: str | None = None
     problem_id: str
     force_refresh: bool = False
     quality_mode: Literal["auto", "standard", "premium"] = "auto"

@@ -9,7 +9,7 @@ import { useAIUsage } from '../contexts/AIUsageContext';
 import { logEvent } from '../utils/eventLogger';
 
 interface ResultState {
-  attemptId: number;
+  attemptId?: number;
   score: number;
   answers: Record<string, string>;
   problems: Problem[];
@@ -17,7 +17,7 @@ interface ResultState {
   failedBySubjectCutoff?: boolean;
 }
 
-function WrongItemAI({ problem, userAnswer, attemptId }: { problem: Problem; userAnswer: string; attemptId: number }) {
+function WrongItemAI({ problem, userAnswer, attemptId }: { problem: Problem; userAnswer: string; attemptId?: number }) {
   const { status, text, usage: streamUsage, error, start, retry } = useAIStream();
   const { usage, refreshUsage } = useAIUsage();
 
@@ -36,7 +36,7 @@ function WrongItemAI({ problem, userAnswer, attemptId }: { problem: Problem; use
   const handleClick = () => {
     if (isExhausted || status === 'streaming') return;
     const body: AIExplainRequest = {
-      attempt_id: String(attemptId),
+      attempt_id: attemptId == null ? null : String(attemptId),
       problem_id: problem.id,
       user_answer: userAnswer || '미답변',
       correct_answer: problem.answer,

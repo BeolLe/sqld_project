@@ -272,7 +272,7 @@ export interface AIUsageResponse {
 }
 
 export interface AIExplainRequest {
-  attempt_id: string;
+  attempt_id?: string | null;
   problem_id: string;
   user_answer: string;
   correct_answer: string;

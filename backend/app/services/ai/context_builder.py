@@ -13,11 +13,19 @@ from app.db.postgres import get_connection
 
 
 def build_explanation_context(
-    *, user_id: str, source: str, attempt_id: str, problem_id: str
+    *, user_id: str, source: str, attempt_id: str | None, problem_id: str
 ) -> dict[str, Any]:
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             if source == "exam":
+                normalized_attempt_id = None
+                if attempt_id and attempt_id.lower() not in {"undefined", "null"}:
+                    if not attempt_id.isdigit():
+                        raise HTTPException(
+                            status_code=422,
+                            detail="응시 기록 ID 형식이 올바르지 않습니다.",
+                        )
+                    normalized_attempt_id = int(attempt_id)
                 cur.execute(
                     """
                     SELECT
@@ -38,14 +46,21 @@ def build_explanation_context(
                      AND answer.question_id = question.id
                     JOIN exam.answer_keys AS answer_key
                       ON answer_key.question_id = question.id
-                    WHERE attempt.id = %s::bigint
+                    WHERE (%s::bigint IS NULL OR attempt.id = %s::bigint)
                       AND attempt.user_id = %s::uuid
                       AND COALESCE(
                           question.question_payload->>'source_id',
                           'exam_q_' || question.question_no::text
                       ) = %s
+                    ORDER BY attempt.submitted_at DESC NULLS LAST, attempt.id DESC
+                    LIMIT 1
                     """,
-                    (attempt_id, user_id, problem_id),
+                    (
+                        normalized_attempt_id,
+                        normalized_attempt_id,
+                        user_id,
+                        problem_id,
+                    ),
                 )
             elif source == "endless":
                 cur.execute(
