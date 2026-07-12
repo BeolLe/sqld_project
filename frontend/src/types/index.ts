@@ -92,7 +92,10 @@ export type EventType =
   // AI
   | 'ai_explain_requested'
   | 'ai_explain_completed'
-  | 'ai_explain_failed';
+  | 'ai_explain_failed'
+  | 'ai_sql_review_requested'
+  | 'ai_sql_review_completed'
+  | 'ai_sql_review_failed';
 
 export interface EventLog {
   id: string;
@@ -280,6 +283,13 @@ export interface AIExplainRequest {
   options: string[];
   explanation: string;
   source: 'exam' | 'endless';
+}
+
+export interface AISQLReviewRequest {
+  problem_id: string;
+  user_query: string;
+  is_correct: boolean;
+  problem_description: string;
 }
 
 export type AIStreamEvent =

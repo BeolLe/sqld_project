@@ -19,14 +19,18 @@ import {
 } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import ReportErrorModal from '../components/ReportErrorModal';
+import AIStreamPanel from '../components/AIStreamPanel';
 import { sql } from '@codemirror/lang-sql';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { keymap } from '@codemirror/view';
 import { logEvent } from '../utils/eventLogger';
 import { useAuth } from '../contexts/AuthContext';
-import type { SQLResult, Difficulty } from '../types';
+import { useAIStream } from '../hooks/useAIStream';
+import { useAIUsage } from '../contexts/AIUsageContext';
+import type { SQLResult, Difficulty, AISQLReviewRequest } from '../types';
 import { parseDDL, parseInserts } from '../utils/sqlParser';
 import { fetchSQLPractice } from '../api/content';
+import { streamAISQLReview } from '../api/ai';
 import { getColumnDescription } from '../constants/columnDescriptions';
 import { apiRequest } from '../utils/api';
 
@@ -196,6 +200,7 @@ export default function SQLPracticePage() {
   const [result, setResult] = useState<SQLResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitResult, setSubmitResult] = useState<'correct' | 'wrong' | null>(null);
+  const [submitSeq, setSubmitSeq] = useState(0);
   const [exitTarget, setExitTarget] = useState<string | null>(null);
   const [executeError, setExecuteError] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
@@ -292,6 +297,7 @@ export default function SQLPracticePage() {
         );
       }
       setSubmitResult(isCorrect ? 'correct' : 'wrong');
+      setSubmitSeq((n) => n + 1);
     } catch (caughtError) {
       setResult(null);
       setSubmitResult(null);
@@ -711,7 +717,7 @@ export default function SQLPracticePage() {
       {/* 제출 결과 모달 */}
       {submitResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             {/* 헤더 */}
             <div
               className={`px-6 py-5 flex items-center gap-3 ${
@@ -792,6 +798,14 @@ export default function SQLPracticePage() {
               </div>
             )}
 
+            {/* AI 쿼리 리뷰 */}
+            <SQLReviewAI
+              key={submitSeq}
+              problem={problem}
+              query={query}
+              isCorrect={submitResult === 'correct'}
+            />
+
             {/* 닫기 버튼 */}
             <div className="px-6 py-4 border-t border-slate-100 flex justify-end">
               <button
@@ -850,6 +864,100 @@ export default function SQLPracticePage() {
 }
 
 // ─── 헬퍼 컴포넌트 ───────────────────────────────────────────────────────
+
+/** AI 쿼리 리뷰 — 제출 결과 모달 내 섹션 */
+function SQLReviewAI({
+  problem,
+  query,
+  isCorrect,
+}: {
+  problem: { id: string; description: string };
+  query: string;
+  isCorrect: boolean;
+}) {
+  const { status, text, usage: streamUsage, error, start, retry } = useAIStream<AISQLReviewRequest>(
+    streamAISQLReview
+  );
+  const { usage, refreshUsage } = useAIUsage();
+
+  const remaining = usage?.sql_review.remaining;
+  const limit = usage?.sql_review.limit;
+  const unlimited = usage?.sql_review.unlimited === true;
+  const isExhausted = !unlimited && remaining === 0;
+
+  const buttonLabel =
+    usage != null
+      ? unlimited
+        ? 'AI 쿼리 리뷰 받기 (관리자 무제한)'
+        : `AI 쿼리 리뷰 받기 (${remaining}/${limit})`
+      : 'AI 쿼리 리뷰 받기';
+
+  const handleClick = () => {
+    if (isExhausted || status === 'streaming') return;
+    const body: AISQLReviewRequest = {
+      problem_id: problem.id,
+      user_query: query,
+      is_correct: isCorrect,
+      problem_description: problem.description,
+    };
+    start(body);
+    logEvent('ai_sql_review_requested', {
+      problem_id: problem.id,
+      is_correct: isCorrect,
+      remaining: usage?.sql_review.remaining ?? null,
+    });
+  };
+
+  // 완료/실패 시 이벤트 로깅 및 사용량 새로고침 (전환 1회만 감지)
+  const prevStatusRef = useRef<typeof status>('idle');
+  useEffect(() => {
+    const prevStatus = prevStatusRef.current;
+    prevStatusRef.current = status;
+    if (status === 'done' && prevStatus !== 'done') {
+      if (streamUsage) {
+        logEvent('ai_sql_review_completed', {
+          problem_id: problem.id,
+          is_correct: isCorrect,
+          input: streamUsage.input,
+          output: streamUsage.output,
+        });
+        void refreshUsage();
+      }
+    }
+    if (status === 'error' && prevStatus !== 'error') {
+      logEvent('ai_sql_review_failed', {
+        problem_id: problem.id,
+        is_correct: isCorrect,
+        error_message: error,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  return (
+    <div className="px-6 py-4 border-t border-slate-100">
+      <button
+        onClick={handleClick}
+        disabled={isExhausted || status === 'streaming'}
+        title={isExhausted ? '일일 한도 초과' : undefined}
+        className="w-full justify-center inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-gradient-to-br from-primary-500 to-violet-500 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        🔍 {buttonLabel}
+      </button>
+      {status !== 'idle' && (
+        <AIStreamPanel
+          status={status}
+          text={text}
+          error={error}
+          onRetry={retry}
+          title="AI 쿼리 리뷰"
+          icon="📝"
+          tone={isCorrect ? 'blue' : 'red'}
+        />
+      )}
+    </div>
+  );
+}
 
 /** 섹션 라벨 */
 function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
