@@ -465,6 +465,7 @@ class AIService:
         try:
             await self._reserve_provider_rate(provider_name)
             usage = AIProviderUsage()
+            yield _sse({"type": "sample", "sample": context.get("admin_sample_meta")})
             request = AIProviderRequest(
                 model=(
                     settings.ANTHROPIC_DEFAULT_MODEL
@@ -499,6 +500,7 @@ class AIService:
                     },
                     "provider": provider_name,
                     "model": request.model,
+                    "sample": context.get("admin_sample_meta"),
                 }
             )
         except (httpx.TimeoutException, TimeoutError):

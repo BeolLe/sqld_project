@@ -4,6 +4,7 @@ import type {
   AIExplainRequest,
   AISQLReviewRequest,
   AIAdminProviderTestRequest,
+  AIAdminSampleMeta,
   AIStreamEvent,
 } from '../types';
 
@@ -44,6 +45,7 @@ export interface AIStreamHandlers {
   onToken: (t: string) => void;
   onDone: (u: { input: number; output: number }) => void;
   onError: (m: string) => void;
+  onSample?: (sample: AIAdminSampleMeta | null) => void;
   onDoneEvent?: (event: AIStreamDoneEvent) => void;
 }
 
@@ -60,6 +62,7 @@ export interface AIStreamDoneEvent {
     cacheReadInput?: number;
   };
   performance?: { firstTokenLatencyMs: number | null; stopReason: string | null };
+  sample?: AIAdminSampleMeta | null;
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -229,6 +232,8 @@ export async function streamAIRequest(
           const event = JSON.parse(jsonStr) as AIStreamEvent;
           if (event.type === 'token') {
             handlers.onToken(event.content);
+          } else if (event.type === 'sample') {
+            handlers.onSample?.(event.sample);
           } else if (event.type === 'done') {
             const doneEvent = event as AIStreamDoneEvent;
             handlers.onDone(doneEvent.usage);

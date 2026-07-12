@@ -7,7 +7,7 @@ import { useAIStream } from '../hooks/useAIStream';
 import { streamAIAdminProviderTest } from '../api/ai';
 import AdminFeedbackPage from './AdminFeedbackPage';
 import AdminUsersPage from './AdminUsersPage';
-import type { AIAdminProviderTestRequest } from '../types';
+import type { AIAdminProviderTestRequest, AIAdminSampleMeta } from '../types';
 
 type AdminTab = 'feedback' | 'users' | 'ai_test';
 
@@ -77,6 +77,17 @@ export default function AdminPage() {
 function AdminAITestPage() {
   const [sampleType, setSampleType] = useState<AIAdminProviderTestRequest['sample_type']>('exam');
   const [scenario, setScenario] = useState<AIAdminProviderTestRequest['scenario']>('wrong');
+  const [sampleSeed, setSampleSeed] = useState(() => crypto.randomUUID());
+
+  const handleSampleTypeChange = (value: AIAdminProviderTestRequest['sample_type']) => {
+    setSampleType(value);
+    setSampleSeed(crypto.randomUUID());
+  };
+
+  const handleScenarioChange = (value: AIAdminProviderTestRequest['scenario']) => {
+    setScenario(value);
+    setSampleSeed(crypto.randomUUID());
+  };
 
   return (
     <div className="space-y-4">
@@ -91,7 +102,7 @@ function AdminAITestPage() {
             <select
               value={sampleType}
               onChange={(event) =>
-                setSampleType(event.target.value as AIAdminProviderTestRequest['sample_type'])
+                handleSampleTypeChange(event.target.value as AIAdminProviderTestRequest['sample_type'])
               }
               className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
             >
@@ -105,7 +116,7 @@ function AdminAITestPage() {
             <select
               value={scenario}
               onChange={(event) =>
-                setScenario(event.target.value as AIAdminProviderTestRequest['scenario'])
+                handleScenarioChange(event.target.value as AIAdminProviderTestRequest['scenario'])
               }
               className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
             >
@@ -114,6 +125,12 @@ function AdminAITestPage() {
             </select>
           </label>
         </div>
+        <button
+          onClick={() => setSampleSeed(crypto.randomUUID())}
+          className="mt-4 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+        >
+          랜덤 문제 다시 뽑기
+        </button>
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -121,6 +138,7 @@ function AdminAITestPage() {
           provider="google"
           sampleType={sampleType}
           scenario={scenario}
+          sampleSeed={sampleSeed}
           title="Gemini 연결 테스트"
           description="무료 모델 연결, SSE 스트리밍, 기본 응답 품질을 확인합니다."
           buttonLabel="Gemini 테스트"
@@ -130,6 +148,7 @@ function AdminAITestPage() {
           provider="anthropic"
           sampleType={sampleType}
           scenario={scenario}
+          sampleSeed={sampleSeed}
           title="Claude 연결 테스트"
           description="유료 모델 키 주입, Anthropic API 호출, 응답 품질을 확인합니다."
           buttonLabel="Claude 테스트"
@@ -144,6 +163,7 @@ function ProviderTestCard({
   provider,
   sampleType,
   scenario,
+  sampleSeed,
   title,
   description,
   buttonLabel,
@@ -152,17 +172,18 @@ function ProviderTestCard({
   provider: AIAdminProviderTestRequest['provider'];
   sampleType: AIAdminProviderTestRequest['sample_type'];
   scenario: AIAdminProviderTestRequest['scenario'];
+  sampleSeed: string;
   title: string;
   description: string;
   buttonLabel: string;
   tone: 'blue' | 'red';
 }) {
-  const { status, text, usage, error, start, retry } =
+  const { status, text, usage, error, sample, start, retry } =
     useAIStream<AIAdminProviderTestRequest>(streamAIAdminProviderTest);
 
   const handleClick = () => {
     if (status === 'streaming') return;
-    start({ provider, sample_type: sampleType, scenario });
+    start({ provider, sample_type: sampleType, scenario, sample_seed: sampleSeed });
   };
 
   return (
@@ -178,6 +199,7 @@ function ProviderTestCard({
       >
         {status === 'streaming' ? '호출 중...' : buttonLabel}
       </button>
+      {sample && <AdminSamplePreview sample={sample} />}
       {status !== 'idle' && (
         <AIStreamPanel
           status={status}
@@ -197,5 +219,36 @@ function ProviderTestCard({
         </div>
       )}
     </section>
+  );
+}
+
+function AdminSamplePreview({ sample }: { sample: AIAdminSampleMeta }) {
+  const questionText = sample.questionText?.trim();
+  const preview =
+    questionText && questionText.length > 180
+      ? `${questionText.slice(0, 180)}...`
+      : questionText;
+
+  return (
+    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-white px-2 py-0.5 font-semibold text-slate-700">
+          {sample.sampleType === 'sql'
+            ? 'SQL 실습'
+            : sample.sampleType === 'endless'
+              ? '무한풀이'
+              : '모의고사'}
+        </span>
+        <span className="rounded-full bg-white px-2 py-0.5 font-semibold text-slate-700">
+          {sample.scenario === 'unanswered' ? '응답 없음' : '오답'}
+        </span>
+      </div>
+      <p className="font-semibold text-sqld-navy">{sample.title || sample.problemId || '랜덤 샘플'}</p>
+      {preview && <p className="mt-1 leading-relaxed">{preview}</p>}
+      <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-500">
+        {sample.userAnswer && <span>가정 응답: {sample.userAnswer}</span>}
+        {sample.correctAnswer && <span>정답: {sample.correctAnswer}</span>}
+      </div>
+    </div>
   );
 }

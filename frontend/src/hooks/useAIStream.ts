@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { streamAIExplain } from '../api/ai';
 import type { AIStreamHandlers } from '../api/ai';
-import type { AIExplainRequest } from '../types';
+import type { AIAdminSampleMeta, AIExplainRequest } from '../types';
 
 export type AIStreamStatus = 'idle' | 'streaming' | 'done' | 'error';
 
@@ -10,6 +10,7 @@ interface AIStreamState {
   text: string;
   usage: { input: number; output: number } | null;
   error: string | null;
+  sample: AIAdminSampleMeta | null;
 }
 
 type StreamFn<TBody> = (body: TBody, handlers: AIStreamHandlers, signal: AbortSignal) => Promise<void>;
@@ -27,6 +28,7 @@ export function useAIStream<TBody = AIExplainRequest>(
   const [text, setText] = useState('');
   const [usage, setUsage] = useState<{ input: number; output: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sample, setSample] = useState<AIAdminSampleMeta | null>(null);
 
   const controllerRef = useRef<AbortController | null>(null);
   const lastBodyRef = useRef<TBody | null>(null);
@@ -43,6 +45,7 @@ export function useAIStream<TBody = AIExplainRequest>(
     setText('');
     setError(null);
     setUsage(null);
+    setSample(null);
     setStatus('streaming');
 
     lastBodyRef.current = body;
@@ -54,6 +57,7 @@ export function useAIStream<TBody = AIExplainRequest>(
       body,
       {
         onToken: (t) => setText((prev) => prev + t),
+        onSample: (nextSample) => setSample(nextSample),
         onDone: (u) => {
           setUsage(u);
           setStatus('done');
@@ -81,5 +85,5 @@ export function useAIStream<TBody = AIExplainRequest>(
     };
   }, []);
 
-  return { status, text, usage, error, start, abort, retry };
+  return { status, text, usage, error, sample, start, abort, retry };
 }

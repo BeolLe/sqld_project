@@ -293,10 +293,22 @@ export interface AIAdminProviderTestRequest {
   provider: 'google' | 'anthropic';
   sample_type: 'exam' | 'endless' | 'sql';
   scenario: 'wrong' | 'unanswered';
+  sample_seed: string;
+}
+
+export interface AIAdminSampleMeta {
+  sampleType: AIAdminProviderTestRequest['sample_type'];
+  scenario: AIAdminProviderTestRequest['scenario'];
+  problemId?: string | null;
+  title?: string | null;
+  questionText?: string | null;
+  userAnswer?: string | null;
+  correctAnswer?: string | null;
 }
 
 export type AIStreamEvent =
   | { type: 'token'; content: string }
+  | { type: 'sample'; sample: AIAdminSampleMeta | null }
   | {
       type: 'done';
       requestId: string;
@@ -304,6 +316,7 @@ export type AIStreamEvent =
       modelTier: string;
       usageCharged: boolean;
       usage: { input: number; output: number };
+      sample?: AIAdminSampleMeta | null;
     }
   | { type: 'error'; message: string };
 

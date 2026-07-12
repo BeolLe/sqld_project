@@ -25,8 +25,27 @@ def _build_simulated_answer(
     return "오답"
 
 
+def _build_sample_meta(
+    *,
+    sample_type: str,
+    scenario: str,
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "sampleType": sample_type,
+        "scenario": scenario,
+        "problemId": context.get("problem_id") or context.get("practice_code"),
+        "title": context.get("title") or context.get("practice_code") or context.get("problem_id"),
+        "questionText": context.get("question_text")
+        or context.get("description")
+        or context.get("prompt_text"),
+        "userAnswer": context.get("user_answer") or context.get("user_query"),
+        "correctAnswer": context.get("correct_answer"),
+    }
+
+
 def build_admin_provider_test_context(
-    *, sample_type: str, scenario: str
+    *, sample_type: str, scenario: str, sample_seed: str
 ) -> tuple[str, dict[str, Any]]:
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
@@ -45,9 +64,10 @@ def build_admin_provider_test_context(
                     FROM exam.exam_questions q
                     JOIN exam.answer_keys ak
                       ON ak.question_id = q.id
-                    ORDER BY random()
+                    ORDER BY md5(q.id::text || %s)
                     LIMIT 1
-                    """
+                    """,
+                    (sample_seed,),
                 )
                 row = cur.fetchone()
                 if not row:
@@ -59,6 +79,11 @@ def build_admin_provider_test_context(
                     options=context.get("options"),
                     correct_answer=context.get("correct_answer"),
                     scenario=scenario,
+                )
+                context["admin_sample_meta"] = _build_sample_meta(
+                    sample_type=sample_type,
+                    scenario=scenario,
+                    context=context,
                 )
                 return "explanation", context
 
@@ -85,9 +110,10 @@ def build_admin_provider_test_context(
                         ak.correct_answer,
                         ak.answer_commentary,
                         p.explanation
-                    ORDER BY random()
+                    ORDER BY md5(p.problem_id::text || %s)
                     LIMIT 1
-                    """
+                    """,
+                    (sample_seed,),
                 )
                 row = cur.fetchone()
                 if not row:
@@ -99,6 +125,11 @@ def build_admin_provider_test_context(
                     options=context.get("options"),
                     correct_answer=context.get("correct_answer"),
                     scenario=scenario,
+                )
+                context["admin_sample_meta"] = _build_sample_meta(
+                    sample_type=sample_type,
+                    scenario=scenario,
+                    context=context,
                 )
                 return "explanation", context
 
@@ -115,9 +146,10 @@ def build_admin_provider_test_context(
                         answer_payload
                     FROM practice.sql_practices
                     WHERE is_active = true
-                    ORDER BY random()
+                    ORDER BY md5(id::text || %s)
                     LIMIT 1
-                    """
+                    """,
+                    (sample_seed,),
                 )
                 row = cur.fetchone()
                 if not row:
@@ -144,6 +176,11 @@ def build_admin_provider_test_context(
                             }
                         },
                     }
+                )
+                context["admin_sample_meta"] = _build_sample_meta(
+                    sample_type=sample_type,
+                    scenario=scenario,
+                    context=context,
                 )
                 return "sql_review", context
 

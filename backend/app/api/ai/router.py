@@ -51,6 +51,7 @@ class AdminProviderTestRequest(BaseModel):
     provider: Literal["google", "anthropic"]
     sample_type: Literal["exam", "endless", "sql"] = "exam"
     scenario: Literal["wrong", "unanswered"] = "wrong"
+    sample_seed: str = Field(default="default", max_length=80)
 
 
 def _streaming_response(prepared) -> StreamingResponse:
@@ -153,6 +154,7 @@ async def admin_provider_test(
     use_case, context = build_admin_provider_test_context(
         sample_type=payload.sample_type,
         scenario=payload.scenario,
+        sample_seed=payload.sample_seed,
     )
     return StreamingResponse(
         ai_service.stream_admin_provider_test(
