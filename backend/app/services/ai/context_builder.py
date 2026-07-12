@@ -12,6 +12,144 @@ from app.api.dashboard.router import (
 from app.db.postgres import get_connection
 
 
+def _build_simulated_answer(
+    *, options: Any, correct_answer: Any, scenario: str
+) -> str:
+    if scenario == "unanswered":
+        return "미답변"
+    if isinstance(options, list) and options:
+        correct = str(correct_answer)
+        for index in range(1, len(options) + 1):
+            if str(index) != correct:
+                return str(index)
+    return "오답"
+
+
+def build_admin_provider_test_context(
+    *, sample_type: str, scenario: str
+) -> tuple[str, dict[str, Any]]:
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            if sample_type == "exam":
+                cur.execute(
+                    """
+                    SELECT
+                        COALESCE(
+                            q.question_payload->>'source_id',
+                            'exam_q_' || q.question_no::text
+                        ) AS problem_id,
+                        q.question_text,
+                        q.choice_payload AS options,
+                        ak.correct_answer,
+                        ak.explanation
+                    FROM exam.exam_questions q
+                    JOIN exam.answer_keys ak
+                      ON ak.question_id = q.id
+                    ORDER BY random()
+                    LIMIT 1
+                    """
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="exam sample not found")
+                context = dict(row)
+                context["source"] = "admin_exam_sample"
+                context["scenario"] = scenario
+                context["user_answer"] = _build_simulated_answer(
+                    options=context.get("options"),
+                    correct_answer=context.get("correct_answer"),
+                    scenario=scenario,
+                )
+                return "explanation", context
+
+            if sample_type == "endless":
+                cur.execute(
+                    """
+                    SELECT
+                        p.source_problem_id AS problem_id,
+                        COALESCE(p.title, p.description) AS question_text,
+                        ARRAY_AGG(pc.choice_text ORDER BY pc.choice_no) AS options,
+                        ak.correct_answer,
+                        COALESCE(ak.answer_commentary, p.explanation) AS explanation
+                    FROM endless.problems p
+                    JOIN endless.problem_answer_keys ak
+                      ON ak.problem_id = p.problem_id
+                    JOIN endless.problem_choices pc
+                      ON pc.problem_id = p.problem_id
+                    WHERE p.is_active = TRUE
+                    GROUP BY
+                        p.problem_id,
+                        p.source_problem_id,
+                        p.title,
+                        p.description,
+                        ak.correct_answer,
+                        ak.answer_commentary,
+                        p.explanation
+                    ORDER BY random()
+                    LIMIT 1
+                    """
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="endless sample not found")
+                context = dict(row)
+                context["source"] = "admin_endless_sample"
+                context["scenario"] = scenario
+                context["user_answer"] = _build_simulated_answer(
+                    options=context.get("options"),
+                    correct_answer=context.get("correct_answer"),
+                    scenario=scenario,
+                )
+                return "explanation", context
+
+            if sample_type == "sql":
+                cur.execute(
+                    """
+                    SELECT
+                        practice_code,
+                        title,
+                        description,
+                        prompt_text,
+                        prompt_payload,
+                        expected_answer,
+                        answer_payload
+                    FROM practice.sql_practices
+                    WHERE is_active = true
+                    ORDER BY random()
+                    LIMIT 1
+                    """
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="sql sample not found")
+                context = dict(row)
+                context.update(
+                    {
+                        "source": "admin_sql_sample",
+                        "scenario": scenario,
+                        "attempt_id": "admin-sample",
+                        "user_query": (
+                            "응답 없음"
+                            if scenario == "unanswered"
+                            else "-- 관리자 테스트용 오답 SQL\nSELECT 1 FROM dual"
+                        ),
+                        "is_correct": False,
+                        "result_payload": {
+                            "grading": {
+                                "reason": (
+                                    "unanswered"
+                                    if scenario == "unanswered"
+                                    else "admin_test_wrong_answer"
+                                )
+                            }
+                        },
+                    }
+                )
+                return "sql_review", context
+
+    raise HTTPException(status_code=422, detail="unsupported admin test sample type")
+
+
 def build_explanation_context(
     *, user_id: str, source: str, attempt_id: str | None, problem_id: str
 ) -> dict[str, Any]:

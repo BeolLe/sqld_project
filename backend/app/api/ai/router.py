@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.db import ai as ai_db
 from app.services.ai import ai_service
 from app.services.ai.context_builder import (
+    build_admin_provider_test_context,
     build_explanation_context,
     build_sql_review_context,
     build_study_plan_context,
@@ -48,6 +49,8 @@ class FeedbackRequest(BaseModel):
 
 class AdminProviderTestRequest(BaseModel):
     provider: Literal["google", "anthropic"]
+    sample_type: Literal["exam", "endless", "sql"] = "exam"
+    scenario: Literal["wrong", "unanswered"] = "wrong"
 
 
 def _streaming_response(prepared) -> StreamingResponse:
@@ -147,8 +150,16 @@ async def admin_provider_test(
 ):
     if not current_user["is_admin"]:
         raise HTTPException(status_code=403, detail="admin only")
+    use_case, context = build_admin_provider_test_context(
+        sample_type=payload.sample_type,
+        scenario=payload.scenario,
+    )
     return StreamingResponse(
-        ai_service.stream_admin_provider_test(payload.provider),
+        ai_service.stream_admin_provider_test(
+            payload.provider,
+            use_case=use_case,
+            context=context,
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache, no-transform",

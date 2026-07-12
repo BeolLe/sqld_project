@@ -75,34 +75,83 @@ export default function AdminPage() {
 }
 
 function AdminAITestPage() {
+  const [sampleType, setSampleType] = useState<AIAdminProviderTestRequest['sample_type']>('exam');
+  const [scenario, setScenario] = useState<AIAdminProviderTestRequest['scenario']>('wrong');
+
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <ProviderTestCard
-        provider="google"
-        title="Gemini 연결 테스트"
-        description="무료 모델 연결, SSE 스트리밍, 기본 응답 품질을 확인합니다."
-        buttonLabel="Gemini 테스트"
-        tone="blue"
-      />
-      <ProviderTestCard
-        provider="anthropic"
-        title="Claude 연결 테스트"
-        description="유료 모델 키 주입, Anthropic API 호출, 응답 품질을 확인합니다."
-        buttonLabel="Claude 테스트"
-        tone="red"
-      />
+    <div className="space-y-4">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-base font-bold text-sqld-navy">AI 응답 비교 조건</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          랜덤 문제 하나를 가져와 선택한 상황으로 Gemini와 Claude 응답을 비교합니다.
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <label className="text-sm font-semibold text-slate-600">
+            테스트 유형
+            <select
+              value={sampleType}
+              onChange={(event) =>
+                setSampleType(event.target.value as AIAdminProviderTestRequest['sample_type'])
+              }
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+            >
+              <option value="exam">모의고사 오답 해설</option>
+              <option value="endless">무한풀이 오답 해설</option>
+              <option value="sql">SQL 실습 쿼리 리뷰</option>
+            </select>
+          </label>
+          <label className="text-sm font-semibold text-slate-600">
+            테스트 상황
+            <select
+              value={scenario}
+              onChange={(event) =>
+                setScenario(event.target.value as AIAdminProviderTestRequest['scenario'])
+              }
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+            >
+              <option value="wrong">틀린 응답 가정</option>
+              <option value="unanswered">응답 없음 가정</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <ProviderTestCard
+          provider="google"
+          sampleType={sampleType}
+          scenario={scenario}
+          title="Gemini 연결 테스트"
+          description="무료 모델 연결, SSE 스트리밍, 기본 응답 품질을 확인합니다."
+          buttonLabel="Gemini 테스트"
+          tone="blue"
+        />
+        <ProviderTestCard
+          provider="anthropic"
+          sampleType={sampleType}
+          scenario={scenario}
+          title="Claude 연결 테스트"
+          description="유료 모델 키 주입, Anthropic API 호출, 응답 품질을 확인합니다."
+          buttonLabel="Claude 테스트"
+          tone="red"
+        />
+      </div>
     </div>
   );
 }
 
 function ProviderTestCard({
   provider,
+  sampleType,
+  scenario,
   title,
   description,
   buttonLabel,
   tone,
 }: {
   provider: AIAdminProviderTestRequest['provider'];
+  sampleType: AIAdminProviderTestRequest['sample_type'];
+  scenario: AIAdminProviderTestRequest['scenario'];
   title: string;
   description: string;
   buttonLabel: string;
@@ -113,7 +162,7 @@ function ProviderTestCard({
 
   const handleClick = () => {
     if (status === 'streaming') return;
-    start({ provider });
+    start({ provider, sample_type: sampleType, scenario });
   };
 
   return (

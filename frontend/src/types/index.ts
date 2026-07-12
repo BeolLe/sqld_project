@@ -291,6 +291,8 @@ export interface AISQLReviewRequest {
 
 export interface AIAdminProviderTestRequest {
   provider: 'google' | 'anthropic';
+  sample_type: 'exam' | 'endless' | 'sql';
+  scenario: 'wrong' | 'unanswered';
 }
 
 export type AIStreamEvent =
