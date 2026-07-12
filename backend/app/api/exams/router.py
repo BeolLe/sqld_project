@@ -768,3 +768,67 @@ def submit_exam(
         "totalPoints": total_points,
         **result_payload,
     }
+
+
+@router.get("/{exam_id}/result")
+def get_exam_result(exam_id: str, current_user: dict = Depends(get_current_user)):
+    with get_connection() as conn:
+        exam = fetch_exam(conn, exam_id)
+        attempt = get_latest_attempt(
+            conn, exam_id=exam["id"], user_id=current_user["user_id"]
+        )
+        if not attempt or attempt["status"] != "submitted":
+            raise HTTPException(status_code=404, detail="제출된 시험 결과가 없습니다.")
+
+        result_payload = build_result_payload(conn, attempt["id"])
+
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT passed, failed_by_subject_cutoff, score_percent
+                FROM exam.exam_attempt_results
+                WHERE attempt_id = %s
+                """,
+                (attempt["id"],),
+            )
+            stored_result = cur.fetchone()
+
+            cur.execute(
+                """
+                SELECT
+                    rc.client_request->>'problem_id' AS problem_id,
+                    rc.response_text
+                FROM ai.requests r
+                JOIN ai.request_contents rc ON rc.request_id = r.request_id
+                WHERE r.user_id = %s::uuid
+                  AND r.source_type = 'exam'
+                  AND r.source_id = %s
+                  AND r.use_case = 'explanation'
+                  AND r.status IN ('succeeded', 'cache_hit')
+                ORDER BY r.requested_at DESC
+                """,
+                (current_user["user_id"], str(attempt["id"])),
+            )
+            ai_rows = cur.fetchall()
+
+        ai_explanations: dict[str, str] = {}
+        for row in ai_rows:
+            pid = row["problem_id"]
+            if pid and pid not in ai_explanations:
+                ai_explanations[pid] = row["response_text"]
+
+        return {
+            "attemptId": attempt["id"],
+            "score": result_payload["score"],
+            "scorePercent": float(stored_result["score_percent"])
+            if stored_result and stored_result["score_percent"] is not None
+            else 0,
+            "passed": bool(stored_result["passed"]) if stored_result else False,
+            "failedBySubjectCutoff": bool(stored_result["failed_by_subject_cutoff"])
+            if stored_result
+            else False,
+            "answers": result_payload["answers"],
+            "problems": result_payload["problems"],
+            "correctCount": result_payload["correctCount"],
+            "aiExplanations": ai_explanations,
+        }

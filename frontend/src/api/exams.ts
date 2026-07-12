@@ -163,6 +163,22 @@ export function submitExam(
   });
 }
 
+export interface ExamResultResponse {
+  attemptId: number;
+  score: number;
+  scorePercent: number;
+  passed: boolean;
+  failedBySubjectCutoff: boolean;
+  answers: Record<string, string>;
+  problems: Problem[];
+  correctCount: number;
+  aiExplanations: Record<string, string>;
+}
+
+export function fetchExamResult(examId: string): Promise<ExamResultResponse> {
+  return apiFetch<ExamResultResponse>(`/exams/${examId}/result`);
+}
+
 export function fetchExamSchedules(year?: number) {
   const y = year ?? new Date().getFullYear();
   return apiFetch<ExamScheduleResponse>(`/exams/schedules?year=${y}`);
