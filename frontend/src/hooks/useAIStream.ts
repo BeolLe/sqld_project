@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { streamAIExplain } from '../api/ai';
+import type { AIStreamHandlers } from '../api/ai';
 import type { AIExplainRequest } from '../types';
 
 export type AIStreamStatus = 'idle' | 'streaming' | 'done' | 'error';
@@ -11,26 +12,30 @@ interface AIStreamState {
   error: string | null;
 }
 
-interface UseAIStreamReturn extends AIStreamState {
-  start: (body: AIExplainRequest) => void;
+type StreamFn<TBody> = (body: TBody, handlers: AIStreamHandlers, signal: AbortSignal) => Promise<void>;
+
+interface UseAIStreamReturn<TBody> extends AIStreamState {
+  start: (body: TBody) => void;
   abort: () => void;
   retry: () => void;
 }
 
-export function useAIStream(): UseAIStreamReturn {
+export function useAIStream<TBody = AIExplainRequest>(
+  streamFn: StreamFn<TBody> = streamAIExplain as unknown as StreamFn<TBody>,
+): UseAIStreamReturn<TBody> {
   const [status, setStatus] = useState<AIStreamStatus>('idle');
   const [text, setText] = useState('');
   const [usage, setUsage] = useState<{ input: number; output: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const controllerRef = useRef<AbortController | null>(null);
-  const lastBodyRef = useRef<AIExplainRequest | null>(null);
+  const lastBodyRef = useRef<TBody | null>(null);
 
   const abort = useCallback(() => {
     controllerRef.current?.abort();
   }, []);
 
-  const start = useCallback((body: AIExplainRequest) => {
+  const start = useCallback((body: TBody) => {
     // 진행 중인 스트림이 있으면 중단
     controllerRef.current?.abort();
 
@@ -45,7 +50,7 @@ export function useAIStream(): UseAIStreamReturn {
     const controller = new AbortController();
     controllerRef.current = controller;
 
-    void streamAIExplain(
+    void streamFn(
       body,
       {
         onToken: (t) => setText((prev) => prev + t),
@@ -60,7 +65,7 @@ export function useAIStream(): UseAIStreamReturn {
       },
       controller.signal,
     );
-  }, []);
+  }, [streamFn]);
 
   const retry = useCallback(() => {
     const body = lastBodyRef.current;

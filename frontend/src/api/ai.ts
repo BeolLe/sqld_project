@@ -1,5 +1,5 @@
 import { apiFetch, apiRequest } from '../utils/api';
-import type { AIUsageResponse, AIExplainRequest, AIStreamEvent } from '../types';
+import type { AIUsageResponse, AIExplainRequest, AISQLReviewRequest, AIStreamEvent } from '../types';
 
 export async function fetchAIUsage(): Promise<AIUsageResponse> {
   if (import.meta.env.VITE_AI_MOCK === '1') {
@@ -100,6 +100,62 @@ export async function streamAIExplain(
   }
 
   return streamAIRequest('/ai/explain', body, handlers, signal);
+}
+
+async function mockSQLReviewStream(
+  body: AISQLReviewRequest,
+  handlers: AIStreamHandlers,
+  signal: AbortSignal,
+): Promise<void> {
+  const wrongText = [
+    '**▸ 결과 차이 분석:**\n\n',
+    '`GROUP BY`절이 누락되어 집계가 수행되지 않았습니다. ',
+    '문제에서 요구하는 것은 **부서별 평균 급여**인데, ',
+    '현재 쿼리는 개별 사원 데이터를 반환합니다.\n\n',
+    '**▸ 쿼리 효율성:**\n\n',
+    '서브쿼리 대신 `JOIN`을 사용하면 실행 계획이 단순해집니다.\n\n',
+    '**▸ 개선된 쿼리 제안:**\n\n',
+    '```sql\n',
+    'SELECT d.DNAME, AVG(e.SAL) AS avg_sal\n',
+    'FROM EMP e JOIN DEPT d\n',
+    '  ON e.DEPTNO = d.DEPTNO\n',
+    'GROUP BY d.DNAME;\n',
+    '```\n',
+  ];
+
+  const correctText = [
+    '**▸ 쿼리 스타일 평가:**\n\n',
+    '정답이며 가독성이 좋습니다. ',
+    '컬럼 별칭을 사용한 점도 적절합니다.\n\n',
+    '**▸ 효율성 분석:**\n\n',
+    '현재 쿼리에서 `WHERE`절 없이 전체 테이블을 스캔합니다. ',
+    '데이터가 많아지면 `DEPTNO` 인덱스 활용을 고려해보세요.\n\n',
+    '**▸ 대안 쿼리:**\n\n',
+    '`ROUND(AVG(SAL), 0)`을 사용하면 소수점 없이 깔끔하게 출력할 수 있습니다.',
+  ];
+
+  const mockText = body.is_correct ? correctText : wrongText;
+
+  for (const chunk of mockText) {
+    if (signal.aborted) return;
+    handlers.onToken(chunk);
+    await sleep(80);
+  }
+
+  if (!signal.aborted) {
+    handlers.onDone({ input: 1200, output: 600 });
+  }
+}
+
+export async function streamAISQLReview(
+  body: AISQLReviewRequest,
+  handlers: AIStreamHandlers,
+  signal: AbortSignal,
+): Promise<void> {
+  if (import.meta.env.VITE_AI_MOCK === '1') {
+    return mockSQLReviewStream(body, handlers, signal);
+  }
+  return streamAIRequest('/ai/sql-review', body, handlers, signal);
 }
 
 export async function streamAIRequest(

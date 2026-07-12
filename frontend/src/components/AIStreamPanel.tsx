@@ -9,6 +9,9 @@ interface AIStreamPanelProps {
   text: string;
   error: string | null;
   onRetry: () => void;
+  title?: string;
+  icon?: string;
+  tone?: 'blue' | 'red';
 }
 
 /**
@@ -64,13 +67,25 @@ const markdownComponents: Components = {
   li: ({ children }) => <li className="leading-[1.8]">{children}</li>,
 };
 
-export default function AIStreamPanel({ status, text, error, onRetry }: AIStreamPanelProps) {
+export default function AIStreamPanel({
+  status,
+  text,
+  error,
+  onRetry,
+  title = 'AI 맞춤 해설',
+  icon = '🤖',
+  tone = 'blue',
+}: AIStreamPanelProps) {
+  const containerToneClass =
+    tone === 'red' ? 'border-red-200 bg-red-50' : 'border-blue-200 bg-blue-50';
+  const headerBorderToneClass = tone === 'red' ? 'border-red-200' : 'border-blue-200';
+
   return (
-    <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 overflow-hidden animate-fadeIn">
+    <div className={`mt-3 rounded-xl border ${containerToneClass} overflow-hidden animate-fadeIn`}>
       {/* 헤더 */}
-      <div className="px-4 py-2.5 bg-white border-b border-blue-200 flex items-center gap-2">
-        <span className="shrink-0" aria-hidden="true">🤖</span>
-        <span className="text-[13px] font-bold text-sqld-navy">AI 맞춤 해설</span>
+      <div className={`px-4 py-2.5 bg-white border-b ${headerBorderToneClass} flex items-center gap-2`}>
+        <span className="shrink-0" aria-hidden="true">{icon}</span>
+        <span className="text-[13px] font-bold text-sqld-navy">{title}</span>
       </div>
 
       {/* 본문 */}
