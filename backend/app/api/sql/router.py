@@ -250,13 +250,13 @@ def record_sql_submission_and_award_points(
     execution_time_ms: int,
     is_correct: bool | None,
     grading: dict | None,
-) -> tuple[int, int | None]:
+) -> tuple[int, int | None, str | None]:
     if not user_id:
-        return 0, None
+        return 0, None, None
 
     practice = fetch_practice_for_submission(practice_code)
     if not practice:
-        return 0, None
+        return 0, None, None
 
     prompt_payload = practice.get("prompt_payload") or {}
     default_points = 10
@@ -318,6 +318,7 @@ def record_sql_submission_and_award_points(
                     %s,
                     %s
                 )
+                RETURNING id
                 """,
                 (
                     practice["id"],
@@ -328,6 +329,8 @@ def record_sql_submission_and_award_points(
                     is_correct,
                 ),
             )
+            attempt_row = cur.fetchone()
+            attempt_id = str(attempt_row["id"]) if attempt_row else None
 
             if is_correct is True and not already_correct:
                 cur.execute(
@@ -350,7 +353,7 @@ def record_sql_submission_and_award_points(
                 updated_row = cur.fetchone()
                 return awarded_points, (
                     int(updated_row["total_points"]) if updated_row else awarded_points
-                )
+                ), attempt_id
 
             cur.execute(
                 """
@@ -366,7 +369,7 @@ def record_sql_submission_and_award_points(
                 (user_id,),
             )
             updated_row = cur.fetchone()
-            return 0, (int(updated_row["total_points"]) if updated_row else None)
+            return 0, (int(updated_row["total_points"]) if updated_row else None), attempt_id
 
 
 def fetch_latest_submitted_query(*, practice_code: str, user_id: str) -> str | None:
@@ -758,6 +761,7 @@ def execute_sql(
                 grading = None
                 awarded_points = 0
                 total_points = None
+                attempt_id = None
 
                 if action == "submit":
                     expected_result = fetch_expected_result(req.practice_id)
@@ -780,7 +784,7 @@ def execute_sql(
                     timing_marks["gradingCompletedMs"] = round(
                         (time.perf_counter() - started_at) * 1000
                     )
-                    awarded_points, total_points = record_sql_submission_and_award_points(
+                    awarded_points, total_points, attempt_id = record_sql_submission_and_award_points(
                         practice_code=req.practice_id,
                         user_id=user_id,
                         query=query,
@@ -916,6 +920,7 @@ def execute_sql(
                     response["grading"] = grading
                     response["awardedPoints"] = awarded_points
                     response["totalPoints"] = total_points
+                    response["attemptId"] = attempt_id
                     send_amplitude_event(
                         event_type="backend_sql_submit_succeeded",
                         user_id=user_id,

@@ -286,10 +286,11 @@ export interface AIExplainRequest {
 }
 
 export interface AISQLReviewRequest {
-  problem_id: string;
-  user_query: string;
-  is_correct: boolean;
-  problem_description: string;
+  attempt_id: string;
+}
+
+export interface AIAdminProviderTestRequest {
+  provider: 'google' | 'anthropic';
 }
 
 export type AIStreamEvent =
@@ -321,6 +322,7 @@ export interface SQLResult {
   isCorrect?: boolean | null;
   awardedPoints?: number;
   totalPoints?: number | null;
+  attemptId?: string | null;
   grading?: {
     reason?: string;
     comparisonMode?: 'ordered' | 'unordered' | null;

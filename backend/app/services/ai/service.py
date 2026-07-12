@@ -440,5 +440,81 @@ class AIService:
             if prepared.owns_slot:
                 await self._release_slot(prepared.user_id)
 
+    async def stream_admin_provider_test(self, provider_name: str) -> AsyncIterator[str]:
+        provider = self._providers.get(provider_name)
+        if provider is None:
+            yield _sse({"type": "error", "code": "AI_PROVIDER_UNSUPPORTED", "message": "지원하지 않는 AI provider입니다."})
+            return
+        if provider_name == "anthropic" and not settings.ANTHROPIC_API_KEY:
+            yield _sse({"type": "error", "code": "AI_PROVIDER_KEY_MISSING", "message": "ANTHROPIC_API_KEY가 설정되지 않았습니다."})
+            return
+        if provider_name == "google" and not settings.GEMINI_API_KEY:
+            yield _sse({"type": "error", "code": "AI_PROVIDER_KEY_MISSING", "message": "GEMINI_API_KEY가 설정되지 않았습니다."})
+            return
+        if self._semaphore.locked():
+            yield _sse({"type": "error", "code": "AI_CONCURRENCY_LIMIT", "message": "AI 동시 요청 한도에 도달했습니다."})
+            return
+
+        await self._semaphore.acquire()
+        try:
+            await self._reserve_provider_rate(provider_name)
+            usage = AIProviderUsage()
+            request = AIProviderRequest(
+                model=(
+                    settings.ANTHROPIC_DEFAULT_MODEL
+                    if provider_name == "anthropic"
+                    else settings.GEMINI_DEFAULT_MODEL
+                ),
+                system_prompt=(
+                    "당신은 SolSQLD 운영 점검용 AI입니다. "
+                    "제공된 JSON만 보고 한국어로 짧게 응답하세요."
+                ),
+                context={
+                    "purpose": "admin_provider_smoke_test",
+                    "provider": provider_name,
+                    "instructions": [
+                        "연결 성공 여부를 한 문장으로 말하세요.",
+                        "SQLD 학습 보조 응답 품질 비교용으로 2줄 이내 예시를 작성하세요.",
+                    ],
+                    "sample": {
+                        "question": "SELECT 절의 별칭(alias)은 어떤 상황에서 유용한가요?",
+                        "expected_style": "짧고 명확한 한국어 설명",
+                    },
+                },
+                max_output_tokens=300,
+                cache_system_prompt=False,
+            )
+            response_parts: list[str] = []
+            async for token in provider.stream(request, usage):
+                response_parts.append(token)
+                yield _sse({"type": "token", "content": token})
+            yield _sse(
+                {
+                    "type": "done",
+                    "requestId": f"admin-{provider_name}-test",
+                    "cacheHit": False,
+                    "modelTier": "admin_test",
+                    "usageCharged": False,
+                    "usage": {
+                        "input": usage.input_tokens or 0,
+                        "output": usage.output_tokens or 0,
+                        "cacheCreationInput": usage.cache_creation_input_tokens,
+                        "cacheReadInput": usage.cache_read_input_tokens,
+                    },
+                    "performance": {
+                        "firstTokenLatencyMs": None,
+                        "stopReason": usage.stop_reason,
+                    },
+                    "provider": provider_name,
+                    "model": request.model,
+                }
+            )
+        except (httpx.TimeoutException, TimeoutError):
+            yield _sse({"type": "error", "code": "AI_PROVIDER_TIMEOUT", "message": "AI 응답 시간이 초과되었습니다."})
+        except Exception as exc:
+            yield _sse({"type": "error", "code": "AI_PROVIDER_FAILED", "message": _sanitize_error(exc)})
+        finally:
+            self._semaphore.release()
+
 
 ai_service = AIService()

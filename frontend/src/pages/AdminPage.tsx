@@ -1,15 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquare, Users } from 'lucide-react';
+import { Bot, MessageSquare, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import AIStreamPanel from '../components/AIStreamPanel';
+import { useAIStream } from '../hooks/useAIStream';
+import { streamAIAdminProviderTest } from '../api/ai';
 import AdminFeedbackPage from './AdminFeedbackPage';
 import AdminUsersPage from './AdminUsersPage';
+import type { AIAdminProviderTestRequest } from '../types';
 
-type AdminTab = 'feedback' | 'users';
+type AdminTab = 'feedback' | 'users' | 'ai_test';
 
 const TABS: { key: AdminTab; label: string; icon: React.ReactNode }[] = [
   { key: 'feedback', label: '피드백 관리', icon: <MessageSquare className="w-4 h-4" /> },
   { key: 'users', label: '유저 관리', icon: <Users className="w-4 h-4" /> },
+  { key: 'ai_test', label: 'AI 테스트', icon: <Bot className="w-4 h-4" /> },
 ];
 
 export default function AdminPage() {
@@ -63,7 +68,85 @@ export default function AdminPage() {
         {/* 탭 콘텐츠 */}
         {tab === 'feedback' && <AdminFeedbackPage />}
         {tab === 'users' && <AdminUsersPage />}
+        {tab === 'ai_test' && <AdminAITestPage />}
       </div>
     </div>
+  );
+}
+
+function AdminAITestPage() {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <ProviderTestCard
+        provider="google"
+        title="Gemini 연결 테스트"
+        description="무료 모델 연결, SSE 스트리밍, 기본 응답 품질을 확인합니다."
+        buttonLabel="Gemini 테스트"
+        tone="blue"
+      />
+      <ProviderTestCard
+        provider="anthropic"
+        title="Claude 연결 테스트"
+        description="유료 모델 키 주입, Anthropic API 호출, 응답 품질을 확인합니다."
+        buttonLabel="Claude 테스트"
+        tone="red"
+      />
+    </div>
+  );
+}
+
+function ProviderTestCard({
+  provider,
+  title,
+  description,
+  buttonLabel,
+  tone,
+}: {
+  provider: AIAdminProviderTestRequest['provider'];
+  title: string;
+  description: string;
+  buttonLabel: string;
+  tone: 'blue' | 'red';
+}) {
+  const { status, text, usage, error, start, retry } =
+    useAIStream<AIAdminProviderTestRequest>(streamAIAdminProviderTest);
+
+  const handleClick = () => {
+    if (status === 'streaming') return;
+    start({ provider });
+  };
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-base font-bold text-sqld-navy">{title}</h2>
+        <p className="mt-1 text-sm text-slate-500">{description}</p>
+      </div>
+      <button
+        onClick={handleClick}
+        disabled={status === 'streaming'}
+        className="inline-flex w-full items-center justify-center rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {status === 'streaming' ? '호출 중...' : buttonLabel}
+      </button>
+      {status !== 'idle' && (
+        <AIStreamPanel
+          status={status}
+          text={text}
+          error={error}
+          onRetry={retry}
+          title={title}
+          icon={provider === 'google' ? '✨' : '🧠'}
+          tone={tone}
+        />
+      )}
+      {usage && (
+        <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          input tokens: <span className="font-semibold text-slate-700">{usage.input}</span>
+          {' · '}
+          output tokens: <span className="font-semibold text-slate-700">{usage.output}</span>
+        </div>
+      )}
+    </section>
   );
 }

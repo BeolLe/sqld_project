@@ -1,5 +1,11 @@
 import { apiFetch, apiRequest } from '../utils/api';
-import type { AIUsageResponse, AIExplainRequest, AISQLReviewRequest, AIStreamEvent } from '../types';
+import type {
+  AIUsageResponse,
+  AIExplainRequest,
+  AISQLReviewRequest,
+  AIAdminProviderTestRequest,
+  AIStreamEvent,
+} from '../types';
 
 export async function fetchAIUsage(): Promise<AIUsageResponse> {
   if (import.meta.env.VITE_AI_MOCK === '1') {
@@ -134,7 +140,7 @@ async function mockSQLReviewStream(
     '`ROUND(AVG(SAL), 0)`을 사용하면 소수점 없이 깔끔하게 출력할 수 있습니다.',
   ];
 
-  const mockText = body.is_correct ? correctText : wrongText;
+  const mockText = body.attempt_id ? correctText : wrongText;
 
   for (const chunk of mockText) {
     if (signal.aborted) return;
@@ -158,8 +164,16 @@ export async function streamAISQLReview(
   return streamAIRequest('/ai/sql-review', body, handlers, signal);
 }
 
+export async function streamAIAdminProviderTest(
+  body: AIAdminProviderTestRequest,
+  handlers: AIStreamHandlers,
+  signal: AbortSignal,
+): Promise<void> {
+  return streamAIRequest('/ai/admin/provider-test', body, handlers, signal);
+}
+
 export async function streamAIRequest(
-  path: '/ai/explain' | '/ai/sql-review' | '/ai/study-plan',
+  path: '/ai/explain' | '/ai/sql-review' | '/ai/study-plan' | '/ai/admin/provider-test',
   body: object,
   handlers: AIStreamHandlers,
   signal: AbortSignal,

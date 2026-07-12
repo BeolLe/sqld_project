@@ -802,8 +802,8 @@ export default function SQLPracticePage() {
             <SQLReviewAI
               key={submitSeq}
               problem={problem}
-              query={query}
               isCorrect={submitResult === 'correct'}
+              attemptId={result?.attemptId ?? null}
             />
 
             {/* 닫기 버튼 */}
@@ -868,12 +868,12 @@ export default function SQLPracticePage() {
 /** AI 쿼리 리뷰 — 제출 결과 모달 내 섹션 */
 function SQLReviewAI({
   problem,
-  query,
   isCorrect,
+  attemptId,
 }: {
-  problem: { id: string; description: string };
-  query: string;
+  problem: { id: string };
   isCorrect: boolean;
+  attemptId: string | null;
 }) {
   const { status, text, usage: streamUsage, error, start, retry } = useAIStream<AISQLReviewRequest>(
     streamAISQLReview
@@ -884,6 +884,7 @@ function SQLReviewAI({
   const limit = usage?.sql_review.limit;
   const unlimited = usage?.sql_review.unlimited === true;
   const isExhausted = !unlimited && remaining === 0;
+  const isUnavailable = !attemptId;
 
   const buttonLabel =
     usage != null
@@ -893,12 +894,9 @@ function SQLReviewAI({
       : 'AI 쿼리 리뷰 받기';
 
   const handleClick = () => {
-    if (isExhausted || status === 'streaming') return;
+    if (isExhausted || isUnavailable || status === 'streaming') return;
     const body: AISQLReviewRequest = {
-      problem_id: problem.id,
-      user_query: query,
-      is_correct: isCorrect,
-      problem_description: problem.description,
+      attempt_id: attemptId,
     };
     start(body);
     logEvent('ai_sql_review_requested', {
@@ -938,8 +936,8 @@ function SQLReviewAI({
     <div className="px-6 py-4 border-t border-slate-100">
       <button
         onClick={handleClick}
-        disabled={isExhausted || status === 'streaming'}
-        title={isExhausted ? '일일 한도 초과' : undefined}
+        disabled={isExhausted || isUnavailable || status === 'streaming'}
+        title={isUnavailable ? '제출 이력 저장 후 이용할 수 있습니다.' : isExhausted ? '일일 한도 초과' : undefined}
         className="w-full justify-center inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-gradient-to-br from-primary-500 to-violet-500 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
         🔍 {buttonLabel}

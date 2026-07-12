@@ -46,6 +46,10 @@ class FeedbackRequest(BaseModel):
     comment: str | None = Field(default=None, max_length=500)
 
 
+class AdminProviderTestRequest(BaseModel):
+    provider: Literal["google", "anthropic"]
+
+
 def _streaming_response(prepared) -> StreamingResponse:
     return StreamingResponse(
         ai_service.stream(prepared),
@@ -134,6 +138,24 @@ async def study_plan(
         is_admin=current_user["is_admin"],
     )
     return _streaming_response(prepared)
+
+
+@router.post("/admin/provider-test")
+async def admin_provider_test(
+    payload: AdminProviderTestRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    if not current_user["is_admin"]:
+        raise HTTPException(status_code=403, detail="admin only")
+    return StreamingResponse(
+        ai_service.stream_admin_provider_test(payload.provider),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.get("/usage")
