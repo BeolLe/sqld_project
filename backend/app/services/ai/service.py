@@ -474,7 +474,7 @@ class AIService:
                 ),
                 system_prompt=SYSTEM_PROMPTS[use_case],
                 context=context,
-                max_output_tokens=700,
+                max_output_tokens=settings.AI_MAX_OUTPUT_TOKENS,
                 cache_system_prompt=False,
             )
             response_parts: list[str] = []
