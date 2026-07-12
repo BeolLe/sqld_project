@@ -2,6 +2,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { Trophy, XCircle, CheckCircle, RotateCcw, Flag, Sparkles } from 'lucide-react';
 import type { Problem, AIExplainRequest } from '../types';
+import { fetchExamResult, type ExamResultResponse } from '../api/exams';
 import ReportErrorModal from '../components/ReportErrorModal';
 import AIStreamPanel from '../components/AIStreamPanel';
 import { useAIStream } from '../hooks/useAIStream';
@@ -15,11 +16,23 @@ interface ResultState {
   problems: Problem[];
   passed?: boolean;
   failedBySubjectCutoff?: boolean;
+  aiExplanations?: Record<string, string>;
 }
 
-function WrongItemAI({ problem, userAnswer, attemptId }: { problem: Problem; userAnswer: string; attemptId?: number }) {
+function WrongItemAI({
+  problem,
+  userAnswer,
+  attemptId,
+  cachedExplanation,
+}: {
+  problem: Problem;
+  userAnswer: string;
+  attemptId?: number;
+  cachedExplanation?: string;
+}) {
   const { status, text, usage: streamUsage, error, start, retry } = useAIStream();
   const { usage, refreshUsage } = useAIUsage();
+  const [showCached, setShowCached] = useState(!!cachedExplanation);
 
   const remaining = usage?.explain.remaining;
   const limit = usage?.explain.limit;
@@ -35,6 +48,7 @@ function WrongItemAI({ problem, userAnswer, attemptId }: { problem: Problem; use
 
   const handleClick = () => {
     if (isExhausted || status === 'streaming') return;
+    setShowCached(false);
     const body: AIExplainRequest = {
       attempt_id: attemptId == null ? null : String(attemptId),
       problem_id: problem.id,
@@ -79,6 +93,22 @@ function WrongItemAI({ problem, userAnswer, attemptId }: { problem: Problem; use
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  if (showCached && cachedExplanation) {
+    return (
+      <div className="mt-2">
+        <AIStreamPanel status="done" text={cachedExplanation} error={null} onRetry={() => {}} />
+        <button
+          onClick={handleClick}
+          disabled={isExhausted}
+          className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-primary-600 font-medium mt-1 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          새로 요청하기
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-2">
       <button
@@ -102,13 +132,55 @@ export default function ExamResultPage() {
   const navigate = useNavigate();
   const { state } = useLocation() as { state: ResultState | null };
 
-  if (!state) {
+  const [resultData, setResultData] = useState<ResultState | null>(state);
+  const [loading, setLoading] = useState(!state);
+  const [fetchError, setFetchError] = useState('');
+  const [reportTarget, setReportTarget] = useState<Problem | null>(null);
+
+  useEffect(() => {
+    if (state || !id) return;
+    let cancelled = false;
+    setLoading(true);
+    fetchExamResult(id)
+      .then((res: ExamResultResponse) => {
+        if (cancelled) return;
+        setResultData({
+          attemptId: res.attemptId,
+          score: res.scorePercent,
+          answers: res.answers,
+          problems: res.problems,
+          passed: res.passed,
+          failedBySubjectCutoff: res.failedBySubjectCutoff,
+          aiExplanations: res.aiExplanations,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setFetchError('제출된 시험 결과가 없습니다.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [id, state]);
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <p className="text-slate-700 font-semibold mb-2">표시할 시험 결과를 찾지 못했습니다.</p>
+          <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-slate-500 text-sm">시험 결과를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!resultData || fetchError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <p className="text-slate-700 font-semibold mb-2">{fetchError || '표시할 시험 결과를 찾지 못했습니다.'}</p>
           <p className="text-sm text-slate-500 mb-4">
-            제출 직후 화면에서 다시 들어오지 않은 경우 이 메시지가 보일 수 있습니다.
+            시험을 제출한 이력이 없거나, 데이터를 불러올 수 없습니다.
           </p>
           <button onClick={() => navigate('/exams')} className="text-primary-600 hover:underline">
             모의고사 목록으로
@@ -118,10 +190,9 @@ export default function ExamResultPage() {
     );
   }
 
-  const { score, answers, problems, passed, failedBySubjectCutoff } = state;
+  const { score, answers, problems, passed, failedBySubjectCutoff, aiExplanations } = resultData;
   const isPassed = passed === true;
   const isSubjectCutoffFailure = failedBySubjectCutoff === true || (!isPassed && score >= 60);
-  const [reportTarget, setReportTarget] = useState<Problem | null>(null);
 
   const correctList = problems.filter((p) => answers[p.id] === p.answer);
   const wrongList = problems.filter((p) => answers[p.id] !== p.answer);
@@ -205,7 +276,8 @@ export default function ExamResultPage() {
                     <WrongItemAI
                       problem={problem}
                       userAnswer={answers[problem.id]}
-                      attemptId={state.attemptId}
+                      attemptId={resultData.attemptId}
+                      cachedExplanation={aiExplanations?.[problem.id]}
                     />
                   </div>
                 </li>
