@@ -7,6 +7,7 @@ import AIStreamPanel from '../components/AIStreamPanel';
 import { useAIStream } from '../hooks/useAIStream';
 import { useAIUsage } from '../contexts/AIUsageContext';
 import { logEvent } from '../utils/eventLogger';
+import { fetchExamResult } from '../api/exams';
 
 interface ResultState {
   attemptId?: number;
@@ -100,15 +101,53 @@ function WrongItemAI({ problem, userAnswer, attemptId }: { problem: Problem; use
 export default function ExamResultPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { state } = useLocation() as { state: ResultState | null };
+  const { state: navigationState } = useLocation() as { state: ResultState | null };
+  const [result, setResult] = useState<ResultState | null>(navigationState ?? null);
+  const [loading, setLoading] = useState(!navigationState);
+  const [error, setError] = useState('');
+  const [reportTarget, setReportTarget] = useState<Problem | null>(null);
 
-  if (!state) {
+  useEffect(() => {
+    if (result || !id) return;
+
+    let mounted = true;
+    setLoading(true);
+    setError('');
+
+    fetchExamResult(id)
+      .then((nextResult) => {
+        if (mounted) setResult(nextResult);
+      })
+      .catch((caughtError) => {
+        if (!mounted) return;
+        setError(caughtError instanceof Error ? caughtError.message : '시험 결과를 불러오지 못했습니다.');
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [id, result]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <p className="text-slate-700 font-semibold">시험 결과를 불러오는 중입니다.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!result) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <p className="text-slate-700 font-semibold mb-2">표시할 시험 결과를 찾지 못했습니다.</p>
           <p className="text-sm text-slate-500 mb-4">
-            제출 직후 화면에서 다시 들어오지 않은 경우 이 메시지가 보일 수 있습니다.
+            {error || '제출한 모의고사 결과가 아직 없습니다.'}
           </p>
           <button onClick={() => navigate('/exams')} className="text-primary-600 hover:underline">
             모의고사 목록으로
@@ -118,10 +157,9 @@ export default function ExamResultPage() {
     );
   }
 
-  const { score, answers, problems, passed, failedBySubjectCutoff } = state;
+  const { score, answers, problems, passed, failedBySubjectCutoff } = result;
   const isPassed = passed === true;
   const isSubjectCutoffFailure = failedBySubjectCutoff === true || (!isPassed && score >= 60);
-  const [reportTarget, setReportTarget] = useState<Problem | null>(null);
 
   const correctList = problems.filter((p) => answers[p.id] === p.answer);
   const wrongList = problems.filter((p) => answers[p.id] !== p.answer);
@@ -205,7 +243,7 @@ export default function ExamResultPage() {
                     <WrongItemAI
                       problem={problem}
                       userAnswer={answers[problem.id]}
-                      attemptId={state.attemptId}
+                      attemptId={result.attemptId}
                     />
                   </div>
                 </li>

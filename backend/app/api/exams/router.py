@@ -482,6 +482,53 @@ def sync_exam_session(
     return {"ok": True}
 
 
+@router.get("/{exam_id}/result")
+def get_latest_exam_result(
+    exam_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    with get_connection() as conn:
+        exam = fetch_exam(conn, exam_id)
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT *
+                FROM exam.exam_attempts
+                WHERE exam_id = %s
+                  AND user_id = %s::uuid
+                  AND status = 'submitted'
+                  AND submitted_at IS NOT NULL
+                ORDER BY submitted_at DESC, id DESC
+                LIMIT 1
+                """,
+                (exam["id"], current_user["user_id"]),
+            )
+            attempt = cur.fetchone()
+
+            if not attempt:
+                raise HTTPException(status_code=404, detail="exam result not found")
+
+            cur.execute(
+                """
+                SELECT passed, failed_by_subject_cutoff, score_percent
+                FROM exam.exam_attempt_results
+                WHERE attempt_id = %s
+                """,
+                (attempt["id"],),
+            )
+            stored_result = cur.fetchone()
+
+        result_payload = build_result_payload(conn, attempt["id"])
+
+    return {
+        "attemptId": attempt["id"],
+        "passed": bool(stored_result["passed"]) if stored_result else False,
+        "failedBySubjectCutoff": bool(stored_result["failed_by_subject_cutoff"]) if stored_result else False,
+        "scorePercent": float(stored_result["score_percent"]) if stored_result and stored_result["score_percent"] is not None else 0,
+        **result_payload,
+    }
+
+
 @router.post("/{exam_id}/submit")
 def submit_exam(
     exam_id: str,

@@ -163,6 +163,10 @@ export function submitExam(
   });
 }
 
+export function fetchExamResult(examId: string): Promise<ExamSubmitResponse> {
+  return request<ExamSubmitResponse>(`/exams/${examId}/result`);
+}
+
 export function fetchExamSchedules(year?: number) {
   const y = year ?? new Date().getFullYear();
   return apiFetch<ExamScheduleResponse>(`/exams/schedules?year=${y}`);
