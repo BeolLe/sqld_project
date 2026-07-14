@@ -214,33 +214,23 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
             cur.execute(
                 """
                 SELECT
-                    ues.exam_id,
+                    replace(e.exam_code, 'sqld_mock_', '') AS exam_url_id,
                     e.title,
-                    ues.attempt_count,
-                    COALESCE(ues.last_score, 0),
+                    ea.attempt_no,
+                    COALESCE(ear.score_percent, 0),
                     COALESCE(ear.passed, false),
-                    COALESCE(ea.submitted_at, ues.last_attempt_at)
-                FROM dashboard.user_exam_stats ues
+                    ea.submitted_at
+                FROM exam.exam_attempts ea
                 JOIN exam.exams e
-                  ON e.id = ues.exam_id
-                LEFT JOIN LATERAL (
-                    SELECT
-                        ea.id,
-                        ea.submitted_at
-                    FROM exam.exam_attempts ea
-                    WHERE ea.user_id = %s::uuid
-                      AND ea.exam_id = ues.exam_id
-                      AND ea.submitted_at IS NOT NULL
-                    ORDER BY ea.submitted_at DESC, ea.id DESC
-                    LIMIT 1
-                ) ea ON true
+                  ON e.id = ea.exam_id
                 LEFT JOIN exam.exam_attempt_results ear
                   ON ear.attempt_id = ea.id
-                WHERE ues.user_id = %s::uuid
-                ORDER BY COALESCE(ea.submitted_at, ues.last_attempt_at) DESC NULLS LAST, ues.id DESC
+                WHERE ea.user_id = %s::uuid
+                  AND ea.submitted_at IS NOT NULL
+                ORDER BY ea.submitted_at DESC, ea.id DESC
                 LIMIT 5
                 """,
-                (user_id, user_id),
+                (user_id,),
             )
             recent_exam_results = [
                 {
@@ -258,7 +248,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
             cur.execute(
                 """
                 SELECT
-                    spa.practice_id,
+                    sp.practice_code,
                     sp.title,
                     COALESCE(spa.is_correct, false),
                     COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at)
