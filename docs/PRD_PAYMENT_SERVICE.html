@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PRD: SolSQLD 결제 서비스 도입</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-light: #eff6ff;
+      --accent: #f59e0b;
+      --success: #10b981;
+      --danger: #ef4444;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-500: #6b7280;
+      --gray-700: #374151;
+      --gray-900: #111827;
+      --font: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font);
+      color: var(--gray-900);
+      line-height: 1.7;
+      background: var(--gray-50);
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+
+    /* ── Header ───────────────────────────────────── */
+    .doc-header {
+      background: linear-gradient(135deg, #1e40af, #3b82f6);
+      color: white;
+      padding: 48px 40px;
+      border-radius: 16px;
+      margin-bottom: 32px;
+    }
+    .doc-header h1 {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .doc-header .subtitle {
+      font-size: 16px;
+      opacity: 0.85;
+      margin-bottom: 20px;
+    }
+    .doc-meta {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      opacity: 0.9;
+    }
+    .doc-meta span { display: flex; align-items: center; gap: 6px; }
+
+    /* ── TOC ──────────────────────────────────────── */
+    .toc {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 24px 32px;
+      margin-bottom: 32px;
+    }
+    .toc h2 { font-size: 16px; color: var(--gray-500); margin-bottom: 12px; }
+    .toc ol {
+      list-style: none;
+      counter-reset: toc;
+      columns: 2;
+      column-gap: 32px;
+    }
+    .toc li {
+      counter-increment: toc;
+      padding: 4px 0;
+      font-size: 14px;
+    }
+    .toc li::before {
+      content: counter(toc, decimal-leading-zero) ".";
+      color: var(--primary);
+      font-weight: 700;
+      margin-right: 8px;
+    }
+    .toc a { color: var(--gray-700); text-decoration: none; }
+    .toc a:hover { color: var(--primary); }
+
+    /* ── Section ──────────────────────────────────── */
+    section {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+    section h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--primary-light);
+    }
+    section h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--gray-700);
+      margin: 20px 0 8px;
+    }
+    p { margin-bottom: 12px; font-size: 15px; }
+
+    /* ── Table ────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--gray-200);
+    }
+    th {
+      background: var(--gray-50);
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--gray-500);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    tr:hover td { background: var(--primary-light); }
+
+    /* ── Pricing Card ────────────────────────────── */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin: 20px 0;
+    }
+    .pricing-card {
+      border: 2px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 24px;
+      position: relative;
+    }
+    .pricing-card.premium {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+    .pricing-card .badge {
+      position: absolute;
+      top: -12px;
+      right: 16px;
+      background: var(--primary);
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+    .pricing-card .plan-name {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .pricing-card .price {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--primary);
+      margin-bottom: 16px;
+    }
+    .pricing-card .price small {
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--gray-500);
+    }
+    .pricing-card ul {
+      list-style: none;
+      font-size: 14px;
+    }
+    .pricing-card li {
+      padding: 6px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pricing-card li .icon { font-size: 16px; }
+    .check { color: var(--success); }
+    .cross { color: var(--danger); }
+    .star { color: var(--accent); }
+
+    /* ── Code Block ──────────────────────────────── */
+    pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 12px 0;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+    code {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 13px;
+    }
+    p code, li code, td code {
+      background: var(--gray-100);
+      color: var(--danger);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    /* ── Callout ──────────────────────────────────── */
+    .callout {
+      border-left: 4px solid var(--primary);
+      background: var(--primary-light);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+    .callout.warn {
+      border-color: var(--accent);
+      background: #fffbeb;
+    }
+    .callout.danger {
+      border-color: var(--danger);
+      background: #fef2f2;
+    }
+    .callout strong { display: block; margin-bottom: 4px; }
+
+    /* ── Flow Diagram ────────────────────────────── */
+    .flow {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+    .flow .step {
+      background: var(--primary);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .flow .arrow { color: var(--gray-300); font-size: 20px; }
+
+    /* ── Timeline ────────────────────────────────── */
+    .timeline { position: relative; padding-left: 32px; margin: 20px 0; }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 11px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--gray-200);
+    }
+    .timeline-item {
+      position: relative;
+      margin-bottom: 24px;
+    }
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -27px;
+      top: 4px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--primary);
+      border: 3px solid white;
+      box-shadow: 0 0 0 2px var(--primary);
+    }
+    .timeline-item .week {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .timeline-item h4 {
+      font-size: 15px;
+      font-weight: 600;
+      margin: 4px 0;
+    }
+    .timeline-item p { font-size: 13px; color: var(--gray-500); margin: 0; }
+
+    /* ── Risk Tag ─────────────────────────────────── */
+    .risk-tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .risk-tag.high { background: #fef2f2; color: var(--danger); }
+    .risk-tag.mid { background: #fffbeb; color: #d97706; }
+    .risk-tag.low { background: #ecfdf5; color: var(--success); }
+
+    /* ── List ─────────────────────────────────────── */
+    ul, ol { padding-left: 20px; margin: 8px 0; }
+    li { font-size: 14px; padding: 3px 0; }
+
+    /* ── Responsive ──────────────────────────────── */
+    @media (max-width: 640px) {
+      .pricing-grid { grid-template-columns: 1fr; }
+      .toc ol { columns: 1; }
+      .doc-header { padding: 32px 24px; }
+      .doc-header h1 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ═══ HEADER ═══ -->
+  <header class="doc-header">
+    <h1>SolSQLD 결제 서비스 도입 PRD</h1>
+    <p class="subtitle">AI 프리미엄 구독 — 부분유료제(Freemium) 모델</p>
+    <div class="doc-meta">
+      <span><strong>Version:</strong> 1.0</span>
+      <span><strong>작성일:</strong> 2026-07-12</span>
+      <span><strong>상태:</strong> Draft</span>
+      <span><strong>작성자:</strong> Product &amp; Engineering</span>
+    </div>
+  </header>
+
+  <!-- ═══ TOC ═══ -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#overview">개요 및 배경</a></li>
+      <li><a href="#current-state">현황 분석</a></li>
+      <li><a href="#target-user">목표 사용자 및 시나리오</a></li>
+      <li><a href="#pricing">요금 체계</a></li>
+      <li><a href="#pg-selection">PG사 선정</a></li>
+      <li><a href="#payment-flow">결제 플로우</a></li>
+      <li><a href="#backend-design">백엔드 설계</a></li>
+      <li><a href="#frontend-design">프론트엔드 설계</a></li>
+      <li><a href="#security">보안 및 법적 규정</a></li>
+      <li><a href="#milestones">마일스톤</a></li>
+      <li><a href="#risks">위험 요소 및 대응</a></li>
+    </ol>
+  </nav>
+
+  <!-- ═══ 1. 개요 ═══ -->
+  <section id="overview">
+    <h2>01. 개요 및 배경</h2>
+    <h3>문제 정의</h3>
+    <p>
+      SolSQLD는 SQLD 자격증 시험 대비 및 SQL 실습 플랫폼으로, AI 해설·SQL 리뷰·학습 플랜 등의 AI 기능을
+      제공하고 있다. 현재 모든 사용자에게 일 3회의 무료 AI 사용 쿼타를 부여하고 있으나, 학습 몰입도가 높은
+      사용자에게는 이 제한이 학습 흐름을 끊는 주요 이탈 요인이 되고 있다.
+    </p>
+    <h3>제안</h3>
+    <p>
+      부분유료제(Freemium) 모델을 도입하여, 기본 기능(시험 응시, SQL 실습, 무한 연습)은 무료로 유지하되,
+      AI 기능을 제한 없이 사용하고자 하는 사용자에게 <strong>월 2,900원</strong>의 프리미엄 구독을 제공한다.
+    </p>
+    <h3>목표 지표</h3>
+    <table>
+      <tr><th>지표</th><th>목표</th><th>측정 방법</th></tr>
+      <tr><td>유료 전환율</td><td>MAU 대비 3~5%</td><td>구독 수 / MAU</td></tr>
+      <tr><td>해지율(Churn)</td><td>월 10% 이하</td><td>해지 수 / 기간 내 구독자 수</td></tr>
+      <tr><td>AI 사용량 증가</td><td>유료 사용자 일평균 8회 이상</td><td>ai.daily_usage 집계</td></tr>
+      <tr><td>결제 성공률</td><td>95% 이상</td><td>PG 웹훅 성공/전체</td></tr>
+    </table>
+  </section>
+
+  <!-- ═══ 2. 현황 ═══ -->
+  <section id="current-state">
+    <h2>02. 현황 분석</h2>
+    <h3>이미 구축된 플랜 인프라</h3>
+    <p>
+      결제 연동만 빠져 있을 뿐, 플랜 관리 인프라는 이미 완성 상태이다. 추가 개발은 결제 플로우와
+      엔타이틀먼트 자동화에 집중할 수 있다.
+    </p>
+    <table>
+      <tr><th>테이블</th><th>역할</th><th>현재 상태</th></tr>
+      <tr>
+        <td><code>ai.plans</code></td>
+        <td>플랜 정의 (free / premium)</td>
+        <td>free, premium 두 플랜 정의 완료. <code>is_paid=true</code>로 유료 구분</td>
+      </tr>
+      <tr>
+        <td><code>ai.user_entitlements</code></td>
+        <td>사용자별 플랜 부여</td>
+        <td><code>source_type</code>에 'payment' 값 지원, 실제 결제 연동 없음</td>
+      </tr>
+      <tr>
+        <td><code>ai.model_routes</code></td>
+        <td>플랜별 AI 모델·쿼타 라우팅</td>
+        <td>
+          free → Gemini Flash Lite (일 3회)<br>
+          premium → Claude Haiku 4.5 (일 30회)
+        </td>
+      </tr>
+      <tr>
+        <td><code>ai.daily_usage</code></td>
+        <td>일별 사용량 추적</td>
+        <td>reserve/consume/refund 패턴 운영 중</td>
+      </tr>
+    </table>
+
+    <div class="callout">
+      <strong>핵심 포인트</strong>
+      프론트엔드의 <code>AIUsageResponse.plan_type</code> 필드가 이미 플랜 구분 정보를 반환하며,
+      <code>AIUsageBucket.unlimited</code> 필드로 무제한 여부를 표현할 수 있다.
+    </div>
+
+    <h3>현재 무료/프리미엄 차이</h3>
+    <table>
+      <tr><th>항목</th><th>Free</th><th>Premium</th></tr>
+      <tr><td>AI 모델</td><td>Gemini 3.1 Flash Lite</td><td>Claude Haiku 4.5</td></tr>
+      <tr><td>일일 사용 횟수</td><td>3회 / use_case</td><td>30회 / use_case → <strong>무제한으로 변경</strong></td></tr>
+      <tr><td>출력 토큰</td><td>900 (리뷰 1,100)</td><td>1,200 (리뷰 1,600)</td></tr>
+      <tr><td>프롬프트 캐싱</td><td>활성</td><td>비활성 (고유 응답 보장)</td></tr>
+    </table>
+  </section>
+
+  <!-- ═══ 3. 목표 사용자 ═══ -->
+  <section id="target-user">
+    <h2>03. 목표 사용자 및 시나리오</h2>
+    <h3>페르소나</h3>
+    <table>
+      <tr><th>페르소나</th><th>특성</th><th>전환 동기</th></tr>
+      <tr>
+        <td><strong>시험 직전 수험생</strong></td>
+        <td>SQLD 시험 D-30 이내, 하루 2~3시간 학습</td>
+        <td>오답 해설을 반복 요청하지만 일 3회 제한에 걸림</td>
+      </tr>
+      <tr>
+        <td><strong>SQL 실무 입문자</strong></td>
+        <td>비전공 직무 전환자, SQL 기초부터 학습</td>
+        <td>SQL 리뷰 피드백을 지속적으로 받고 싶음</td>
+      </tr>
+      <tr>
+        <td><strong>반복 학습자</strong></td>
+        <td>무한 연습 모드 헤비 유저, 주 5일 이상 접속</td>
+        <td>학습 플랜 + 해설을 제한 없이 활용하고 싶음</td>
+      </tr>
+    </table>
+
+    <h3>사용자 여정 (전환 시나리오)</h3>
+    <div class="flow">
+      <span class="step">무료 사용</span>
+      <span class="arrow">→</span>
+      <span class="step">일 3회 소진</span>
+      <span class="arrow">→</span>
+      <span class="step">업그레이드 유도 배너</span>
+      <span class="arrow">→</span>
+      <span class="step">구독 결제</span>
+      <span class="arrow">→</span>
+      <span class="step">즉시 무제한 활성화</span>
+    </div>
+  </section>
+
+  <!-- ═══ 4. 요금 체계 ═══ -->
+  <section id="pricing">
+    <h2>04. 요금 체계</h2>
+
+    <div class="pricing-grid">
+      <!-- Free -->
+      <div class="pricing-card">
+        <div class="plan-name">Free</div>
+        <div class="price">₩0 <small>/ 영구 무료</small></div>
+        <ul>
+          <li><span class="icon check">&#10003;</span> 모의고사 전 회차 응시</li>
+          <li><span class="icon check">&#10003;</span> SQL 실습 문제 풀이</li>
+          <li><span class="icon check">&#10003;</span> 무한 연습 모드</li>
+          <li><span class="icon check">&#10003;</span> 대시보드 & 학습 통계</li>
+          <li><span class="icon check">&#10003;</span> AI 해설 (일 3회)</li>
+          <li><span class="icon check">&#10003;</span> AI SQL 리뷰 (일 3회)</li>
+          <li><span class="icon check">&#10003;</span> AI 학습 플랜 (일 3회)</li>
+          <li><span class="icon cross">&#10007;</span> AI 모델: Gemini Flash Lite</li>
+        </ul>
+      </div>
+
+      <!-- Premium -->
+      <div class="pricing-card premium">
+        <div class="badge">추천</div>
+        <div class="plan-name">Premium</div>
+        <div class="price">₩2,900 <small>/ 월</small></div>
+        <ul>
+          <li><span class="icon check">&#10003;</span> Free 플랜 전체 기능 포함</li>
+          <li><span class="icon star">&#9733;</span> AI 해설 <strong>무제한</strong></li>
+          <li><span class="icon star">&#9733;</span> AI SQL 리뷰 <strong>무제한</strong></li>
+          <li><span class="icon star">&#9733;</span> AI 학습 플랜 <strong>무제한</strong></li>
+          <li><span class="icon star">&#9733;</span> AI 모델: Claude Haiku 4.5</li>
+          <li><span class="icon star">&#9733;</span> 더 긴 응답 (최대 1,600 토큰)</li>
+          <li><span class="icon star">&#9733;</span> 고유 응답 보장 (캐시 비활성)</li>
+          <li><span class="icon check">&#10003;</span> 언제든 해지 가능</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>가격 설정 근거</strong>
+      월 2,900원은 &#8358;3,000 미만 조건을 충족하면서, 커피 한 잔 이하의 심리적 부담을 목표로 한다.
+      부가세(VAT 10%) 포함 가격이며, 실제 PG 정산 시 공급가 &#8358;2,636 + VAT &#8358;264로 처리된다.
+    </div>
+  </section>
+
+  <!-- ═══ 5. PG사 선정 ═══ -->
+  <section id="pg-selection">
+    <h2>05. PG사 선정</h2>
+
+    <h3>비교 분석</h3>
+    <table>
+      <tr><th>항목</th><th>토스페이먼츠</th><th>포트원 (PortOne)</th><th>아임포트 (구)</th></tr>
+      <tr><td>정기결제</td><td>빌링키 방식 &#10003;</td><td>지원 &#10003;</td><td>지원 &#10003;</td></tr>
+      <tr><td>개인사업자</td><td>가입 가능 &#10003;</td><td>가입 가능 &#10003;</td><td>가입 가능 &#10003;</td></tr>
+      <tr><td>연동 복잡도</td><td>낮음 (REST API)</td><td>중간 (SDK 통합)</td><td>중간</td></tr>
+      <tr><td>수수료</td><td>카드 3.3% + VAT</td><td>PG별 상이</td><td>PG별 상이</td></tr>
+      <tr><td>정산 주기</td><td>D+2 ~ D+5</td><td>PG별 상이</td><td>PG별 상이</td></tr>
+      <tr><td>웹훅</td><td>결제·취소·빌링 웹훅 &#10003;</td><td>지원 &#10003;</td><td>지원 &#10003;</td></tr>
+      <tr><td>테스트 모드</td><td>테스트 키 제공 &#10003;</td><td>지원 &#10003;</td><td>지원 &#10003;</td></tr>
+    </table>
+
+    <h3>결정: 토스페이먼츠</h3>
+    <ul>
+      <li>개인 프로젝트에 적합한 간결한 REST API</li>
+      <li>JavaScript SDK로 프론트엔드 결제창 연동이 간편</li>
+      <li>빌링키 기반 정기결제로 카드 정보를 서버에 저장하지 않음 (PCI DSS 부담 최소화)</li>
+      <li>테스트 모드에서 실결제 없이 전체 플로우 검증 가능</li>
+    </ul>
+
+    <div class="callout warn">
+      <strong>사전 준비 필요</strong>
+      토스페이먼츠 가입 시 사업자등록증이 필요하다.
+      개인사업자 간이과세자로도 가입 가능하며, 사업자 등록 후 1~3일 내 심사 완료된다.
+    </div>
+  </section>
+
+  <!-- ═══ 6. 결제 플로우 ═══ -->
+  <section id="payment-flow">
+    <h2>06. 결제 플로우</h2>
+
+    <h3>6-1. 최초 구독 (빌링키 발급 + 첫 결제)</h3>
+    <div class="flow">
+      <span class="step">1. 구독 버튼 클릭</span>
+      <span class="arrow">→</span>
+      <span class="step">2. 토스 결제창</span>
+      <span class="arrow">→</span>
+      <span class="step">3. 카드 인증</span>
+      <span class="arrow">→</span>
+      <span class="step">4. 빌링키 발급</span>
+      <span class="arrow">→</span>
+      <span class="step">5. 첫 결제 실행</span>
+      <span class="arrow">→</span>
+      <span class="step">6. 엔타이틀먼트 부여</span>
+    </div>
+
+    <pre><code>// 프론트엔드: 토스페이먼츠 SDK
+const tossPayments = await loadTossPayments(clientKey);
+await tossPayments.requestBillingAuth('카드', {
+  customerKey: user.id,       // SolSQLD 유저 ID
+  successUrl: `${BASE_URL}/api/billing/success`,
+  failUrl: `${BASE_URL}/api/billing/fail`,
+});
+
+// 백엔드: /api/billing/success 콜백
+// 1. authKey로 빌링키 발급 → POST /v1/billing/authorizations/issue
+// 2. 빌링키로 첫 결제 → POST /v1/billing/{billingKey}
+// 3. 결제 성공 시 → ai.user_entitlements INSERT (source_type='payment')
+// 4. ai.model_routes에서 premium 라우팅 즉시 적용</code></pre>
+
+    <h3>6-2. 자동 갱신 (매월 반복)</h3>
+    <div class="flow">
+      <span class="step">1. 갱신일 도래</span>
+      <span class="arrow">→</span>
+      <span class="step">2. 스케줄러 트리거</span>
+      <span class="arrow">→</span>
+      <span class="step">3. 빌링키 결제</span>
+      <span class="arrow">→</span>
+      <span class="step">4. 웹훅 수신</span>
+      <span class="arrow">→</span>
+      <span class="step">5. 엔타이틀먼트 연장</span>
+    </div>
+
+    <pre><code>// 스케줄러 (cron 또는 APScheduler)
+# 매일 09:00 KST — 만료 예정 구독 갱신 실행
+async def renew_subscriptions():
+    due = await get_subscriptions_due_today()
+    for sub in due:
+        result = await toss_billing_pay(sub.billing_key, amount=2900)
+        if result.success:
+            await extend_entitlement(sub.user_id, days=30)
+            await record_payment(sub.id, result)
+        else:
+            await handle_payment_failure(sub, result)  # 재시도 로직</code></pre>
+
+    <h3>6-3. 해지</h3>
+    <div class="flow">
+      <span class="step">1. 해지 요청</span>
+      <span class="arrow">→</span>
+      <span class="step">2. 다음 갱신 취소</span>
+      <span class="arrow">→</span>
+      <span class="step">3. 잔여 기간 유지</span>
+      <span class="arrow">→</span>
+      <span class="step">4. 만료 시 Free 전환</span>
+    </div>
+    <p>
+      해지 즉시 서비스가 중단되지 않으며, 이미 결제한 기간이 끝날 때까지 프리미엄 기능을 유지한다.
+      만료 후 자동으로 Free 플랜으로 전환되고, 일일 사용 쿼타가 3회로 복귀한다.
+    </p>
+
+    <h3>6-4. 결제 실패 재시도 정책</h3>
+    <table>
+      <tr><th>재시도 횟수</th><th>간격</th><th>액션</th></tr>
+      <tr><td>1차</td><td>즉시</td><td>첫 결제 실패 시 바로 1회 재시도</td></tr>
+      <tr><td>2차</td><td>+24시간</td><td>이메일 알림 발송 ("결제 수단을 확인해 주세요")</td></tr>
+      <tr><td>3차</td><td>+48시간</td><td>최종 시도. 실패 시 구독 일시정지, 인앱 알림</td></tr>
+      <tr><td>만료</td><td>+72시간</td><td>엔타이틀먼트 만료, Free 플랜 전환</td></tr>
+    </table>
+  </section>
+
+  <!-- ═══ 7. 백엔드 설계 ═══ -->
+  <section id="backend-design">
+    <h2>07. 백엔드 설계</h2>
+
+    <h3>7-1. 신규 DB 테이블</h3>
+    <pre><code>-- billing 스키마 생성
+CREATE SCHEMA IF NOT EXISTS billing;
+
+-- 구독 정보
+CREATE TABLE billing.subscriptions (
+    subscription_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
+    plan_code       TEXT NOT NULL REFERENCES ai.plans(plan_code),
+    billing_key     TEXT NOT NULL,           -- 토스 빌링키 (암호화 저장)
+    status          TEXT NOT NULL CHECK (
+        status IN ('active', 'cancelled', 'past_due', 'expired')
+    ),
+    current_period_start TIMESTAMPTZ NOT NULL,
+    current_period_end   TIMESTAMPTZ NOT NULL,
+    cancelled_at    TIMESTAMPTZ NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, plan_code)
+);
+
+-- 결제 이력
+CREATE TABLE billing.payments (
+    payment_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    subscription_id UUID NOT NULL REFERENCES billing.subscriptions(subscription_id),
+    user_id       UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
+    toss_payment_key TEXT NOT NULL UNIQUE,   -- 토스 paymentKey
+    amount        INTEGER NOT NULL,          -- 원 단위 (2900)
+    status        TEXT NOT NULL CHECK (
+        status IN ('paid', 'failed', 'refunded', 'partial_refund')
+    ),
+    paid_at       TIMESTAMPTZ NULL,
+    failed_reason TEXT NULL,
+    receipt_url   TEXT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 결제 실패 재시도 추적
+CREATE TABLE billing.retry_queue (
+    retry_id       BIGSERIAL PRIMARY KEY,
+    subscription_id UUID NOT NULL REFERENCES billing.subscriptions(subscription_id),
+    attempt_number INTEGER NOT NULL DEFAULT 1,
+    scheduled_at   TIMESTAMPTZ NOT NULL,
+    attempted_at   TIMESTAMPTZ NULL,
+    result         TEXT NULL CHECK (result IN ('success', 'failed')),
+    error_detail   TEXT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);</code></pre>
+
+    <h3>7-2. API 엔드포인트</h3>
+    <table>
+      <tr><th>Method</th><th>Path</th><th>설명</th></tr>
+      <tr><td><code>POST</code></td><td><code>/api/billing/subscribe</code></td><td>구독 시작 — 빌링키 저장 + 첫 결제</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/billing/subscription</code></td><td>현재 구독 상태 조회</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/billing/cancel</code></td><td>구독 해지 (기간 만료까지 유지)</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/billing/webhook</code></td><td>토스 웹훅 수신 (결제 승인/취소/실패)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/billing/payments</code></td><td>결제 이력 조회</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/billing/card/update</code></td><td>결제 수단 변경 (빌링키 재발급)</td></tr>
+    </table>
+
+    <h3>7-3. 백엔드 모듈 구조</h3>
+    <pre><code>backend/app/
+├── api/
+│   └── billing/
+│       ├── __init__.py
+│       ├── router.py          # FastAPI 라우터
+│       ├── schemas.py         # Pydantic 요청/응답 모델
+│       └── webhook.py         # 웹훅 검증 및 처리
+├── db/
+│   └── billing.py             # billing 스키마 CRUD
+├── services/
+│   └── billing/
+│       ├── __init__.py
+│       ├── toss_client.py     # 토스페이먼츠 API 클라이언트
+│       ├── subscription.py    # 구독 비즈니스 로직
+│       └── scheduler.py       # 자동 갱신 스케줄러</code></pre>
+
+    <h3>7-4. 엔타이틀먼트 연동</h3>
+    <p>
+      결제 성공 시 기존 <code>ai.user_entitlements</code> 테이블에 레코드를 생성하며,
+      AI 서비스는 기존 로직을 그대로 사용한다. 추가 코드 변경 최소화가 핵심이다.
+    </p>
+    <pre><code>async def activate_premium(user_id: str, subscription_id: str):
+    """결제 성공 후 프리미엄 활성화"""
+    now = datetime.now(timezone.utc)
+    await db.execute("""
+        INSERT INTO ai.user_entitlements
+            (user_id, plan_code, source_type, source_reference, starts_at, ends_at)
+        VALUES ($1, 'premium', 'payment', $2, $3, $4)
+        ON CONFLICT (user_id, plan_code)
+        DO UPDATE SET
+            ends_at = $4,
+            source_reference = $2,
+            updated_at = now()
+    """, user_id, subscription_id, now, now + timedelta(days=30))
+
+    # premium 라우팅의 daily_limit을 무제한으로 변경
+    # → model_routes에 premium 전용 행이 이미 존재하므로
+    #   daily_limit=9999로 UPDATE (또는 unlimited 플래그 사용)</code></pre>
+
+    <h3>7-5. Premium daily_limit 변경</h3>
+    <pre><code>-- premium 플랜: daily_limit 30 → 9999 (사실상 무제한)
+UPDATE ai.model_routes
+SET daily_limit = 9999, updated_at = now()
+WHERE plan_code = 'premium';</code></pre>
+
+    <div class="callout">
+      <strong>설계 원칙: 최소 변경</strong>
+      AI 서비스 레이어(<code>service.py</code>)는 이미 <code>ai.model_routes</code>에서
+      <code>daily_limit</code>를 읽어 쿼타를 관리하므로, 결제 연동 시 AI 서비스 코드 수정이 불필요하다.
+      결제 → 엔타이틀먼트 → 라우팅까지 데이터 레이어에서 완결된다.
+    </div>
+  </section>
+
+  <!-- ═══ 8. 프론트엔드 설계 ═══ -->
+  <section id="frontend-design">
+    <h2>08. 프론트엔드 설계</h2>
+
+    <h3>8-1. 신규 컴포넌트</h3>
+    <table>
+      <tr><th>컴포넌트</th><th>위치</th><th>설명</th></tr>
+      <tr>
+        <td><code>PricingModal</code></td>
+        <td><code>components/billing/</code></td>
+        <td>Free vs Premium 비교 + 결제 버튼. 쿼타 소진 시 자동 노출</td>
+      </tr>
+      <tr>
+        <td><code>SubscriptionBanner</code></td>
+        <td><code>components/billing/</code></td>
+        <td>AI 사용 후 잔여 횟수가 0일 때 인라인 업그레이드 유도 배너</td>
+      </tr>
+      <tr>
+        <td><code>SubscriptionPage</code></td>
+        <td><code>pages/</code></td>
+        <td>구독 관리 (현재 플랜, 갱신일, 결제 이력, 해지 버튼)</td>
+      </tr>
+      <tr>
+        <td><code>PaymentHistory</code></td>
+        <td><code>components/billing/</code></td>
+        <td>결제 이력 테이블 (영수증 링크 포함)</td>
+      </tr>
+    </table>
+
+    <h3>8-2. 전환 유도 트리거</h3>
+    <ul>
+      <li><strong>쿼타 소진 시</strong> — AI 요청 실패(429) 후 <code>PricingModal</code> 자동 표시</li>
+      <li><strong>잔여 1회</strong> — AI 응답 패널 하단에 소프트 배너: "오늘 AI 해설 1회 남았어요"</li>
+      <li><strong>마이페이지</strong> — 플랜 정보 카드에 "업그레이드" 버튼 상시 노출</li>
+      <li><strong>대시보드</strong> — AI 사용량 차트 옆에 프리미엄 기능 하이라이트</li>
+    </ul>
+
+    <h3>8-3. 라우팅 추가</h3>
+    <pre><code>// App.tsx에 추가
+&lt;Route path="/subscription" element={
+  &lt;ProtectedRoute&gt;
+    &lt;SubscriptionPage /&gt;
+  &lt;/ProtectedRoute&gt;
+} /&gt;</code></pre>
+
+    <h3>8-4. API 클라이언트</h3>
+    <pre><code>// frontend/src/api/billing.ts
+export async function createSubscription(authKey: string) { ... }
+export async function getSubscription() { ... }
+export async function cancelSubscription() { ... }
+export async function getPaymentHistory() { ... }
+export async function updatePaymentMethod(authKey: string) { ... }</code></pre>
+
+    <h3>8-5. 이벤트 로깅 추가</h3>
+    <table>
+      <tr><th>이벤트명</th><th>트리거 시점</th></tr>
+      <tr><td><code>billing_upgrade_modal_viewed</code></td><td>PricingModal 표시</td></tr>
+      <tr><td><code>billing_subscribe_clicked</code></td><td>결제 버튼 클릭</td></tr>
+      <tr><td><code>billing_subscribe_succeeded</code></td><td>결제 성공 콜백</td></tr>
+      <tr><td><code>billing_subscribe_failed</code></td><td>결제 실패</td></tr>
+      <tr><td><code>billing_cancel_clicked</code></td><td>해지 버튼 클릭</td></tr>
+      <tr><td><code>billing_cancel_confirmed</code></td><td>해지 확인</td></tr>
+    </table>
+  </section>
+
+  <!-- ═══ 9. 보안 ═══ -->
+  <section id="security">
+    <h2>09. 보안 및 법적 규정</h2>
+
+    <h3>9-1. 결제 보안</h3>
+    <table>
+      <tr><th>항목</th><th>대응</th></tr>
+      <tr>
+        <td>카드 정보 보관</td>
+        <td>서버에 카드 번호 저장 안 함. 토스페이먼츠 빌링키만 암호화 저장 (AES-256)</td>
+      </tr>
+      <tr>
+        <td>웹훅 검증</td>
+        <td>토스 Webhook Secret으로 HMAC-SHA256 서명 검증 후 처리</td>
+      </tr>
+      <tr>
+        <td>API 인증</td>
+        <td>billing API는 기존 JWT 인증 미들웨어 적용. 토스 API 호출 시 Basic Auth (시크릿키)</td>
+      </tr>
+      <tr>
+        <td>CSRF</td>
+        <td>기존 CSRF 미들웨어 적용. 웹훅 엔드포인트는 HMAC 검증으로 대체하여 CSRF 면제</td>
+      </tr>
+      <tr>
+        <td>멱등성</td>
+        <td>토스 paymentKey를 <code>billing.payments.toss_payment_key</code>에 UNIQUE로 관리</td>
+      </tr>
+    </table>
+
+    <h3>9-2. 법적 고지 (전자상거래법)</h3>
+    <div class="callout danger">
+      <strong>필수 고지 사항 (전자상거래법 제13조)</strong>
+      <ul>
+        <li>상품명: SolSQLD AI 프리미엄 (월간 구독)</li>
+        <li>가격: 월 2,900원 (VAT 포함)</li>
+        <li>결제 방식: 매월 자동 결제 (카드)</li>
+        <li>구독 해지: 마이페이지 > 구독 관리에서 즉시 해지 가능</li>
+        <li>환불 규정: 구독 개시일로부터 7일 이내 전액 환불, 이후 잔여일 비례 환불</li>
+        <li>사업자 정보: 상호, 대표자, 사업자등록번호, 통신판매업 신고번호</li>
+      </ul>
+    </div>
+
+    <h3>9-3. 환불 정책</h3>
+    <table>
+      <tr><th>시점</th><th>환불 금액</th><th>처리 방식</th></tr>
+      <tr><td>결제 후 7일 이내 (미사용)</td><td>전액 환불</td><td>토스 결제 취소 API</td></tr>
+      <tr><td>결제 후 7일 이내 (사용)</td><td>잔여일 비례 환불</td><td>부분 취소 API</td></tr>
+      <tr><td>결제 후 7일 초과</td><td>잔여일 비례 환불</td><td>부분 취소 API</td></tr>
+      <tr><td>해지 (갱신 취소)</td><td>환불 없음</td><td>잔여 기간까지 서비스 유지</td></tr>
+    </table>
+  </section>
+
+  <!-- ═══ 10. 마일스톤 ═══ -->
+  <section id="milestones">
+    <h2>10. 마일스톤</h2>
+
+    <div class="timeline">
+      <div class="timeline-item">
+        <span class="week">Week 1</span>
+        <h4>인프라 & PG 연동</h4>
+        <p>
+          토스페이먼츠 계정 연동, billing 스키마 생성, 토스 API 클라이언트 구현,
+          빌링키 발급/결제 API 개발, premium daily_limit 무제한으로 변경
+        </p>
+      </div>
+
+      <div class="timeline-item">
+        <span class="week">Week 2</span>
+        <h4>구독 관리 & 웹훅</h4>
+        <p>
+          구독 생성/해지/조회 API, 웹훅 수신 및 검증, 엔타이틀먼트 자동 부여/만료,
+          결제 실패 재시도 큐, 자동 갱신 스케줄러
+        </p>
+      </div>
+
+      <div class="timeline-item">
+        <span class="week">Week 3</span>
+        <h4>프론트엔드 UI</h4>
+        <p>
+          PricingModal, SubscriptionBanner, SubscriptionPage 개발,
+          결제 이력 UI, 해지 플로우, 전환 유도 트리거, 이벤트 로깅
+        </p>
+      </div>
+
+      <div class="timeline-item">
+        <span class="week">Week 4</span>
+        <h4>테스트 & 출시</h4>
+        <p>
+          토스 테스트 모드 E2E 검증, 엣지 케이스 테스트 (실패 재시도, 해지 후 재구독),
+          법적 고지 페이지 추가, 프로덕션 배포, 모니터링 대시보드 구성
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 11. 위험 요소 ═══ -->
+  <section id="risks">
+    <h2>11. 위험 요소 및 대응</h2>
+
+    <table>
+      <tr><th>위험</th><th>수준</th><th>영향</th><th>대응</th></tr>
+      <tr>
+        <td>사업자 등록 지연</td>
+        <td><span class="risk-tag high">HIGH</span></td>
+        <td>PG 가입 자체 불가</td>
+        <td>Week 1 시작 전 사업자 등록 완료. 간이과세자로 빠르게 진행</td>
+      </tr>
+      <tr>
+        <td>AI API 비용 초과</td>
+        <td><span class="risk-tag high">HIGH</span></td>
+        <td>프리미엄 사용자 급증 시 Claude API 비용이 구독 수익 초과</td>
+        <td>
+          일 상한 9,999회이나 실 사용은 30~50회 예상. 모니터링으로 이상치 감지.
+          비용 임계치 초과 시 알림 + 일시 throttle 가능하도록 daily_limit 동적 조정
+        </td>
+      </tr>
+      <tr>
+        <td>결제 실패율 높음</td>
+        <td><span class="risk-tag mid">MID</span></td>
+        <td>해지율 증가</td>
+        <td>3회 재시도 정책 + 이메일/인앱 알림으로 결제 수단 업데이트 유도</td>
+      </tr>
+      <tr>
+        <td>통신판매업 미신고</td>
+        <td><span class="risk-tag mid">MID</span></td>
+        <td>과태료 부과 가능</td>
+        <td>사업자 등록과 함께 통신판매업 신고 병행 (관할 구청, 온라인 신청)</td>
+      </tr>
+      <tr>
+        <td>환불 분쟁</td>
+        <td><span class="risk-tag low">LOW</span></td>
+        <td>CS 부담</td>
+        <td>구독 페이지에 환불 정책 명시. 7일 이내 전액 환불 보장으로 분쟁 최소화</td>
+      </tr>
+      <tr>
+        <td>무료 → 유료 전환율 저조</td>
+        <td><span class="risk-tag mid">MID</span></td>
+        <td>수익 미달</td>
+        <td>
+          첫 7일 무료 체험(trial) 도입 검토. A/B 테스트로 전환 유도 위치/문구 최적화.
+          프로모션 코드(<code>source_type='promotion'</code>) 활용
+        </td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- ═══ APPENDIX ═══ -->
+  <section>
+    <h2>부록: 기술 참조</h2>
+    <h3>기존 코드 재사용 포인트</h3>
+    <table>
+      <tr><th>기존 모듈</th><th>결제 서비스에서의 활용</th></tr>
+      <tr>
+        <td><code>backend/app/core/security.py</code></td>
+        <td>JWT 인증 — billing 라우터에 동일한 <code>get_current_user</code> 의존성 주입</td>
+      </tr>
+      <tr>
+        <td><code>backend/app/db/ai.py</code></td>
+        <td>엔타이틀먼트 조회/생성 함수 재사용 (또는 확장)</td>
+      </tr>
+      <tr>
+        <td><code>backend/app/services/mailer.py</code></td>
+        <td>결제 실패/구독 만료 이메일 알림 발송</td>
+      </tr>
+      <tr>
+        <td><code>backend/app/services/slack.py</code></td>
+        <td>결제 성공/실패 운영 알림</td>
+      </tr>
+      <tr>
+        <td><code>frontend/src/contexts/AIUsageContext.tsx</code></td>
+        <td>구독 상태 반영 — <code>plan_type</code>에 따른 UI 분기</td>
+      </tr>
+      <tr>
+        <td><code>frontend/src/contexts/AuthModalContext.tsx</code></td>
+        <td>비로그인 유저의 결제 시도 시 로그인 모달 트리거 패턴 재사용</td>
+      </tr>
+      <tr>
+        <td><code>frontend/src/utils/eventLogger.ts</code></td>
+        <td>billing 이벤트 로깅 (Amplitude 연동)</td>
+      </tr>
+    </table>
+
+    <h3>환경 변수 추가</h3>
+    <pre><code># .env
+TOSS_CLIENT_KEY=test_ck_...        # 프론트엔드용 (공개)
+TOSS_SECRET_KEY=test_sk_...        # 백엔드용 (비공개)
+TOSS_WEBHOOK_SECRET=whsec_...      # 웹훅 서명 검증
+BILLING_ENCRYPTION_KEY=...         # 빌링키 AES-256 암호화 키</code></pre>
+
+    <h3>수익 시뮬레이션</h3>
+    <table>
+      <tr><th>MAU</th><th>전환율</th><th>구독자</th><th>월 매출</th><th>PG 수수료 (3.63%)</th><th>순 매출</th></tr>
+      <tr><td>500</td><td>3%</td><td>15명</td><td>₩43,500</td><td>₩1,579</td><td>₩41,921</td></tr>
+      <tr><td>1,000</td><td>4%</td><td>40명</td><td>₩116,000</td><td>₩4,211</td><td>₩111,789</td></tr>
+      <tr><td>3,000</td><td>5%</td><td>150명</td><td>₩435,000</td><td>₩15,791</td><td>₩419,210</td></tr>
+      <tr><td>10,000</td><td>5%</td><td>500명</td><td>₩1,450,000</td><td>₩52,635</td><td>₩1,397,365</td></tr>
+    </table>
+  </section>
+
+</div>
+</body>
+</html>
