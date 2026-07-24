@@ -18,6 +18,7 @@ from jwt import ExpiredSignatureError, InvalidTokenError
 from app.core.config import settings
 from app.db.logs import ensure_request_id, insert_auth_event, submit_auth_event
 from app.db.postgres import get_connection
+from app.db.payments import expire_open_orders_for_user
 from app.core.security import (
     JWT_ALGORITHM,
     JWT_SECRET_KEY,
@@ -251,6 +252,7 @@ def validate_csrf_request(request: Request) -> None:
         "/api/auth/password-reset/request",
         "/api/auth/password-reset/confirm",
         "/api/auth/google/callback",
+        "/api/payments/webhooks/toss",
     }
     if request.url.path in csrf_exempt_paths:
         return
@@ -2003,6 +2005,8 @@ def delete_account(
             else:
                 if not req.password or not verify_password(req.password, row[0]):
                     raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
+
+            expire_open_orders_for_user(cur, current_user["user_id"])
 
             cur.execute(
                 """

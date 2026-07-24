@@ -39,6 +39,16 @@ class Settings:
     POSTGRES_POOL_MIN_SIZE = int(os.getenv("POSTGRES_POOL_MIN_SIZE", "5"))
     POSTGRES_POOL_MAX_SIZE = int(os.getenv("POSTGRES_POOL_MAX_SIZE", "20"))
 
+    TOSS_PAYMENTS_CLIENT_KEY = os.getenv("TOSS_PAYMENTS_CLIENT_KEY", "")
+    TOSS_PAYMENTS_SECRET_KEY = os.getenv("TOSS_PAYMENTS_SECRET_KEY", "")
+    TOSS_PAYMENTS_API_BASE_URL = os.getenv(
+        "TOSS_PAYMENTS_API_BASE_URL",
+        "https://api.tosspayments.com/v1",
+    ).rstrip("/")
+    TOSS_PAYMENTS_TIMEOUT_SECONDS = float(
+        os.getenv("TOSS_PAYMENTS_TIMEOUT_SECONDS", "7")
+    )
+
     DASHBOARD_SUMMARY_CACHE_TTL_SECONDS = int(
         os.getenv("DASHBOARD_SUMMARY_CACHE_TTL_SECONDS", "30")
     )

@@ -12,6 +12,7 @@ from app.api.exams.router import router as exams_router
 from app.api.events.router import router as events_router
 from app.api.sql.router import router as sql_router
 from app.api.feedback.router import router as feedback_router
+from app.api.payments.router import router as payments_router
 from app.db.oracle import check_oracle, close_oracle_pool, init_oracle_pool
 from app.db.postgres import check_postgres, close_postgres_pool, init_postgres_pool
 from app.services.ai import ai_service
@@ -52,6 +53,7 @@ app.include_router(exams_router)
 app.include_router(events_router)
 app.include_router(sql_router)
 app.include_router(feedback_router)
+app.include_router(payments_router)
 
 
 @app.get("/api/health")

@@ -24,6 +24,7 @@ def resolve_model_route(user_id: str, use_case: str) -> dict[str, Any]:
                         WHERE entitlement.user_id = %s::uuid
                           AND entitlement.starts_at <= now()
                           AND (entitlement.ends_at IS NULL OR entitlement.ends_at > now())
+                          AND entitlement.revoked_at IS NULL
                         ORDER BY entitlement.starts_at DESC
                         LIMIT 1
                     ), 'free') AS plan_code
@@ -451,6 +452,7 @@ def get_usage(user_id: str, *, is_admin: bool = False) -> dict[str, Any]:
                         WHERE entitlement.user_id = %s::uuid
                           AND entitlement.starts_at <= now()
                           AND (entitlement.ends_at IS NULL OR entitlement.ends_at > now())
+                          AND entitlement.revoked_at IS NULL
                         ORDER BY entitlement.starts_at DESC
                         LIMIT 1
                     ), 'free') AS plan_code
