@@ -216,6 +216,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                 SELECT
                     replace(e.exam_code, 'sqld_mock_', '') AS exam_url_id,
                     e.title,
+                    ea.id AS attempt_id,
                     ea.attempt_no,
                     COALESCE(ear.score_percent, 0),
                     COALESCE(ear.passed, false),
@@ -236,27 +237,32 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                 {
                     "examId": str(row[0]),
                     "examTitle": row[1],
-                    "attemptNo": int(row[2] or 0),
-                    "scorePercent": float(row[3] or 0),
-                    "passed": bool(row[4]),
-                    "submittedAt": row[5].isoformat() if row[5] else None,
+                    "attemptId": int(row[2]),
+                    "attemptNo": int(row[3] or 0),
+                    "scorePercent": float(row[4] or 0),
+                    "passed": bool(row[5]),
+                    "submittedAt": row[6].isoformat() if row[6] else None,
                 }
                 for row in cur.fetchall()
-                if row[5] is not None
+                if row[6] is not None
             ]
 
             cur.execute(
                 """
                 SELECT
+                    spa.id AS attempt_id,
                     sp.practice_code,
                     sp.title,
                     COALESCE(spa.is_correct, false),
-                    COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at)
+                    spa.submitted_at
                 FROM practice.sql_practice_attempts spa
                 JOIN practice.sql_practices sp
                   ON sp.id = spa.practice_id
                 WHERE spa.user_id = %s::uuid
-                ORDER BY COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at) DESC,
+                  AND spa.submitted_at IS NOT NULL
+                  AND spa.submitted_sql IS NOT NULL
+                  AND btrim(spa.submitted_sql) <> ''
+                ORDER BY spa.submitted_at DESC,
                          spa.id DESC
                 LIMIT 5
                 """,
@@ -264,13 +270,14 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
             )
             recent_sql_attempts = [
                 {
-                    "practiceId": str(row[0]),
-                    "title": row[1],
-                    "isCorrect": bool(row[2]),
-                    "submittedAt": row[3].isoformat() if row[3] else None,
+                    "attemptId": str(row[0]),
+                    "practiceId": str(row[1]),
+                    "title": row[2],
+                    "isCorrect": bool(row[3]),
+                    "submittedAt": row[4].isoformat() if row[4] else None,
                 }
                 for row in cur.fetchall()
-                if row[3] is not None
+                if row[4] is not None
             ]
 
             if include_endless:

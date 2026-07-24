@@ -372,27 +372,40 @@ def record_sql_submission_and_award_points(
             return 0, (int(updated_row["total_points"]) if updated_row else None), attempt_id
 
 
-def fetch_latest_submitted_query(*, practice_code: str, user_id: str) -> str | None:
+def fetch_submitted_query(
+    *,
+    practice_code: str,
+    user_id: str,
+    attempt_id: int | None = None,
+) -> dict | None:
     with get_connection() as conn:
-        with conn.cursor() as cur:
+        with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """
-                SELECT spa.submitted_sql
+                SELECT spa.id, spa.submitted_sql, spa.submitted_at
                 FROM practice.sql_practice_attempts spa
                 JOIN practice.sql_practices sp
                   ON sp.id = spa.practice_id
                 WHERE sp.practice_code = %s
                   AND spa.user_id = %s::uuid
+                  AND (%s::bigint IS NULL OR spa.id = %s::bigint)
+                  AND spa.submitted_at IS NOT NULL
                   AND spa.submitted_sql IS NOT NULL
                   AND btrim(spa.submitted_sql) <> ''
-                ORDER BY COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at) DESC,
+                ORDER BY spa.submitted_at DESC,
                          spa.id DESC
                 LIMIT 1
                 """,
-                (practice_code, user_id),
+                (practice_code, user_id, attempt_id, attempt_id),
             )
             row = cur.fetchone()
-            return str(row[0]) if row and row[0] else None
+            if not row:
+                return None
+            return {
+                "attempt_id": str(row["id"]),
+                "submitted_sql": str(row["submitted_sql"]),
+                "submitted_at": row["submitted_at"],
+            }
 
 
 def resolve_workspace_scope(
@@ -535,14 +548,27 @@ def cleanup_workspace(
 
 
 @router.get("/practices/{practice_id}/latest-submission")
-def get_latest_submission(practice_id: str, current_user: dict = Depends(get_current_user)):
-    submitted_sql = fetch_latest_submitted_query(
+def get_latest_submission(
+    practice_id: str,
+    attempt_id: int | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    submission = fetch_submitted_query(
         practice_code=practice_id,
         user_id=current_user["user_id"],
+        attempt_id=attempt_id,
     )
+    if attempt_id is not None and submission is None:
+        raise HTTPException(status_code=404, detail="SQL submission not found")
     return {
         "practiceId": practice_id,
-        "submittedSql": submitted_sql or "",
+        "attemptId": submission["attempt_id"] if submission else None,
+        "submittedSql": submission["submitted_sql"] if submission else "",
+        "submittedAt": (
+            submission["submitted_at"].isoformat()
+            if submission and submission["submitted_at"]
+            else None
+        ),
     }
 
 

@@ -1,4 +1,4 @@
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { Trophy, XCircle, CheckCircle, RotateCcw, Flag, Sparkles } from 'lucide-react';
 import type { Problem, AIExplainRequest } from '../types';
@@ -101,6 +101,12 @@ function WrongItemAI({ problem, userAnswer, attemptId }: { problem: Problem; use
 export default function ExamResultPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const attemptIdParam = searchParams.get('attemptId');
+  const parsedAttemptId = attemptIdParam == null ? NaN : Number(attemptIdParam);
+  const requestedAttemptId = Number.isSafeInteger(parsedAttemptId) && parsedAttemptId > 0
+    ? parsedAttemptId
+    : undefined;
   const { state: navigationState } = useLocation() as { state: ResultState | null };
   const [result, setResult] = useState<ResultState | null>(navigationState ?? null);
   const [loading, setLoading] = useState(!navigationState);
@@ -108,13 +114,13 @@ export default function ExamResultPage() {
   const [reportTarget, setReportTarget] = useState<Problem | null>(null);
 
   useEffect(() => {
-    if (result || !id) return;
+    if (navigationState || !id) return;
 
     let mounted = true;
     setLoading(true);
     setError('');
 
-    fetchExamResult(id)
+    fetchExamResult(id, requestedAttemptId)
       .then((nextResult) => {
         if (mounted) setResult(nextResult);
       })
@@ -129,7 +135,7 @@ export default function ExamResultPage() {
     return () => {
       mounted = false;
     };
-  }, [id, result]);
+  }, [id, navigationState, requestedAttemptId]);
 
   if (loading) {
     return (

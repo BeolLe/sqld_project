@@ -485,23 +485,31 @@ def sync_exam_session(
 @router.get("/{exam_id}/result")
 def get_latest_exam_result(
     exam_id: str,
+    attempt_id: int | None = None,
     current_user: dict = Depends(get_current_user),
 ):
     with get_connection() as conn:
         exam = fetch_exam(conn, exam_id)
         with conn.cursor(row_factory=dict_row) as cur:
+            attempt_filter = ""
+            params: list = [exam["id"], current_user["user_id"]]
+            if attempt_id is not None:
+                attempt_filter = "AND ea.id = %s"
+                params.append(attempt_id)
+
             cur.execute(
-                """
-                SELECT *
-                FROM exam.exam_attempts
-                WHERE exam_id = %s
-                  AND user_id = %s::uuid
-                  AND status = 'submitted'
-                  AND submitted_at IS NOT NULL
-                ORDER BY submitted_at DESC, id DESC
+                f"""
+                SELECT ea.*
+                FROM exam.exam_attempts ea
+                WHERE ea.exam_id = %s
+                  AND ea.user_id = %s::uuid
+                  AND ea.status = 'submitted'
+                  AND ea.submitted_at IS NOT NULL
+                  {attempt_filter}
+                ORDER BY ea.submitted_at DESC, ea.id DESC
                 LIMIT 1
                 """,
-                (exam["id"], current_user["user_id"]),
+                params,
             )
             attempt = cur.fetchone()
 

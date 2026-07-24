@@ -131,6 +131,7 @@ export interface SubjectStatsByMode {
 export interface RecentExamResult {
   examId: string;
   examTitle: string;
+  attemptId: number;
   attemptNo: number;
   scorePercent: number;
   passed: boolean;
@@ -138,6 +139,7 @@ export interface RecentExamResult {
 }
 
 export interface RecentSqlAttempt {
+  attemptId: string;
   practiceId: string;
   title: string;
   isCorrect: boolean;
