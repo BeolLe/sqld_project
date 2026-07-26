@@ -2,6 +2,7 @@
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Terminal, Trophy, ChevronRight, CheckCircle } from 'lucide-react';
 import ExamScheduleCard from '../components/ExamScheduleCard';
+import CreatorCredentials from '../components/CreatorCredentials';
 
 const FEATURES = [
   {
@@ -79,6 +80,9 @@ export default function MainPage() {
 
       {/* 시험 일정 */}
       <ExamScheduleCard />
+
+      {/* 합격자 신뢰 섹션 */}
+      <CreatorCredentials />
 
       {/* 핵심 기능 카드 */}
       <section className="max-w-5xl mx-auto px-4 pb-16">
