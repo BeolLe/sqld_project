@@ -18,6 +18,8 @@ import ExamResultPage from './pages/ExamResultPage';
 import MyPage from './pages/MyPage';
 import FeedbackPage from './pages/FeedbackPage';
 import EndlessPracticePage from './pages/EndlessPracticePage';
+import LearnIndexPage from './pages/LearnIndexPage';
+import LearnUnitPage from './pages/LearnUnitPage';
 import type { AuthMode } from './types';
 
 const SQLPracticeListPage = lazy(() => import('./pages/SQLPracticeListPage'));
@@ -172,6 +174,8 @@ function AppShell() {
                   <Route path="/exams/:id" element={<ExamListPage />} />
                   <Route path="/exams/:id/result" element={<ExamResultPage />} />
                   <Route path="/endless" element={<EndlessPracticePage />} />
+                  <Route path="/learn" element={<LearnIndexPage />} />
+                  <Route path="/learn/:unitId" element={<LearnUnitPage />} />
                   <Route
                     path="/sql-practice"
                     element={

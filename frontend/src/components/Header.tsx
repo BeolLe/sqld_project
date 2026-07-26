@@ -45,6 +45,9 @@ export default function Header({ onAuthClick }: HeaderProps) {
           <Link to="/sql-practice" className="hover:text-white transition-colors">
             SQL 실습
           </Link>
+          <Link to="/learn" className="hover:text-white transition-colors">
+            SQLD 교육
+          </Link>
           {isLoggedIn && (
             <Link to="/endless" className="hover:text-white transition-colors">
               무한풀이
@@ -139,6 +142,13 @@ export default function Header({ onAuthClick }: HeaderProps) {
               className="py-2.5 text-sm text-slate-300 hover:text-white transition-colors"
             >
               SQL 실습
+            </Link>
+            <Link
+              to="/learn"
+              onClick={closeMobile}
+              className="py-2.5 text-sm text-slate-300 hover:text-white transition-colors"
+            >
+              SQLD 교육
             </Link>
             {isLoggedIn && (
               <Link
