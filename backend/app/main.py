@@ -7,6 +7,7 @@ from app.api.auth.router import router as auth_router, validate_csrf_request
 from app.api.ai.router import router as ai_router
 from app.api.content.router import router as content_router
 from app.api.dashboard.router import router as dashboard_router
+from app.api.education.router import router as education_router
 from app.api.endless.router import router as endless_router
 from app.api.exams.router import router as exams_router
 from app.api.events.router import router as events_router
@@ -48,6 +49,7 @@ app.include_router(auth_router)
 app.include_router(ai_router)
 app.include_router(dashboard_router)
 app.include_router(content_router)
+app.include_router(education_router)
 app.include_router(endless_router)
 app.include_router(exams_router)
 app.include_router(events_router)
