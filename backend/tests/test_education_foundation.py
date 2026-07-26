@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import unittest
+from unittest.mock import MagicMock, patch
 
-from app.db.education import build_curriculum_tree, serialize_progress
+from app.db.education import (
+    build_curriculum_tree,
+    save_lesson_progress,
+    serialize_progress,
+)
 
 
 class EducationCurriculumTreeTests(unittest.TestCase):
@@ -120,6 +126,44 @@ class EducationProgressTests(unittest.TestCase):
         self.assertIsNone(progress["resumeOffsetPx"])
         self.assertIsNone(progress["resumeSavedAt"])
         self.assertIsNone(progress["resumeExpiresAt"])
+
+    def test_saves_resume_location_with_a_server_owned_one_day_ttl(self):
+        now = datetime.now(timezone.utc)
+        cursor = MagicMock()
+        cursor.__enter__.return_value = cursor
+        cursor.fetchone.return_value = {
+            "lesson_id": 10,
+            "last_opened_version_id": 100,
+            "status": "IN_PROGRESS",
+            "last_viewed_at": now,
+            "completed_at": None,
+            "resume_anchor": "block-12",
+            "resume_offset_px": 840,
+            "resume_saved_at": now,
+            "resume_expires_at": now + timedelta(days=1),
+        }
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+
+        @contextmanager
+        def fake_connection():
+            yield connection
+
+        with patch("app.db.education.get_connection", fake_connection):
+            progress = save_lesson_progress(
+                user_id="00000000-0000-0000-0000-000000000001",
+                lesson_id=10,
+                lesson_version_id=100,
+                resume_anchor="block-12",
+                resume_offset_px=840,
+                completed=False,
+            )
+
+        query, params = cursor.execute.call_args.args
+        self.assertIn("now() + interval '1 day'", query)
+        self.assertEqual(params[2:4], ("block-12", 840))
+        self.assertEqual(params[-2:], (10, 100))
+        self.assertEqual(progress["resumeAnchor"], "block-12")
 
 
 if __name__ == "__main__":
