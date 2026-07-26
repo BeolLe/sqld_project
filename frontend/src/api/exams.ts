@@ -163,9 +163,8 @@ export function submitExam(
   });
 }
 
-export function fetchExamResult(examId: string, attemptId?: number): Promise<ExamSubmitResponse> {
-  const query = attemptId == null ? '' : `?attempt_id=${encodeURIComponent(String(attemptId))}`;
-  return request<ExamSubmitResponse>(`/exams/${examId}/result${query}`);
+export function fetchExamResult(examId: string): Promise<ExamSubmitResponse> {
+  return request<ExamSubmitResponse>(`/exams/${examId}/result`);
 }
 
 export function fetchExamSchedules(year?: number) {

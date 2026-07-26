@@ -502,7 +502,7 @@ export default function DashboardPage() {
                 {recentExams.slice(0, 5).map((exam, idx) => (
                   <li key={`${exam.examId}-${exam.attemptNo}-${idx}`}>
                     <Link
-                      to={`/exams/${exam.examId}/result?attemptId=${exam.attemptId}`}
+                      to={`/exams/${exam.examId}/result`}
                       className="flex items-center justify-between text-sm hover:bg-slate-50 -mx-2 px-2 py-1.5 rounded-lg transition-colors"
                     >
                       <div>
@@ -542,9 +542,9 @@ export default function DashboardPage() {
             {recentSql.length > 0 ? (
               <ul className="space-y-3">
                 {recentSql.slice(0, 5).map((item, idx) => (
-                  <li key={`${item.practiceId}-${item.attemptId}-${idx}`}>
+                  <li key={`${item.practiceId}-${idx}`}>
                     <Link
-                      to={`/sql-practice/${item.practiceId}?attemptId=${item.attemptId}`}
+                      to={`/sql-practice/${item.practiceId}`}
                       className="flex items-center justify-between text-sm hover:bg-slate-50 -mx-2 px-2 py-1.5 rounded-lg transition-colors"
                     >
                       <div>

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Database,
   CheckCircle,
@@ -34,9 +34,8 @@ import { streamAISQLReview } from '../api/ai';
 import { getColumnDescription } from '../constants/columnDescriptions';
 import { apiRequest } from '../utils/api';
 
-async function fetchLatestSubmittedQuery(practiceId: string, attemptId?: string): Promise<string> {
-  const query = attemptId == null ? '' : `?attempt_id=${encodeURIComponent(attemptId)}`;
-  const response = await apiRequest(`/sql/practices/${practiceId}/latest-submission${query}`, {
+async function fetchLatestSubmittedQuery(practiceId: string): Promise<string> {
+  const response = await apiRequest(`/sql/practices/${practiceId}/latest-submission`, {
     headers: {
       'Content-Type': 'application/json',
     },
@@ -113,8 +112,6 @@ function useResizeDrag(
 export default function SQLPracticePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const requestedAttemptId = searchParams.get('attemptId') ?? undefined;
   const { user, updatePoints } = useAuth();
   const [problem, setProblem] = useState<{
     id: string;
@@ -135,9 +132,9 @@ export default function SQLPracticePage() {
 
     let mounted = true;
 
-    fetchLatestSubmittedQuery(id, requestedAttemptId)
+    fetchLatestSubmittedQuery(id)
       .then((submittedSql) => {
-        if (!mounted) return;
+        if (!mounted || !submittedSql.trim()) return;
         setQuery(submittedSql);
       })
       .catch(() => undefined);
@@ -145,7 +142,7 @@ export default function SQLPracticePage() {
     return () => {
       mounted = false;
     };
-  }, [id, requestedAttemptId, user]);
+  }, [id, user]);
 
   useEffect(() => {
     if (!id) return;
