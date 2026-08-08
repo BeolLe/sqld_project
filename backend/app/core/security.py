@@ -3,6 +3,7 @@ import os
 import secrets
 
 import jwt
+from jwt import InvalidTokenError
 from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
 
