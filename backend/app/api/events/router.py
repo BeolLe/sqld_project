@@ -19,6 +19,7 @@ KST = ZoneInfo("Asia/Seoul")
 PHONE_DIGITS_RE = re.compile(r"\D")
 PHASE2_PREVIEW_HOSTS = {"test_dummies.selfronny.com"}
 PHASE2_PREVIEW_CAMPAIGN_KEY = "sqld_61_phase2"
+PUBLIC_NOTICE_PHASE_CODE = "notice"
 
 
 class PopupCampaignDismissRequest(BaseModel):
@@ -192,6 +193,17 @@ def build_campaign_payload(row: dict, *, eligible: bool) -> dict:
     }
 
 
+def build_public_campaign_payload(row: dict) -> dict:
+    return {
+        "campaignKey": row["campaign_key"],
+        "title": row["title"],
+        "phaseCode": row["phase_code"],
+        "exposureStartAt": row["exposure_start_at"].isoformat(),
+        "exposureEndAt": row["exposure_end_at"].isoformat(),
+        "formSchema": row.get("form_schema") or {},
+    }
+
+
 def validate_response_payload(req: PopupCampaignResponseUpsertRequest) -> str:
     phone_number = normalize_phone_number(req.phone_number)
     if not phone_number:
@@ -264,6 +276,37 @@ def fetch_visible_campaign_rows(user_id: str, *, allow_phase2_preview: bool = Fa
                 ),
             )
             return cur.fetchall()
+
+
+@router.get("/public-modal")
+def get_public_modal():
+    now = datetime.now(UTC)
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT
+                    campaign_key,
+                    title,
+                    phase_code,
+                    exposure_start_at,
+                    exposure_end_at,
+                    form_schema
+                FROM event.popup_campaigns
+                WHERE is_active = true
+                  AND phase_code = %s
+                  AND exposure_start_at <= %s
+                  AND exposure_end_at >= %s
+                ORDER BY campaign_id DESC
+                LIMIT 1
+                """,
+                (PUBLIC_NOTICE_PHASE_CODE, now, now),
+            )
+            campaign = cur.fetchone()
+
+    return {
+        "activeModal": build_public_campaign_payload(campaign) if campaign else None,
+    }
 
 
 @router.get("/modal")

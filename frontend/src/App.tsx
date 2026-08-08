@@ -9,6 +9,8 @@ import AuthModal from './components/AuthModal';
 import EventPopup from './components/EventPopup';
 import SurveyPopupLegacy from './components/SurveyPopupLegacy';
 import ExamCheerPopup from './components/ExamCheerPopup';
+import NoticePopup from './components/NoticePopup';
+import type { NoticePopupSchema } from './components/NoticePopup';
 import { apiFetch } from './utils/api';
 import MainPage from './pages/MainPage';
 import DashboardPage from './pages/DashboardPage';
@@ -40,12 +42,19 @@ interface FormField {
 
 interface ActiveModal {
   campaignKey: string;
-  phaseCode: 'phase1' | 'phase2' | 'cheer';
-  formSchema?: { fields: FormField[] };
+  title: string;
+  phaseCode: 'phase1' | 'phase2' | 'cheer' | 'notice';
+  formSchema?: NoticePopupSchema & { fields?: FormField[] };
 }
 
 interface EventModalResponse {
   activeModal: ActiveModal | null;
+}
+
+const PUBLIC_NOTICE_DISMISS_PREFIX = 'solsqld_notice_dismissed_';
+
+function getKstDateKey() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
 }
 
 function AppShell() {
@@ -61,7 +70,7 @@ function AppShell() {
   const [showEventPopup, setShowEventPopup] = useState(false);
   const [activeCampaign, setActiveCampaign] = useState<ActiveModal | null>(null);
   useEffect(() => {
-    if (!user || authModal.open) {
+    if (authModal.open) {
       setShowEventPopup(false);
       setActiveCampaign(null);
       return;
@@ -71,6 +80,31 @@ function AppShell() {
 
     async function loadActiveEventModal() {
       try {
+        let publicResponse: EventModalResponse = { activeModal: null };
+        try {
+          publicResponse = await apiFetch<EventModalResponse>('/events/public-modal');
+        } catch (error) {
+          console.error('공개 점검 팝업 조회 실패', error);
+        }
+
+        if (cancelled) return;
+        if (publicResponse.activeModal) {
+          const dismissedDate = window.localStorage.getItem(
+            `${PUBLIC_NOTICE_DISMISS_PREFIX}${publicResponse.activeModal.campaignKey}`
+          );
+          if (dismissedDate !== getKstDateKey()) {
+            setShowEventPopup(true);
+            setActiveCampaign(publicResponse.activeModal);
+            return;
+          }
+        }
+
+        if (!user) {
+          setShowEventPopup(false);
+          setActiveCampaign(null);
+          return;
+        }
+
         const response = await apiFetch<EventModalResponse>('/events/modal');
         if (cancelled) return;
         setShowEventPopup(Boolean(response.activeModal));
@@ -113,6 +147,16 @@ function AppShell() {
     setShowEventPopup(false);
 
     if (!campaign) {
+      return;
+    }
+
+    if (campaign.phaseCode === 'notice') {
+      if (dismissForToday) {
+        window.localStorage.setItem(
+          `${PUBLIC_NOTICE_DISMISS_PREFIX}${campaign.campaignKey}`,
+          getKstDateKey()
+        );
+      }
       return;
     }
 
@@ -196,7 +240,13 @@ function AppShell() {
       )}
 
       {showEventPopup && activeCampaign && (
-        activeCampaign.phaseCode === 'cheer' ? (
+        activeCampaign.phaseCode === 'notice' ? (
+          <NoticePopup
+            title={activeCampaign.title}
+            schema={activeCampaign.formSchema}
+            onClose={closeEventPopup}
+          />
+        ) : activeCampaign.phaseCode === 'cheer' ? (
           <ExamCheerPopup onClose={closeEventPopup} />
         ) : activeCampaign.phaseCode === 'phase2' ? (
           <SurveyPopupLegacy
