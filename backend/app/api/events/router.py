@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from psycopg.rows import dict_row
 
-from app.api.auth.router import ensure_admin, get_current_user
+from app.api.auth.router import ensure_admin, get_current_user, get_optional_current_user
 from app.db.postgres import get_connection
 
 router = APIRouter(prefix="/api/events", tags=["events"])
@@ -19,7 +19,24 @@ KST = ZoneInfo("Asia/Seoul")
 PHONE_DIGITS_RE = re.compile(r"\D")
 PHASE2_PREVIEW_HOSTS = {"test_dummies.selfronny.com"}
 PHASE2_PREVIEW_CAMPAIGN_KEY = "sqld_61_phase2"
-PUBLIC_NOTICE_PHASE_CODE = "notice"
+# Business priority is controlled in code so an incorrectly configured survey
+# cannot outrank a maintenance or critical service notice. display_priority is
+# used only as a tie-breaker between campaigns of the same popup type.
+POPUP_TYPE_PRIORITIES = {
+    "maintenance": 100,
+    "critical_notice": 90,
+    "notice": 70,
+    "exam_cheer": 60,
+    "survey": 40,
+    "promotion": 20,
+}
+SUPPORTED_RENDERER_KEYS = {
+    "notice",
+    "survey",
+    "survey_legacy",
+    "event",
+    "exam_cheer",
+}
 
 
 class PopupCampaignDismissRequest(BaseModel):
@@ -126,7 +143,17 @@ def has_campaign_response_or_view(*, user_id: str, campaign_key: str) -> bool:
             return cur.fetchone() is not None
 
 
-def is_campaign_eligible(*, campaign: dict, user_profile: dict, allow_phase2_preview: bool = False) -> bool:
+def is_campaign_eligible(
+    *,
+    campaign: dict,
+    user_profile: dict | None,
+    allow_phase2_preview: bool = False,
+) -> bool:
+    if campaign.get("audience_code") == "public":
+        return True
+    if user_profile is None:
+        return False
+
     rule = campaign.get("eligibility_rule") or {}
     points = int(user_profile.get("total_points") or 0)
     created_at = user_profile.get("created_at")
@@ -161,6 +188,27 @@ def is_campaign_eligible(*, campaign: dict, user_profile: dict, allow_phase2_pre
     return False
 
 
+def campaign_priority_key(campaign: dict) -> tuple[int, int, datetime, int]:
+    popup_type = str(campaign.get("popup_type") or "")
+    type_priority = POPUP_TYPE_PRIORITIES.get(popup_type, -1)
+    display_priority = int(campaign.get("display_priority") or 0)
+    exposure_start_at = campaign.get("exposure_start_at")
+    started_at = (
+        exposure_start_at
+        if isinstance(exposure_start_at, datetime)
+        else datetime.min.replace(tzinfo=UTC)
+    )
+    campaign_id = int(campaign.get("campaign_id") or 0)
+    return type_priority, display_priority, started_at, campaign_id
+
+
+def is_supported_campaign(campaign: dict) -> bool:
+    return (
+        campaign.get("popup_type") in POPUP_TYPE_PRIORITIES
+        and campaign.get("renderer_key") in SUPPORTED_RENDERER_KEYS
+    )
+
+
 def build_campaign_payload(row: dict, *, eligible: bool) -> dict:
     response_exists = row.get("response_id") is not None
     hidden_until = row.get("hidden_until")
@@ -168,6 +216,10 @@ def build_campaign_payload(row: dict, *, eligible: bool) -> dict:
         "campaignKey": row["campaign_key"],
         "title": row["title"],
         "phaseCode": row["phase_code"],
+        "popupType": row["popup_type"],
+        "rendererKey": row["renderer_key"],
+        "audienceCode": row["audience_code"],
+        "displayPriority": int(row.get("display_priority") or 0),
         "exposureStartAt": row["exposure_start_at"].isoformat() if row["exposure_start_at"] else None,
         "exposureEndAt": row["exposure_end_at"].isoformat() if row["exposure_end_at"] else None,
         "responseOpenAt": row["response_open_at"].isoformat() if row["response_open_at"] else None,
@@ -198,6 +250,10 @@ def build_public_campaign_payload(row: dict) -> dict:
         "campaignKey": row["campaign_key"],
         "title": row["title"],
         "phaseCode": row["phase_code"],
+        "popupType": row["popup_type"],
+        "rendererKey": row["renderer_key"],
+        "audienceCode": row["audience_code"],
+        "displayPriority": int(row.get("display_priority") or 0),
         "exposureStartAt": row["exposure_start_at"].isoformat(),
         "exposureEndAt": row["exposure_end_at"].isoformat(),
         "formSchema": row.get("form_schema") or {},
@@ -217,8 +273,11 @@ def validate_response_payload(req: PopupCampaignResponseUpsertRequest) -> str:
     return phone_number
 
 
-def fetch_visible_campaign_rows(user_id: str, *, allow_phase2_preview: bool = False) -> list[dict]:
-    now = datetime.now(UTC)
+def fetch_visible_campaign_rows(
+    user_id: str | None,
+    *,
+    allow_phase2_preview: bool = False,
+) -> list[dict]:
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
@@ -228,6 +287,10 @@ def fetch_visible_campaign_rows(user_id: str, *, allow_phase2_preview: bool = Fa
                     c.campaign_key,
                     c.title,
                     c.phase_code,
+                    c.popup_type,
+                    c.renderer_key,
+                    c.audience_code,
+                    c.display_priority,
                     c.exposure_start_at,
                     c.exposure_end_at,
                     c.response_open_at,
@@ -241,71 +304,92 @@ def fetch_visible_campaign_rows(user_id: str, *, allow_phase2_preview: bool = Fa
                     r.submitted_at,
                     r.updated_at AS response_updated_at,
                     CASE
-                        WHEN v.hidden_until IS NOT NULL AND v.hidden_until > %s THEN v.hidden_until
+                        WHEN v.hidden_until IS NOT NULL
+                         AND v.hidden_until > CURRENT_TIMESTAMP
+                        THEN v.hidden_until
                         ELSE NULL
                     END AS hidden_until
                 FROM event.popup_campaigns c
                 LEFT JOIN event.popup_campaign_responses r
                   ON r.campaign_id = c.campaign_id
-                 AND r.user_id = %s
+                 AND r.user_id = %s::uuid
                 LEFT JOIN event.popup_campaign_views v
                   ON v.campaign_id = c.campaign_id
-                 AND v.user_id = %s
+                 AND v.user_id = %s::uuid
                 WHERE c.is_active = true
                   AND (
-                    (c.exposure_start_at <= %s AND c.exposure_end_at >= %s)
+                    c.audience_code = 'public'
+                    OR (%s::uuid IS NOT NULL AND c.audience_code = 'authenticated')
+                  )
+                  AND (
+                    (
+                      c.exposure_start_at <= CURRENT_TIMESTAMP
+                      AND c.exposure_end_at >= CURRENT_TIMESTAMP
+                    )
                     OR (%s AND c.campaign_key = %s)
                   )
-                ORDER BY
-                  CASE c.phase_code
-                    WHEN 'cheer' THEN 0
-                    WHEN 'phase1' THEN 1
-                    WHEN 'phase2' THEN 2
-                    ELSE 99
-                  END,
-                  c.campaign_id ASC
                 """,
                 (
-                    now,
                     user_id,
                     user_id,
-                    now,
-                    now,
+                    user_id,
                     allow_phase2_preview,
                     PHASE2_PREVIEW_CAMPAIGN_KEY,
                 ),
             )
-            return cur.fetchall()
+            rows = cur.fetchall()
+            return sorted(rows, key=campaign_priority_key, reverse=True)
 
 
 @router.get("/public-modal")
 def get_public_modal():
-    now = datetime.now(UTC)
-    with get_connection() as conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                """
-                SELECT
-                    campaign_key,
-                    title,
-                    phase_code,
-                    exposure_start_at,
-                    exposure_end_at,
-                    form_schema
-                FROM event.popup_campaigns
-                WHERE is_active = true
-                  AND phase_code = %s
-                  AND exposure_start_at <= %s
-                  AND exposure_end_at >= %s
-                ORDER BY campaign_id DESC
-                LIMIT 1
-                """,
-                (PUBLIC_NOTICE_PHASE_CODE, now, now),
-            )
-            campaign = cur.fetchone()
+    rows = fetch_visible_campaign_rows(None)
+    campaign = next(
+        (
+            row
+            for row in rows
+            if row.get("audience_code") == "public" and is_supported_campaign(row)
+        ),
+        None,
+    )
 
     return {
         "activeModal": build_public_campaign_payload(campaign) if campaign else None,
+    }
+
+
+@router.get("/active-popup")
+def get_active_popup(
+    request: Request,
+    current_user: dict | None = Depends(get_optional_current_user),
+):
+    """Return ordered popup candidates for both anonymous and signed-in users.
+
+    The backend owns eligibility and business priority. The frontend only skips
+    locally dismissed public campaigns and loads the registered renderer.
+    """
+    user_profile = load_user_profile(current_user["user_id"]) if current_user else None
+    allow_phase2_preview = bool(current_user) and is_phase2_preview_request(request)
+    rows = fetch_visible_campaign_rows(
+        current_user["user_id"] if current_user else None,
+        allow_phase2_preview=allow_phase2_preview,
+    )
+    items = [
+        build_campaign_payload(
+            row,
+            eligible=is_campaign_eligible(
+                campaign=row,
+                user_profile=user_profile,
+                allow_phase2_preview=allow_phase2_preview,
+            ),
+        )
+        for row in rows
+        if is_supported_campaign(row)
+    ]
+    visible_items = [item for item in items if item["showModal"]]
+    return {
+        "items": visible_items,
+        "activePopup": visible_items[0] if visible_items else None,
     }
 
 
@@ -327,6 +411,7 @@ def get_active_modal(request: Request, current_user: dict = Depends(get_current_
             ),
         )
         for row in rows
+        if is_supported_campaign(row)
     ]
     active_modal = next((item for item in items if item["showModal"]), None)
     return {"items": items, "activeModal": active_modal}
