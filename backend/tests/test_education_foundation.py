@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from app.db.education import (
     build_curriculum_tree,
+    get_published_lesson_by_code,
     save_lesson_progress,
     serialize_progress,
 )
@@ -164,6 +165,51 @@ class EducationProgressTests(unittest.TestCase):
         self.assertEqual(params[2:4], ("block-12", 840))
         self.assertEqual(params[-2:], (10, 100))
         self.assertEqual(progress["resumeAnchor"], "block-12")
+
+
+class EducationLessonLookupTests(unittest.TestCase):
+    def test_gets_published_lesson_using_globally_unique_code(self):
+        published_at = datetime.now(timezone.utc)
+        cursor = MagicMock()
+        cursor.__enter__.return_value = cursor
+        cursor.fetchone.return_value = {
+            "lesson_id": 10,
+            "lesson_code": "dm-model",
+            "lesson_version_id": 100,
+            "version_no": 1,
+            "title": "데이터모델의 이해",
+            "summary": "데이터 모델링의 핵심 개념",
+            "body_markdown": "## 데이터 모델링의 개념",
+            "estimated_minutes": 10,
+            "published_at": published_at,
+            "unit_id": 2,
+            "unit_code": "group-data-modeling-understanding",
+            "unit_title": "데이터 모델링의 이해",
+            "curriculum_code": "sqld-concept",
+            "curriculum_title": "SQLD 개념교육",
+            "revision_code": "2026.08-v1",
+        }
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+
+        @contextmanager
+        def fake_connection():
+            yield connection
+
+        with patch("app.db.education.get_connection", fake_connection):
+            lesson = get_published_lesson_by_code(
+                lesson_code="dm-model",
+            )
+
+        _, params = cursor.execute.call_args.args
+        self.assertEqual(params, ("dm-model",))
+        self.assertIsNotNone(lesson)
+        self.assertEqual(lesson["lessonCode"], "dm-model")
+        self.assertEqual(
+            lesson["unit"]["unitCode"],
+            "group-data-modeling-understanding",
+        )
+        self.assertEqual(lesson["bodyMarkdown"], "## 데이터 모델링의 개념")
 
 
 if __name__ == "__main__":

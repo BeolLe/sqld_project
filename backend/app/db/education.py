@@ -190,6 +190,7 @@ def get_published_lesson(lesson_id: int) -> dict[str, Any] | None:
                     version.estimated_minutes,
                     version.published_at,
                     unit.unit_id,
+                    unit.unit_code,
                     unit.title AS unit_title,
                     curriculum.curriculum_code,
                     curriculum.title AS curriculum_title,
@@ -211,6 +212,54 @@ def get_published_lesson(lesson_id: int) -> dict[str, Any] | None:
             )
             row = cur.fetchone()
 
+    return _serialize_lesson(row)
+
+
+def get_published_lesson_by_code(
+    *,
+    lesson_code: str,
+) -> dict[str, Any] | None:
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT
+                    lesson.lesson_id,
+                    lesson.lesson_code,
+                    version.lesson_version_id,
+                    version.version_no,
+                    version.title,
+                    version.summary,
+                    version.body_markdown,
+                    version.estimated_minutes,
+                    version.published_at,
+                    unit.unit_id,
+                    unit.unit_code,
+                    unit.title AS unit_title,
+                    curriculum.curriculum_code,
+                    curriculum.title AS curriculum_title,
+                    curriculum.revision_code
+                FROM education.curricula curriculum
+                JOIN education.units unit
+                  ON unit.curriculum_id = curriculum.curriculum_id
+                 AND unit.status = 'PUBLISHED'
+                JOIN education.lessons lesson
+                  ON lesson.unit_id = unit.unit_id
+                 AND lesson.status = 'PUBLISHED'
+                JOIN education.lesson_versions version
+                  ON version.lesson_id = lesson.lesson_id
+                 AND version.status = 'PUBLISHED'
+                WHERE lesson.lesson_code = %s
+                  AND curriculum.status = 'PUBLISHED'
+                """,
+                (lesson_code,),
+            )
+            row = cur.fetchone()
+
+    return _serialize_lesson(row)
+
+
+def _serialize_lesson(row: dict[str, Any] | None) -> dict[str, Any] | None:
     if row is None:
         return None
 
@@ -226,6 +275,7 @@ def get_published_lesson(lesson_id: int) -> dict[str, Any] | None:
         "publishedAt": _isoformat(row["published_at"]),
         "unit": {
             "unitId": row["unit_id"],
+            "unitCode": row.get("unit_code"),
             "title": row["unit_title"],
         },
         "curriculum": {

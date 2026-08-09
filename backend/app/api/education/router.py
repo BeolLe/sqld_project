@@ -6,6 +6,7 @@ from app.db.education import (
     get_lesson_progress,
     get_published_curriculum,
     get_published_lesson,
+    get_published_lesson_by_code,
     list_published_curricula,
     save_lesson_progress,
 )
@@ -39,6 +40,14 @@ def get_curriculum(curriculum_code: str):
     if curriculum is None:
         raise HTTPException(status_code=404, detail="curriculum not found")
     return curriculum
+
+
+@router.get("/lessons/by-code/{lesson_code}")
+def get_lesson_by_code(lesson_code: str):
+    lesson = get_published_lesson_by_code(lesson_code=lesson_code)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="lesson not found")
+    return lesson
 
 
 @router.get("/lessons/{lesson_id}")
