@@ -6,9 +6,8 @@ import { AIUsageProvider } from './contexts/AIUsageContext';
 import AuthModalContext from './contexts/AuthModalContext';
 import Header from './components/Header';
 import AuthModal from './components/AuthModal';
-import EventPopup from './components/EventPopup';
-import SurveyPopupLegacy from './components/SurveyPopupLegacy';
-import ExamCheerPopup from './components/ExamCheerPopup';
+import ActivePopupRenderer from './components/ActivePopupRenderer';
+import type { ActivePopupCampaign } from './components/ActivePopupRenderer';
 import { apiFetch } from './utils/api';
 import MainPage from './pages/MainPage';
 import DashboardPage from './pages/DashboardPage';
@@ -34,20 +33,15 @@ function PageFallback() {
   );
 }
 
-interface FormField {
-  key: string;
-  type: string;
-  label: string;
+interface ActivePopupResponse {
+  items: ActivePopupCampaign[];
+  activePopup: ActivePopupCampaign | null;
 }
 
-interface ActiveModal {
-  campaignKey: string;
-  phaseCode: 'phase1' | 'phase2' | 'cheer';
-  formSchema?: { fields: FormField[] };
-}
+const PUBLIC_NOTICE_DISMISS_PREFIX = 'solsqld_notice_dismissed_';
 
-interface EventModalResponse {
-  activeModal: ActiveModal | null;
+function getKstDateKey() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
 }
 
 function AppShell() {
@@ -61,9 +55,9 @@ function AppShell() {
     mode: hasPendingSocialSignup ? 'signup' : 'login',
   });
   const [showEventPopup, setShowEventPopup] = useState(false);
-  const [activeCampaign, setActiveCampaign] = useState<ActiveModal | null>(null);
+  const [activeCampaign, setActiveCampaign] = useState<ActivePopupCampaign | null>(null);
   useEffect(() => {
-    if (!user || authModal.open) {
+    if (authModal.open) {
       setShowEventPopup(false);
       setActiveCampaign(null);
       return;
@@ -73,10 +67,17 @@ function AppShell() {
 
     async function loadActiveEventModal() {
       try {
-        const response = await apiFetch<EventModalResponse>('/events/modal');
+        const response = await apiFetch<ActivePopupResponse>('/events/active-popup');
         if (cancelled) return;
-        setShowEventPopup(Boolean(response.activeModal));
-        setActiveCampaign(response.activeModal);
+        const campaign = response.items.find((item) => {
+          if (item.audienceCode !== 'public') return true;
+          const dismissedDate = window.localStorage.getItem(
+            `${PUBLIC_NOTICE_DISMISS_PREFIX}${item.campaignKey}`
+          );
+          return dismissedDate !== getKstDateKey();
+        });
+        setShowEventPopup(Boolean(campaign));
+        setActiveCampaign(campaign ?? null);
       } catch (error) {
         if (cancelled) return;
         console.error('이벤트 팝업 노출 여부 조회 실패', error);
@@ -115,6 +116,16 @@ function AppShell() {
     setShowEventPopup(false);
 
     if (!campaign) {
+      return;
+    }
+
+    if (campaign.audienceCode === 'public') {
+      if (dismissForToday) {
+        window.localStorage.setItem(
+          `${PUBLIC_NOTICE_DISMISS_PREFIX}${campaign.campaignKey}`,
+          getKstDateKey()
+        );
+      }
       return;
     }
 
@@ -200,19 +211,7 @@ function AppShell() {
       )}
 
       {showEventPopup && activeCampaign && (
-        activeCampaign.phaseCode === 'cheer' ? (
-          <ExamCheerPopup onClose={closeEventPopup} />
-        ) : activeCampaign.phaseCode === 'phase2' ? (
-          <SurveyPopupLegacy
-            campaignKey={activeCampaign.campaignKey}
-            onClose={closeEventPopup}
-          />
-        ) : (
-          <EventPopup
-            phaseCode={activeCampaign.phaseCode}
-            onClose={closeEventPopup}
-          />
-        )
+        <ActivePopupRenderer campaign={activeCampaign} onClose={closeEventPopup} />
       )}
     </>
     </AuthModalContext.Provider>

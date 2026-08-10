@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta, timezone
 import os
+import secrets
 
 import jwt
+from jwt import InvalidTokenError
 from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
 
@@ -17,12 +19,27 @@ password_hash = PasswordHash(
     )
 )
 
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-me-in-prod")
+def _load_jwt_secret(name: str, *, local_fallback: str | None = None) -> str:
+    value = os.getenv(name, "").strip()
+    if value:
+        return value
+
+    app_env = os.getenv("APP_ENV", "local").strip().lower()
+    if app_env in {"local", "test", "development"}:
+        return local_fallback or secrets.token_urlsafe(48)
+
+    raise RuntimeError(f"{name} must be configured through a secret")
+
+
+JWT_SECRET_KEY = _load_jwt_secret("JWT_SECRET_KEY")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(
     os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 )
-JWT_REFRESH_SECRET_KEY = os.getenv("JWT_REFRESH_SECRET_KEY", JWT_SECRET_KEY)
+JWT_REFRESH_SECRET_KEY = _load_jwt_secret(
+    "JWT_REFRESH_SECRET_KEY",
+    local_fallback=JWT_SECRET_KEY,
+)
 JWT_REFRESH_TOKEN_EXPIRE_DAYS = int(
     os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "1")
 )

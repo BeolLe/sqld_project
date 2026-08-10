@@ -770,6 +770,24 @@ def get_current_user(request: Request):
     }
 
 
+def get_optional_current_user(request: Request) -> dict | None:
+    """Return the signed-in user when possible, otherwise continue as anonymous.
+
+    Public endpoints use this dependency to personalize a response without making
+    an expired or missing session cookie block public content such as maintenance
+    notices.
+    """
+    if not extract_access_token_from_request(request):
+        return None
+
+    try:
+        return get_current_user(request)
+    except HTTPException as exc:
+        if exc.status_code in {401, 403}:
+            return None
+        raise
+
+
 def ensure_admin(current_user: dict) -> None:
     if not current_user["is_admin"]:
         raise HTTPException(status_code=403, detail="admin access required")
