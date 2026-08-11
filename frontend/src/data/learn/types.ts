@@ -1,5 +1,5 @@
 /**
- * SQLD 교육 탭 콘텐츠 타입.
+ * 개념 학습 탭 콘텐츠 타입.
  *
  * 구조는 한국데이터산업진흥원 공식 출제범위를 그대로 따른다.
  *   과목(2) → 주요항목(5) → 세부항목(30)
@@ -46,6 +46,8 @@ export type LearnNode =
   | { kind: 'list'; items: Inline[] }
   | { kind: 'table'; head: Inline[]; rows: Inline[][] }
   | { kind: 'analogy'; lead: Inline; body: Inline[] }
+  /** 외울 것을 한 줄로 압축한 암기 공식. 함정(trap)과 달리 경고가 아니라 요약이다. */
+  | { kind: 'memory'; text: Inline }
   | { kind: 'trap'; text: Inline }
   | { kind: 'viz'; spec: VizSpec };
 

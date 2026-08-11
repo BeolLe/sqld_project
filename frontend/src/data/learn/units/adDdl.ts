@@ -92,7 +92,7 @@ export const adDdlBlocks: LearnBlock[] = [
       },
       {
         kind: 'p',
-        text: 'PRIMARY KEY 는 결국 `UNIQUE` + `{{b12}}` 의 결합이다.',
+        text: 'PRIMARY KEY 는 결국 `UNIQUE` + {{b12}} 의 결합이다.',
       },
       {
         kind: 'trap',

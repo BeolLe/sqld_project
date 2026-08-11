@@ -46,7 +46,7 @@ export default function Header({ onAuthClick }: HeaderProps) {
             SQL 실습
           </Link>
           <Link to="/learn" className="hover:text-white transition-colors">
-            SQLD 교육
+            개념 학습
           </Link>
           {isLoggedIn && (
             <Link to="/endless" className="hover:text-white transition-colors">
@@ -148,7 +148,7 @@ export default function Header({ onAuthClick }: HeaderProps) {
               onClick={closeMobile}
               className="py-2.5 text-sm text-slate-300 hover:text-white transition-colors"
             >
-              SQLD 교육
+              개념 학습
             </Link>
             {isLoggedIn && (
               <Link

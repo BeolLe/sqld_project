@@ -1,4 +1,4 @@
-import { Lightbulb, TriangleAlert } from 'lucide-react';
+import { Brain, Lightbulb, TriangleAlert } from 'lucide-react';
 import type { Blank, LearnNode } from '../../data/learn/types';
 import InlineText from './InlineText';
 import QueryViz from './QueryViz';
@@ -22,7 +22,7 @@ export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Prop
         switch (node.kind) {
           case 'p':
             return (
-              <p key={key} className="mb-3.5 leading-[1.8] text-slate-700">
+              <p key={key} className="mb-3.5 whitespace-pre-line leading-[1.8] text-slate-700">
                 {inline(node.text)}
               </p>
             );
@@ -31,7 +31,7 @@ export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Prop
             return (
               <ul key={key} className="mb-3.5 list-disc space-y-1.5 pl-5 text-slate-700">
                 {node.items.map((item, i) => (
-                  <li key={i} className="leading-[1.8]">
+                  <li key={i} className="whitespace-pre-line leading-[1.8]">
                     {inline(item)}
                   </li>
                 ))}
@@ -47,7 +47,7 @@ export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Prop
                       {node.head.map((cell, i) => (
                         <th
                           key={i}
-                          className="whitespace-nowrap border border-slate-200 bg-slate-50 px-3 py-2 text-left text-[0.8125rem] font-semibold text-slate-500"
+                          className="whitespace-pre border border-slate-200 bg-slate-50 px-3 py-2 text-left text-[0.8125rem] font-semibold text-slate-500"
                         >
                           {inline(cell)}
                         </th>
@@ -62,8 +62,8 @@ export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Prop
                             key={cellIndex}
                             className={`border border-slate-200 px-3 py-2 align-top leading-relaxed ${
                               cellIndex === 0
-                                ? 'whitespace-nowrap font-semibold text-slate-900'
-                                : 'text-slate-700'
+                                ? 'whitespace-pre font-semibold text-slate-900'
+                                : 'whitespace-pre-line text-slate-700'
                             }`}
                           >
                             {inline(cell)}
@@ -86,12 +86,33 @@ export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Prop
                   <Lightbulb className="h-3.5 w-3.5" aria-hidden="true" />
                   비유로 이해하기
                 </div>
-                <p className="mb-2 font-bold leading-relaxed text-slate-900">{inline(node.lead)}</p>
+                <p className="mb-2 whitespace-pre-line font-bold leading-relaxed text-slate-900">
+                  {inline(node.lead)}
+                </p>
                 {node.body.map((paragraph, i) => (
-                  <p key={i} className="text-[0.9375rem] leading-[1.75] text-slate-700">
+                  <p
+                    key={i}
+                    className="whitespace-pre-line text-[0.9375rem] leading-[1.75] text-slate-700"
+                  >
                     {inline(paragraph)}
                   </p>
                 ))}
+              </div>
+            );
+
+          case 'memory':
+            return (
+              <div
+                key={key}
+                className="mb-4 rounded-xl border border-primary-100 border-l-4 border-l-primary-500 bg-primary-50 px-4 py-3"
+              >
+                <div className="mb-1 flex items-center gap-1.5 text-xs font-bold text-primary-600">
+                  <Brain className="h-3.5 w-3.5" aria-hidden="true" />
+                  암기
+                </div>
+                <p className="whitespace-pre-line text-[0.9rem] font-bold leading-[1.7] text-primary-900">
+                  {inline(node.text)}
+                </p>
               </div>
             );
 
@@ -102,7 +123,10 @@ export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Prop
                   <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" />
                   함정
                 </div>
-                <p className="text-[0.9rem] leading-[1.7] text-amber-900">{inline(node.text)}</p>
+                {/* text 안의 \n 을 줄바꿈으로 살린다 */}
+                <p className="whitespace-pre-line text-[0.9rem] leading-[1.7] text-amber-900">
+                  {inline(node.text)}
+                </p>
               </div>
             );
 
