@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { AIStreamStatus } from '../hooks/useAIStream';
+import { normalizeMarkdownEmphasis } from '../utils/markdown';
 
 interface AIStreamPanelProps {
   status: AIStreamStatus;
@@ -12,27 +13,6 @@ interface AIStreamPanelProps {
   title?: string;
   icon?: string;
   tone?: 'blue' | 'red';
-}
-
-/**
- * CommonMark 규칙상 강조(**bold** 또는 __bold__) 내용이 따옴표/괄호 등
- * 구두점으로 끝나고 뒤에 공백 없이 글자(주로 한글 조사)가 바로 붙으면
- * 닫는 델리미터로 인식되지 않아 마커(** 또는 __)가 그대로 노출된다.
- * 구두점과 닫는 마커 사이에 폭 없는 공백(zero-width space)을 넣어 우회한다.
- *
- * AI 응답 모델(Gemini / Claude 등)마다 강조 마커 관습이 다를 수 있어
- * ** 뿐 아니라 __ 도 함께 처리하여 모델과 무관하게 동일하게 렌더한다.
- */
-const ZERO_WIDTH_SPACE = '\u200B';
-
-function normalizeMarkdownEmphasis(text: string): string {
-  return text
-    .replace(/\*\*([^\n*]+?)\*\*/g, (match, inner: string) =>
-      /[\p{P}\p{S}]$/u.test(inner) ? `**${inner}${ZERO_WIDTH_SPACE}**` : match,
-    )
-    .replace(/__([^\n_]+?)__/g, (match, inner: string) =>
-      /[\p{P}\p{S}]$/u.test(inner) ? `__${inner}${ZERO_WIDTH_SPACE}__` : match,
-    );
 }
 
 // 모델마다 헤더 레벨(##/###/####)·강조·코드펜스 관습이 달라, 모든 헤더
