@@ -59,7 +59,7 @@ const popupRegistry: Record<PopupRendererKey, PopupRenderFunction> = {
 
 function PopupLoadingFallback() {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm print:hidden">
       <div className="rounded-xl bg-white px-6 py-4 text-sm text-slate-600 shadow-xl">
         안내를 불러오는 중입니다...
       </div>
@@ -91,7 +91,7 @@ class PopupErrorBoundary extends Component<PopupErrorBoundaryProps, PopupErrorBo
     if (!this.state.failed) return this.props.children;
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm print:hidden">
         <div className="w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-xl">
           <p className="mb-4 text-sm text-slate-600">안내를 불러오지 못했습니다.</p>
           <button

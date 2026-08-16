@@ -23,7 +23,7 @@ export default function Header({ onAuthClick }: HeaderProps) {
   }
 
   return (
-    <header className="sticky top-0 z-40 bg-sqld-navy border-b border-slate-700 shadow-lg">
+    <header className="sticky top-0 z-40 bg-sqld-navy border-b border-slate-700 shadow-lg print:hidden">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* 로고 */}
         <Link

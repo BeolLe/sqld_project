@@ -6,10 +6,11 @@
  * DB 연동 시 커리큘럼과 진도를 서버에서 받아 카드 상태를 계산하도록 바꾼다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { TriangleAlert } from 'lucide-react';
 import { ALL_UNITS, CURRICULUM } from '../data/learn/curriculum';
 import type { LearnUnit } from '../data/learn/types';
+import { useAuth } from '../contexts/AuthContext';
 
 const CARD_CLASS =
   'group flex gap-3.5 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-px hover:border-primary-500 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500';
@@ -111,6 +112,35 @@ export default function LearnIndexPage() {
   const totalMinutes = ALL_UNITS.reduce((sum, unit) => sum + unit.estimatedMin, 0);
   const [preparingTitle, setPreparingTitle] = useState<string | null>(null);
   const closeDialog = useCallback(() => setPreparingTitle(null), []);
+  const { isLoggedIn, isInitializing } = useAuth();
+  const navigate = useNavigate();
+
+  // ─── 인증 상태 분기 ──────────────────────────────────────────────────────
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <p className="text-slate-500">인증 상태를 확인하는 중입니다.</p>
+      </div>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <p className="text-slate-500 mb-4">
+            개념 학습은 회원 전용입니다.
+            <br />
+            로그인하시면 30개 세부항목의 개념 노트와 빈칸 복습을 이용할 수 있습니다.
+          </p>
+          <button onClick={() => navigate('/')} className="text-primary-600 hover:underline">
+            홈으로 돌아가기
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
