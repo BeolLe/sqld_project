@@ -8,7 +8,7 @@ import type { LessonSection } from './lessonSections';
 const SUMMARY_SECTION_TITLE = '핵심 정리';
 
 const metaPillClass =
-  'rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[0.72rem] font-bold text-primary-100';
+  'rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[0.72rem] font-bold text-primary-100 print:border-slate-300 print:bg-slate-100 print:text-slate-600';
 
 interface RemoteLessonViewProps {
   unit: LearnUnit;
@@ -32,15 +32,15 @@ export default function RemoteLessonView({
 
   return (
     <>
-      <div className="mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-sqld-navy via-slate-900 to-sqld-blue px-8 py-9 text-white shadow-lg shadow-slate-900/10">
-        <p className="mb-2 text-[0.72rem] font-extrabold tracking-[0.12em] text-primary-300">
+      <div className="mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-sqld-navy via-slate-900 to-sqld-blue px-8 py-9 text-white shadow-lg shadow-slate-900/10 print:border print:border-slate-200 print:bg-none print:text-slate-900 print:shadow-none">
+        <p className="mb-2 text-[0.72rem] font-extrabold tracking-[0.12em] text-primary-300 print:text-primary-600">
           SQLD CONCEPT NOTE
         </p>
-        <h1 className="text-[1.85rem] font-extrabold leading-tight tracking-tight">
+        <h1 className="text-[1.85rem] font-extrabold leading-tight tracking-tight print:text-slate-900">
           {lesson.title}
         </h1>
         {lesson.summary && (
-          <p className="mt-3 max-w-2xl text-[0.95rem] leading-relaxed text-slate-300">
+          <p className="mt-3 max-w-2xl text-[0.95rem] leading-relaxed text-slate-300 print:text-slate-600">
             {lesson.summary}
           </p>
         )}
@@ -50,7 +50,7 @@ export default function RemoteLessonView({
           )}
           <span className={metaPillClass}>{unit.subject}과목</span>
           {isCompleted && (
-            <span className="rounded-full border border-emerald-300/30 bg-emerald-400/15 px-3 py-1 text-[0.72rem] font-bold text-emerald-200">
+            <span className="rounded-full border border-emerald-300/30 bg-emerald-400/15 px-3 py-1 text-[0.72rem] font-bold text-emerald-200 print:border-emerald-300 print:bg-emerald-50 print:text-emerald-700">
               학습 완료
             </span>
           )}
@@ -65,14 +65,14 @@ export default function RemoteLessonView({
             id={section.id}
             className={
               isSummary
-                ? 'mb-6 scroll-mt-24 rounded-2xl bg-gradient-to-br from-primary-700 to-sqld-navy px-7 py-7 text-white shadow-md'
+                ? 'mb-6 scroll-mt-24 rounded-2xl bg-gradient-to-br from-primary-700 to-sqld-navy px-7 py-7 text-white shadow-md print:border print:border-slate-200 print:bg-none print:shadow-none'
                 : 'mb-6 scroll-mt-24 rounded-2xl border border-slate-200 bg-white px-7 py-7 shadow-sm'
             }
           >
             <h2
               className={
                 isSummary
-                  ? 'mb-4 flex items-center gap-2.5 text-[1.2rem] font-bold text-white'
+                  ? 'mb-4 flex items-center gap-2.5 text-[1.2rem] font-bold text-white print:text-slate-900'
                   : 'mb-4 flex items-center gap-2.5 text-[1.2rem] font-bold text-slate-900'
               }
             >
@@ -86,7 +86,7 @@ export default function RemoteLessonView({
             <div
               className={
                 isSummary
-                  ? '[&_code]:bg-white/15 [&_code]:text-white [&_code]:ring-white/20 [&_em]:text-slate-100 [&_li]:text-slate-100 [&_ol]:text-slate-100 [&_p]:text-slate-100 [&_strong]:text-white [&_ul]:text-slate-100'
+                  ? '[&_code]:bg-white/15 [&_code]:text-white [&_code]:ring-white/20 [&_em]:text-slate-100 [&_li]:text-slate-100 [&_ol]:text-slate-100 [&_p]:text-slate-100 [&_strong]:text-white [&_ul]:text-slate-100 print:[&_code]:bg-slate-100 print:[&_code]:text-slate-800 print:[&_code]:ring-slate-200 print:[&_em]:text-slate-700 print:[&_li]:text-slate-700 print:[&_ol]:text-slate-700 print:[&_p]:text-slate-700 print:[&_strong]:text-slate-900 print:[&_ul]:text-slate-700'
                   : undefined
               }
             >
@@ -97,7 +97,7 @@ export default function RemoteLessonView({
       })}
 
       {isLoggedIn && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 print:hidden">
           {isCompleted ? (
             <p className="inline-flex items-center gap-1.5 text-[0.9rem] font-bold text-emerald-600">
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />

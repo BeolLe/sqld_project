@@ -34,3 +34,64 @@
     background: #94a3b8;
   }
 }
+
+@media print {
+  /* 배경색을 사용자 인쇄 설정과 무관하게 출력 */
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @page {
+    size: A4;
+    margin: 14mm 12mm 18mm;
+  }
+
+  html,
+  body {
+    background: #fff;
+  }
+
+  /* 전체 압축: Tailwind 의 rem 기반 크기·여백이 한 번에 축소된다 */
+  html {
+    font-size: 12.5px;
+  }
+
+  /* 표·도해·콜아웃이 페이지 경계에서 잘리지 않게 */
+  table,
+  figure {
+    break-inside: avoid;
+  }
+
+
+  h1, h2, h3, h4 {
+    break-after: avoid;
+  }
+
+  /* 퀴즈 모드에서 인쇄할 경우 입력창을 밑줄 빈칸으로 */
+  input {
+    border: 0;
+    border-bottom: 1px solid #94a3b8;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  article p,
+  article li {
+    line-height: 1.6;
+  }
+
+  .print-watermark {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 7pt;
+    color: #64748b;
+    opacity: 0.45;
+    letter-spacing: 0.02em;
+  }
+}

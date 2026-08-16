@@ -1,7 +1,7 @@
 import { Brain, Lightbulb, TriangleAlert } from 'lucide-react';
 import type { Blank, LearnNode } from '../../data/learn/types';
 import InlineText from './InlineText';
-import QueryViz from './QueryViz';
+import QueryViz, { QueryVizPrintFrames } from './QueryViz';
 
 interface Props {
   nodes: LearnNode[];
@@ -40,7 +40,7 @@ export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Prop
 
           case 'table':
             return (
-              <div key={key} className="mb-4 overflow-x-auto">
+              <div key={key} className="mb-4 overflow-x-auto print:break-inside-avoid">
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr>
@@ -80,7 +80,7 @@ export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Prop
             return (
               <div
                 key={key}
-                className="mb-4 rounded-xl border border-primary-100 bg-primary-50 px-4 py-3.5"
+                className="mb-4 rounded-xl border border-primary-100 bg-primary-50 px-4 py-3.5 print:break-inside-avoid"
               >
                 <div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-primary-600">
                   <Lightbulb className="h-3.5 w-3.5" aria-hidden="true" />
@@ -104,7 +104,7 @@ export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Prop
             return (
               <div
                 key={key}
-                className="mb-4 rounded-xl border border-primary-100 border-l-4 border-l-primary-500 bg-primary-50 px-4 py-3"
+                className="mb-4 rounded-xl border border-primary-100 border-l-4 border-l-primary-500 bg-primary-50 px-4 py-3 print:break-inside-avoid"
               >
                 <div className="mb-1 flex items-center gap-1.5 text-xs font-bold text-primary-600">
                   <Brain className="h-3.5 w-3.5" aria-hidden="true" />
@@ -118,7 +118,10 @@ export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Prop
 
           case 'trap':
             return (
-              <div key={key} className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <div
+                key={key}
+                className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 print:break-inside-avoid"
+              >
                 <div className="mb-1 flex items-center gap-1.5 text-xs font-bold text-amber-700">
                   <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" />
                   함정
@@ -133,7 +136,12 @@ export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Prop
           case 'viz':
             return (
               <div key={key} className="mb-4">
-                <QueryViz spec={node.spec} />
+                <div className="print:hidden">
+                  <QueryViz spec={node.spec} />
+                </div>
+                <div className="hidden print:block">
+                  <QueryVizPrintFrames spec={node.spec} />
+                </div>
               </div>
             );
 

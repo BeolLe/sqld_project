@@ -6,13 +6,14 @@
  * DB 연동 시 `REMOTE_LESSON_ENABLED` 를 켜서 `useRemoteLesson` 경로로 전환한다.
  */
 import { useCallback, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Download } from 'lucide-react';
 import { countBlanks, findUnit } from '../data/learn/curriculum';
 import BlockRenderer from '../components/learn/BlockRenderer';
 import RemoteLessonView from '../components/learn/RemoteLessonView';
 import { splitLessonSections } from '../components/learn/lessonSections';
 import { useRemoteLesson } from '../hooks/useRemoteLesson';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * 백엔드 개념교육 레슨 연동 스위치.
@@ -36,6 +37,8 @@ export default function LearnUnitPage() {
   const { unitId } = useParams<{ unitId: string }>();
   const unit = unitId ? findUnit(unitId) : undefined;
   const ready = unit ? unit.blocks.length > 0 : false;
+  const { user, isLoggedIn, isInitializing } = useAuth();
+  const navigate = useNavigate();
 
   const [quizMode, setQuizMode] = useState(false);
   const [correctIds, setCorrectIds] = useState<Set<string>>(new Set());
@@ -71,13 +74,40 @@ export default function LearnUnitPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // ─── 인증 상태 분기 ──────────────────────────────────────────────────────
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <p className="text-slate-500">인증 상태를 확인하는 중입니다.</p>
+      </div>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <p className="text-slate-500 mb-4">
+            개념 학습은 회원 전용입니다.
+            <br />
+            로그인하시면 30개 세부항목의 개념 노트와 빈칸 복습을 이용할 수 있습니다.
+          </p>
+          <button onClick={() => navigate('/')} className="text-primary-600 hover:underline">
+            홈으로 돌아가기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!unit) return <NotFound />;
 
   return (
     <div className="min-h-screen bg-white">
       <div className="mx-auto max-w-6xl px-5">
         <div className="grid items-start gap-11 py-8 pb-20 lg:grid-cols-[15rem_minmax(0,1fr)]">
-          <nav className="top-20 hidden text-[0.8125rem] lg:sticky lg:block">
+          <nav className="top-20 hidden text-[0.8125rem] lg:sticky lg:block print:hidden">
             <Link
               to="/learn"
               className="mb-4 inline-flex items-center gap-1 text-slate-500 hover:text-primary-600"
@@ -176,7 +206,7 @@ export default function LearnUnitPage() {
             )}
 
             {ready && quizMode && (
-              <p className="mb-4 inline-flex items-center rounded-full border border-primary-100 bg-primary-50 px-2.5 py-1 text-[0.72rem] font-bold text-primary-600">
+              <p className="mb-4 inline-flex items-center rounded-full border border-primary-100 bg-primary-50 px-2.5 py-1 text-[0.72rem] font-bold text-primary-600 print:hidden">
                 빈칸 복습 모드
               </p>
             )}
@@ -196,7 +226,7 @@ export default function LearnUnitPage() {
             ))}
 
             {ready && !quizMode && (
-              <div className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4">
+              <div className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 print:hidden">
                 <p className="text-[0.9rem] text-slate-500">
                   <b className="block font-bold text-slate-900">다 읽으셨나요?</b>
                   같은 내용을 빈칸으로 채우며 확인해 보세요.
@@ -204,12 +234,11 @@ export default function LearnUnitPage() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    disabled
-                    title="준비 중입니다"
-                    className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-400"
+                    onClick={() => window.print()}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
                   >
                     <Download className="h-4 w-4" aria-hidden="true" />
-                    노트 다운로드
+                    인쇄 · PDF 저장
                   </button>
                   <button
                     type="button"
@@ -224,7 +253,7 @@ export default function LearnUnitPage() {
             )}
 
             {ready && quizMode && (
-              <div className="mt-10 flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4">
+              <div className="mt-10 flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 print:hidden">
                 <span className="text-2xl font-extrabold tabular-nums text-primary-600">
                   {correctIds.size} / {totalBlanks}
                 </span>
@@ -240,9 +269,19 @@ export default function LearnUnitPage() {
                 </button>
               </div>
             )}
+
+            <p className="mt-6 hidden border-t border-slate-200 pt-3 text-[0.7rem] text-slate-400 print:block">
+              SolSQLD · 개념 학습 노트 — {unit.subject}과목 {unit.group} · {unit.title}
+            </p>
           </article>
         </div>
       </div>
+      {user?.nickname && (
+        <div aria-hidden="true" className="hidden print:block print-watermark">
+          SolSQLD · 무단 복제 및 배포를 금지합니다 · {user.nickname} ·{' '}
+          {new Date().toLocaleDateString('ko-KR')}
+        </div>
+      )}
     </div>
   );
 }
