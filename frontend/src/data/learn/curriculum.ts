@@ -1,6 +1,11 @@
 import type { LearnBlock, LearnSubject, LearnUnit } from './types';
 import { dmModelBlocks } from './units/dmModel';
 import { dmEntityBlocks } from './units/dmEntity';
+import { dmNormBlocks } from './units/dmNorm';
+import { dmJoinBlocks } from './units/dmJoin';
+import { dmTrxBlocks } from './units/dmTrx';
+import { dmNullBlocks } from './units/dmNull';
+import { dmNatkeyBlocks } from './units/dmNatkey';
 import { saWindowBlocks } from './units/saWindow';
 
 /**
@@ -61,11 +66,38 @@ const SEED: SubjectSeed[] = [
       {
         name: '데이터 모델과 SQL',
         units: [
-          { id: 'dm-norm', title: '정규화', estimatedMin: 9, priority1: true },
-          { id: 'dm-join', title: '관계와 조인의 이해', estimatedMin: 7 },
-          { id: 'dm-trx', title: '모델이 표현하는 트랜잭션의 이해', estimatedMin: 6 },
-          { id: 'dm-null', title: 'Null 속성의 이해', estimatedMin: 5, priority1: true },
-          { id: 'dm-natkey', title: '본질식별자 vs 인조식별자', estimatedMin: 6 },
+          {
+            id: 'dm-norm',
+            title: '정규화',
+            estimatedMin: 9,
+            priority1: true,
+            blocks: dmNormBlocks,
+          },
+          {
+            id: 'dm-join',
+            title: '관계와 조인의 이해',
+            estimatedMin: 7,
+            blocks: dmJoinBlocks,
+          },
+          {
+            id: 'dm-trx',
+            title: '모델이 표현하는 트랜잭션의 이해',
+            estimatedMin: 6,
+            blocks: dmTrxBlocks,
+          },
+          {
+            id: 'dm-null',
+            title: 'Null 속성의 이해',
+            estimatedMin: 5,
+            priority1: true,
+            blocks: dmNullBlocks,
+          },
+          {
+            id: 'dm-natkey',
+            title: '본질식별자 vs 인조식별자',
+            estimatedMin: 6,
+            blocks: dmNatkeyBlocks,
+          },
         ],
       },
     ],
@@ -144,9 +176,7 @@ export const CURRICULUM: LearnSubject[] = SEED.map((subject) => ({
 }));
 
 /** 공식 출제범위 순서대로 평탄화한 전체 세부항목 */
-export const ALL_UNITS: LearnUnit[] = CURRICULUM.flatMap((s) =>
-  s.groups.flatMap((g) => g.units),
-);
+export const ALL_UNITS: LearnUnit[] = CURRICULUM.flatMap((s) => s.groups.flatMap((g) => g.units));
 
 export function findUnit(id: string): LearnUnit | undefined {
   return ALL_UNITS.find((u) => u.id === id);
