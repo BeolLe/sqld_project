@@ -48,6 +48,8 @@ export type LearnNode =
   | { kind: 'analogy'; lead: Inline; body: Inline[] }
   /** 외울 것을 한 줄로 압축한 암기 공식. 함정(trap)과 달리 경고가 아니라 요약이다. */
   | { kind: 'memory'; text: Inline }
+  /** 한 블록 안에서 여러 하위 항목을 다룰 때 쓰는 소제목 (예: '3-1. 형태 기준'). */
+  | { kind: 'subheading'; text: Inline }
   | { kind: 'trap'; text: Inline }
   | { kind: 'viz'; spec: VizSpec };
 
