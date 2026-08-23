@@ -276,12 +276,10 @@ export default function LearnUnitPage() {
           </article>
         </div>
       </div>
-      {user?.nickname && (
-        <div aria-hidden="true" className="hidden print:block print-watermark">
-          SolSQLD · 무단 복제 및 배포를 금지합니다 · {user.nickname} ·{' '}
-          {new Date().toLocaleDateString('ko-KR')}
-        </div>
-      )}
+      <div aria-hidden="true" className="hidden print:block print-watermark">
+        SolSQLD · 무단 복제 및 배포를 금지합니다{user?.nickname ? ` · ${user.nickname}` : ''} ·{' '}
+        {new Date().toLocaleDateString('ko-KR')}
+      </div>
     </div>
   );
 }
