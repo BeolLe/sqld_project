@@ -100,6 +100,16 @@ export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Prop
               </div>
             );
 
+          case 'subheading':
+            return (
+              <h3
+                key={key}
+                className="mb-2.5 mt-6 text-[1rem] font-bold text-slate-800 first:mt-0"
+              >
+                {inline(node.text)}
+              </h3>
+            );
+
           case 'memory':
             return (
               <div

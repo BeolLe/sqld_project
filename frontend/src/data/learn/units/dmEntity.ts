@@ -16,12 +16,6 @@ export const dmEntityBlocks: LearnBlock[] = [
         text: '현실 세계에 존재하면서, **독립적으로 구분될 수 있는 객체**를 의미한다. (학생, 사원, 상품 등)',
       },
       {
-        kind: 'trap',
-        text:
-          '엔터티는 **논리적 모델링** 단계에서 활용되는 단어이며 \n' +
-          '**물리적 모델링** 단계의 `테이블` 에 대응되는 단어다.',
-      },
-      {
         kind: 'table',
         head: ['논리적 모델링', '물리적 모델링'],
         rows: [
@@ -29,6 +23,12 @@ export const dmEntityBlocks: LearnBlock[] = [
           ['{{b2}}', '컬럼'],
           ['{{b3}}', '테이블'],
         ],
+      },
+      {
+        kind: 'trap',
+        text:
+          '엔터티는 **논리적 모델링** 단계에서 활용되는 단어이며 \n' +
+          '**물리적 모델링** 단계의 `테이블` 에 대응되는 단어다.',
       },
     ],
   },
@@ -65,13 +65,18 @@ export const dmEntityBlocks: LearnBlock[] = [
   },
   {
     id: 'e3',
-    heading: '엔터티의 분류 — 형태 기준',
+    heading: '엔터티의 분류',
     blanks: [
       { id: 'b8', answer: '유형', accepts: ['유형', '유형 엔터티', '유형엔터티'] },
       { id: 'b9', answer: '개념', accepts: ['개념', '개념 엔터티', '개념엔터티'] },
       { id: 'b10', answer: '사건', accepts: ['사건', '사건 엔터티', '사건엔터티'] },
+      { id: 'b11', answer: '기본', accepts: ['기본', '기본 엔터티', '기본엔터티'] },
+      { id: 'b12', answer: '중심', accepts: ['중심', '중심 엔터티', '중심엔터티'] },
+      { id: 'b13', answer: '행위', accepts: ['행위', '행위 엔터티', '행위엔터티'] },
+      { id: 'b14', answer: '2', accepts: ['2', '두', '둘'] },
     ],
     nodes: [
+      { kind: 'subheading', text: '3-1. 형태 기준' },
       {
         kind: 'table',
         head: ['분류', '설명', '예시'],
@@ -85,22 +90,7 @@ export const dmEntityBlocks: LearnBlock[] = [
           ],
         ],
       },
-      {
-        kind: 'trap',
-        text: '실체가 없을 때 **무형 엔터티가 아니라 개념 엔터티**다. 어떤 것으로부터 도출되는 건 **사건 엔터티**다.',
-      },
-    ],
-  },
-  {
-    id: 'e4',
-    heading: '엔터티의 분류 — 발생 시점 기준',
-    blanks: [
-      { id: 'b11', answer: '기본', accepts: ['기본', '기본 엔터티', '기본엔터티'] },
-      { id: 'b12', answer: '중심', accepts: ['중심', '중심 엔터티', '중심엔터티'] },
-      { id: 'b13', answer: '행위', accepts: ['행위', '행위 엔터티', '행위엔터티'] },
-      { id: 'b14', answer: '2', accepts: ['2', '두', '둘'] },
-    ],
-    nodes: [
+      { kind: 'subheading', text: '3-2. 발생 시점 기준' },
       {
         kind: 'table',
         head: ['분류', '설명', '예시'],
@@ -131,7 +121,7 @@ export const dmEntityBlocks: LearnBlock[] = [
     ],
   },
   {
-    id: 'e5',
+    id: 'e4',
     heading: '엔터티 명명규칙',
     blanks: [
       { id: 'b15', answer: '약어', accepts: ['약어', '축약어', '줄임말'] },

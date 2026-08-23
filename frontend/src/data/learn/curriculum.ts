@@ -7,6 +7,7 @@ import { dmTrxBlocks } from './units/dmTrx';
 import { dmNullBlocks } from './units/dmNull';
 import { dmNatkeyBlocks } from './units/dmNatkey';
 import { saWindowBlocks } from './units/saWindow';
+import { dmAttrBlocks } from './units/dmAttr';
 
 /**
  * 한국데이터산업진흥원 공식 출제범위 (https://www.dataq.or.kr/www/sub/a_04.do).
@@ -58,7 +59,7 @@ const SEED: SubjectSeed[] = [
             priority1: true,
             blocks: dmEntityBlocks,
           },
-          { id: 'dm-attr', title: '속성', estimatedMin: 6, priority1: true },
+          { id: 'dm-attr', title: '속성', estimatedMin: 6, priority1: true, blocks: dmAttrBlocks },
           { id: 'dm-rel', title: '관계', estimatedMin: 7, priority1: true },
           { id: 'dm-key', title: '식별자', estimatedMin: 8, priority1: true },
         ],
