@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from time import monotonic
 from typing import Any
 from urllib.parse import quote
 
 import httpx
 
 from app.core.config import settings
+from app.db.logs import submit_external_service_call
 
 
 class TossPaymentsNotConfigured(RuntimeError):
@@ -37,6 +40,7 @@ def _request(
     method: str,
     path: str,
     *,
+    operation: str,
     json_body: dict[str, Any] | None = None,
     idempotency_key: str | None = None,
 ) -> dict[str, Any]:
@@ -47,6 +51,8 @@ def _request(
     if idempotency_key:
         headers["Idempotency-Key"] = idempotency_key
 
+    requested_at = datetime.now(timezone.utc)
+    started_at = monotonic()
     try:
         response = httpx.request(
             method,
@@ -57,6 +63,17 @@ def _request(
             timeout=settings.TOSS_PAYMENTS_TIMEOUT_SECONDS,
         )
     except httpx.RequestError as exc:
+        finished_at = datetime.now(timezone.utc)
+        submit_external_service_call(
+            service_name="toss_payments",
+            operation=operation,
+            status="TIMED_OUT" if isinstance(exc, httpx.TimeoutException) else "FAILED",
+            started_at=requested_at,
+            finished_at=finished_at,
+            duration_ms=round((monotonic() - started_at) * 1000),
+            provider_error_code="TOSS_NETWORK_ERROR",
+            metadata={"idempotency_key_used": bool(idempotency_key)},
+        )
         raise TossPaymentsError(
             status_code=502,
             code="TOSS_NETWORK_ERROR",
@@ -69,18 +86,58 @@ def _request(
         payload = {}
 
     if not response.is_success:
+        finished_at = datetime.now(timezone.utc)
+        error_payload = payload if isinstance(payload, dict) else {}
+        error_code = str(error_payload.get("code") or "TOSS_API_ERROR")
+        submit_external_service_call(
+            service_name="toss_payments",
+            operation=operation,
+            status="FAILED",
+            started_at=requested_at,
+            finished_at=finished_at,
+            duration_ms=round((monotonic() - started_at) * 1000),
+            http_status_code=response.status_code,
+            provider_error_code=error_code,
+            metadata={"idempotency_key_used": bool(idempotency_key)},
+        )
         raise TossPaymentsError(
             status_code=response.status_code,
-            code=str(payload.get("code") or "TOSS_API_ERROR"),
-            message=str(payload.get("message") or "toss payments request failed")[:510],
+            code=error_code,
+            message=str(
+                error_payload.get("message") or "toss payments request failed"
+            )[:510],
         )
 
     if not isinstance(payload, dict):
+        finished_at = datetime.now(timezone.utc)
+        submit_external_service_call(
+            service_name="toss_payments",
+            operation=operation,
+            status="FAILED",
+            started_at=requested_at,
+            finished_at=finished_at,
+            duration_ms=round((monotonic() - started_at) * 1000),
+            http_status_code=response.status_code,
+            provider_error_code="INVALID_TOSS_RESPONSE",
+            metadata={"idempotency_key_used": bool(idempotency_key)},
+        )
         raise TossPaymentsError(
             status_code=502,
             code="INVALID_TOSS_RESPONSE",
             message="toss payments returned an invalid response",
         )
+
+    finished_at = datetime.now(timezone.utc)
+    submit_external_service_call(
+        service_name="toss_payments",
+        operation=operation,
+        status="SUCCEEDED",
+        started_at=requested_at,
+        finished_at=finished_at,
+        duration_ms=round((monotonic() - started_at) * 1000),
+        http_status_code=response.status_code,
+        metadata={"idempotency_key_used": bool(idempotency_key)},
+    )
     return payload
 
 
@@ -94,6 +151,7 @@ def confirm_payment(
     return _request(
         "POST",
         "/payments/confirm",
+        operation="confirm_payment",
         json_body={
             "paymentKey": payment_key,
             "orderId": order_id,
@@ -104,11 +162,19 @@ def confirm_payment(
 
 
 def get_payment(payment_key: str) -> dict[str, Any]:
-    return _request("GET", f"/payments/{quote(payment_key, safe='')}")
+    return _request(
+        "GET",
+        f"/payments/{quote(payment_key, safe='')}",
+        operation="get_payment",
+    )
 
 
 def get_payment_by_order_id(order_id: str) -> dict[str, Any]:
-    return _request("GET", f"/payments/orders/{quote(order_id, safe='')}")
+    return _request(
+        "GET",
+        f"/payments/orders/{quote(order_id, safe='')}",
+        operation="get_payment_by_order_id",
+    )
 
 
 def cancel_payment(
@@ -120,6 +186,7 @@ def cancel_payment(
     return _request(
         "POST",
         f"/payments/{quote(payment_key, safe='')}/cancel",
+        operation="cancel_payment",
         json_body={"cancelReason": cancel_reason},
         idempotency_key=idempotency_key,
     )

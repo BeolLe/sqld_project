@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from app.api.auth.router import get_current_user, ensure_admin
+from app.api.auth.router import ensure_admin, get_current_user, get_request_id
 from app.core.config import settings
+from app.db.logs import submit_audit_event
 from app.db.postgres import get_connection
 from app.services.amplitude import send_amplitude_event
 from app.services.slack import send_slack_message
@@ -69,6 +70,7 @@ def notify_feedback_slack(
     ticket_id: str,
     current_user: dict,
     req: FeedbackCreateRequest,
+    request_id: str,
 ) -> None:
     webhook_url = settings.FEEDBACK_SLACK_WEBHOOK_URL
     if not webhook_url:
@@ -134,12 +136,15 @@ def notify_feedback_slack(
         text=f"[피드백] {req.type} - {req.title.strip()}",
         blocks=blocks,
         webhook_url=webhook_url,
+        notification_type="user_feedback_received",
+        request_id=request_id,
     )
 
 
 @router.post("/feedback", status_code=201)
 def create_feedback(
     req: FeedbackCreateRequest,
+    request: Request,
     current_user: dict = Depends(get_current_user),
 ):
     title = req.title.strip()
@@ -201,6 +206,7 @@ def create_feedback(
         ticket_id=str(ticket_id),
         current_user=current_user,
         req=req,
+        request_id=get_request_id(request),
     )
 
     return {
@@ -306,6 +312,7 @@ def get_feedback(ticket_id: str, current_user: dict = Depends(get_current_user))
 def update_feedback_admin(
     ticket_id: str,
     req: FeedbackAdminUpdateRequest,
+    request: Request,
     current_user: dict = Depends(get_current_user),
 ):
     ensure_admin(current_user)
@@ -338,6 +345,19 @@ def update_feedback_admin(
 
     if not row:
         raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다.")
+
+    submit_audit_event(
+        actor_user_id=current_user["user_id"],
+        actor_type="ADMIN",
+        action="FEEDBACK_UPDATED",
+        target_type="feedback.ticket",
+        target_id=str(row[0]),
+        request_id=get_request_id(request),
+        after_data={
+            "status": row[1],
+            "admin_reply_set": bool(req.admin_reply and req.admin_reply.strip()),
+        },
+    )
 
     return {
         "ticket_id": str(row[0]),
@@ -426,6 +446,7 @@ def list_admin_feedback(
 def update_feedback_status(
     ticket_id: str,
     req: FeedbackAdminStatusUpdateRequest,
+    request: Request,
     current_user: dict = Depends(get_current_user),
 ):
     ensure_admin(current_user)
@@ -447,6 +468,16 @@ def update_feedback_status(
     if not row:
         raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다.")
 
+    submit_audit_event(
+        actor_user_id=current_user["user_id"],
+        actor_type="ADMIN",
+        action="FEEDBACK_STATUS_UPDATED",
+        target_type="feedback.ticket",
+        target_id=str(row[0]),
+        request_id=get_request_id(request),
+        after_data={"status": row[1]},
+    )
+
     return {
         "ticket_id": str(row[0]),
         "status": row[1],
@@ -458,6 +489,7 @@ def update_feedback_status(
 def update_feedback_reply(
     ticket_id: str,
     req: FeedbackAdminReplyUpdateRequest,
+    request: Request,
     current_user: dict = Depends(get_current_user),
 ):
     ensure_admin(current_user)
@@ -487,6 +519,16 @@ def update_feedback_reply(
 
     if not row:
         raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다.")
+
+    submit_audit_event(
+        actor_user_id=current_user["user_id"],
+        actor_type="ADMIN",
+        action="FEEDBACK_REPLY_UPDATED",
+        target_type="feedback.ticket",
+        target_id=str(row[0]),
+        request_id=get_request_id(request),
+        after_data={"status": row[3], "admin_reply_set": True},
+    )
 
     return {
         "ticket_id": str(row[0]),

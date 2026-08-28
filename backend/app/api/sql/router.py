@@ -192,6 +192,8 @@ def notify_slow_sql_execution(
             },
         ],
         webhook_url=webhook_url,
+        notification_type="slow_sql_alert",
+        request_id=request_id,
     )
 
 
@@ -414,7 +416,7 @@ def resolve_workspace_scope(
     request_id: str,
     require_persistent_scope: bool = False,
 ):
-    session_id = request.headers.get("x-session-id")
+    session_id = (request.headers.get("x-session-id") or "")[:100] or None
     user_id = extract_user_id(request)
 
     scope_key = session_id or user_id or (None if require_persistent_scope else request_id)
@@ -579,7 +581,7 @@ def execute_sql(
     current_user: dict = Depends(get_current_user),
 ):
     request_id = ensure_request_id(request.headers.get("x-request-id"))
-    session_id = request.headers.get("x-session-id")
+    session_id = (request.headers.get("x-session-id") or "")[:100] or None
     user_id = extract_user_id(request)
     action = req.action if req.action in {"execute", "submit"} else "execute"
     has_persistent_scope = bool(session_id or user_id)
@@ -938,6 +940,8 @@ def execute_sql(
                                         },
                                     },
                                 ],
+                                notification_type="alternative_correct_sql_alert",
+                                request_id=request_id,
                             )
                 if not is_read_only_statement(statement_type):
                     response["affectedRows"] = cur.rowcount

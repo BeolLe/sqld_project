@@ -3,11 +3,15 @@ from __future__ import annotations
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from time import monotonic
 from typing import Any
+from urllib.error import HTTPError
 from urllib import request
 from uuid import uuid4
 
 from app.core.config import settings
+from app.db.logs import submit_external_service_call
 
 logger = logging.getLogger(__name__)
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="amplitude")
@@ -51,12 +55,39 @@ def send_amplitude_event(
         method="POST",
     )
 
+    requested_at = datetime.now(timezone.utc)
+    started_at = monotonic()
+    http_status_code: int | None = None
+    error_code: str | None = None
+    success = False
     try:
         with request.urlopen(req, timeout=5) as resp:
-            return 200 <= resp.status < 300
-    except Exception:
+            http_status_code = resp.status
+            success = 200 <= resp.status < 300
+            if not success:
+                error_code = f"HTTP_{resp.status}"
+    except HTTPError as exc:
+        http_status_code = exc.code
+        error_code = f"HTTP_{exc.code}"
         logger.exception("failed to send amplitude event=%s", event_type)
-        return False
+    except Exception as exc:
+        error_code = type(exc).__name__[:100]
+        logger.exception("failed to send amplitude event=%s", event_type)
+    finally:
+        finished_at = datetime.now(timezone.utc)
+        submit_external_service_call(
+            service_name="amplitude",
+            operation="track_event",
+            status="SUCCEEDED" if success else "FAILED",
+            started_at=requested_at,
+            finished_at=finished_at,
+            duration_ms=round((monotonic() - started_at) * 1000),
+            user_id=user_id,
+            http_status_code=http_status_code,
+            provider_error_code=error_code,
+            metadata={"event_type": event_type},
+        )
+    return success
 
 
 def submit_amplitude_event(**kwargs: Any) -> None:

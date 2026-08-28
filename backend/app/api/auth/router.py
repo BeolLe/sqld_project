@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
+import ipaddress
 import json
 import logging
 import secrets
@@ -16,7 +17,13 @@ from pydantic import BaseModel, EmailStr
 from jwt import ExpiredSignatureError, InvalidTokenError
 
 from app.core.config import settings
-from app.db.logs import ensure_request_id, insert_auth_event, submit_auth_event
+from app.db.logs import (
+    ensure_request_id,
+    insert_auth_event,
+    submit_audit_event,
+    submit_auth_event,
+    submit_security_event,
+)
 from app.db.postgres import get_connection
 from app.db.payments import expire_open_orders_for_user
 from app.core.security import (
@@ -105,6 +112,24 @@ class AdminUserRoleUpdateRequest(BaseModel):
 
 def extract_email_domain(email: str) -> str:
     return email.split("@", 1)[1].lower() if "@" in email else ""
+
+
+def get_request_id(request: Request) -> str:
+    return getattr(request.state, "request_id", None) or ensure_request_id(
+        request.headers.get("x-request-id")
+    )
+
+
+def get_request_source_ip(request: Request) -> str | None:
+    raw_value = request.headers.get("cf-connecting-ip")
+    if not raw_value and request.client:
+        raw_value = request.client.host
+    if not raw_value:
+        return None
+    try:
+        return str(ipaddress.ip_address(raw_value.strip()))
+    except ValueError:
+        return None
 
 
 def normalize_signup_purpose(
@@ -759,6 +784,7 @@ def get_current_user(request: Request):
     if not user[3]:
         raise HTTPException(status_code=403, detail="deactivated account")
 
+    request.state.user_id = str(user[0])
     return {
         "user_id": str(user[0]),
         "email": user[1],
@@ -897,8 +923,8 @@ def create_password_reset_token(*, cur, user_id: str, email: str) -> tuple[str, 
 
 @router.post("/register")
 def register(req: RegisterRequest, request: Request):
-    request_id = ensure_request_id(request.headers.get("x-request-id"))
-    session_id = request.headers.get("x-session-id")
+    request_id = get_request_id(request)
+    session_id = (request.headers.get("x-session-id") or "")[:100] or None
 
     if not req.terms_agreed:
         send_amplitude_event(
@@ -1101,6 +1127,8 @@ def register(req: RegisterRequest, request: Request):
             to_email=user[1],
             subject="[SolSQLD] 이메일 인증을 완료해주세요",
             text_content="\n".join(line for line in email_body_lines if line),
+            notification_type="email_verification",
+            request_id=request_id,
         )
 
     return {
@@ -1203,8 +1231,8 @@ def google_login_callback(
     state: str | None = None,
     error: str | None = None,
 ):
-    request_id = ensure_request_id(request.headers.get("x-request-id"))
-    session_id = request.headers.get("x-session-id")
+    request_id = get_request_id(request)
+    session_id = (request.headers.get("x-session-id") or "")[:100] or None
 
     if not state:
         raise HTTPException(status_code=400, detail="google login state is required")
@@ -1419,8 +1447,8 @@ def google_login_callback(
 
 @router.post("/social/register")
 def complete_social_signup(req: SocialSignupCompleteRequest, request: Request):
-    request_id = ensure_request_id(request.headers.get("x-request-id"))
-    session_id = request.headers.get("x-session-id")
+    request_id = get_request_id(request)
+    session_id = (request.headers.get("x-session-id") or "")[:100] or None
 
     if not req.terms_agreed:
         raise HTTPException(status_code=400, detail="terms agreement is required")
@@ -1553,8 +1581,8 @@ def complete_social_signup(req: SocialSignupCompleteRequest, request: Request):
 
 @router.post("/login")
 def login(req: LoginRequest, request: Request, response: Response):
-    request_id = ensure_request_id(request.headers.get("x-request-id"))
-    session_id = request.headers.get("x-session-id")
+    request_id = get_request_id(request)
+    session_id = (request.headers.get("x-session-id") or "")[:100] or None
     started_at = monotonic()
     timing_marks: dict[str, int] = {}
 
@@ -1596,6 +1624,14 @@ def login(req: LoginRequest, request: Request, response: Response):
             failure_code="invalid_credentials",
             failure_message="invalid credentials",
         )
+        submit_security_event(
+            event_type="LOGIN_FAILED",
+            severity="LOW",
+            request_id=request_id,
+            session_id=session_id,
+            source_ip=get_request_source_ip(request),
+            metadata={"reason": "user_not_found"},
+        )
         raise HTTPException(status_code=401, detail="invalid credentials")
 
     user_id, email, nickname, stored_password_hash, is_active = user
@@ -1635,6 +1671,15 @@ def login(req: LoginRequest, request: Request, response: Response):
             page_path=str(request.url.path),
             failure_code="invalid_credentials",
             failure_message="invalid credentials",
+        )
+        submit_security_event(
+            event_type="LOGIN_FAILED",
+            severity="LOW",
+            user_id=str(user_id),
+            request_id=request_id,
+            session_id=session_id,
+            source_ip=get_request_source_ip(request),
+            metadata={"reason": "password_mismatch"},
         )
         raise HTTPException(status_code=401, detail="invalid credentials")
 
@@ -2057,7 +2102,10 @@ def delete_account(
 
 
 @router.post("/email-verification/send")
-def send_email_verification(current_user: dict = Depends(get_current_user)):
+def send_email_verification(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
     if current_user["email_verified"]:
         return {
             "message": "이미 이메일 인증이 완료되었습니다.",
@@ -2090,6 +2138,8 @@ def send_email_verification(current_user: dict = Depends(get_current_user)):
             to_email=current_user["email"],
             subject="[SolSQLD] 이메일 인증을 완료해주세요",
             text_content="\n".join(line for line in email_body_lines if line),
+            notification_type="email_verification",
+            request_id=get_request_id(request),
         )
 
     return {
@@ -2192,7 +2242,7 @@ def request_find_email(req: FindEmailRequest):
 
 
 @router.post("/password-reset/request")
-def request_password_reset(req: PasswordResetRequest):
+def request_password_reset(req: PasswordResetRequest, request: Request):
     generic_message = "입력하신 이메일로 비밀번호 재설정 안내를 보냈습니다."
     delivery_mode = "email"
     reset_token: str | None = None
@@ -2249,6 +2299,8 @@ def request_password_reset(req: PasswordResetRequest):
                     "본인이 요청하지 않았다면 이 메일을 무시해주세요.",
                 ]
             ),
+            notification_type="password_reset",
+            request_id=get_request_id(request),
         )
         if not sent:
             delivery_mode = "inline_token"
@@ -2393,6 +2445,7 @@ def list_admin_users(
 def update_admin_user_role(
     user_id: str,
     req: AdminUserRoleUpdateRequest,
+    request: Request,
     current_user: dict = Depends(get_current_user),
 ):
     ensure_admin(current_user)
@@ -2402,6 +2455,16 @@ def update_admin_user_role(
 
     with get_connection() as conn:
         with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT is_admin
+                FROM auth.users
+                WHERE user_id = %s
+                  AND is_active = true
+                """,
+                (user_id,),
+            )
+            before_row = cur.fetchone()
             cur.execute(
                 """
                 UPDATE auth.users
@@ -2416,6 +2479,17 @@ def update_admin_user_role(
 
     if not row:
         raise HTTPException(status_code=404, detail="유저를 찾을 수 없습니다.")
+
+    submit_audit_event(
+        actor_user_id=current_user["user_id"],
+        actor_type="ADMIN",
+        action="USER_ROLE_UPDATED",
+        target_type="auth.user",
+        target_id=str(row[0]),
+        request_id=get_request_id(request),
+        before_data={"is_admin": bool(before_row[0])} if before_row else None,
+        after_data={"is_admin": bool(row[1])},
+    )
 
     return {
         "user_id": str(row[0]),

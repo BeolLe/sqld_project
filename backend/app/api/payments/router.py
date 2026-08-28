@@ -9,8 +9,9 @@ from uuid import NAMESPACE_URL, uuid5
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from app.api.auth.router import ensure_admin, get_current_user
+from app.api.auth.router import ensure_admin, get_current_user, get_request_id
 from app.db import payments as payment_db
+from app.db.logs import submit_audit_event
 from app.services import toss_payments
 
 
@@ -131,7 +132,8 @@ def confirm_payment(
 @router.post("/orders/{order_id}/cancel")
 def cancel_payment(
     order_id: str,
-    request: PaymentCancelRequest,
+    payload: PaymentCancelRequest,
+    request: Request,
     current_user: dict = Depends(get_current_user),
 ):
     ensure_admin(current_user)
@@ -148,7 +150,7 @@ def cancel_payment(
     try:
         provider_payment = toss_payments.cancel_payment(
             payment_key=payment_key,
-            cancel_reason=request.cancel_reason,
+            cancel_reason=payload.cancel_reason,
             idempotency_key=idempotency_key,
         )
         updated_order = payment_db.record_provider_payment(provider_payment)
@@ -158,6 +160,17 @@ def cancel_payment(
         _raise_toss_http_error(exc)
     except payment_db.PaymentDataError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    submit_audit_event(
+        actor_user_id=current_user["user_id"],
+        actor_type="ADMIN",
+        action="PAYMENT_CANCELED",
+        target_type="payment.order",
+        target_id=order_id,
+        request_id=get_request_id(request),
+        after_data={"status": updated_order["status"]},
+        reason=payload.cancel_reason,
+    )
 
     return _order_response(updated_order)
 

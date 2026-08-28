@@ -30,6 +30,9 @@ class TossPaymentsClientTests(unittest.TestCase):
                 "https://api.tosspayments.com/v1",
             ),
             patch("app.services.toss_payments.httpx.request", return_value=response) as request,
+            patch(
+                "app.services.toss_payments.submit_external_service_call"
+            ) as submit_external_service_call,
         ):
             result = toss_payments.confirm_payment(
                 payment_key="payment-key",
@@ -45,6 +48,10 @@ class TossPaymentsClientTests(unittest.TestCase):
             "idempotency-key",
         )
         self.assertEqual(request.call_args.kwargs["json"]["amount"], 10000)
+        self.assertEqual(
+            submit_external_service_call.call_args.kwargs["status"],
+            "SUCCEEDED",
+        )
 
     def test_redacted_payload_excludes_payment_method_details(self):
         redacted = toss_payments.redacted_payment_payload(

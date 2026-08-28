@@ -3,6 +3,7 @@ import logging
 import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from typing import Any
 
 from psycopg.types.json import Jsonb
@@ -19,6 +20,309 @@ def log_insert_error(operation: str, exc: Exception) -> None:
 
 def ensure_request_id(request_id: str | None = None) -> str:
     return request_id or str(uuid.uuid4())
+
+
+def insert_api_request(
+    *,
+    request_id: str,
+    method: str,
+    path: str,
+    status_code: int,
+    latency_ms: int,
+    user_id: str | None = None,
+    session_id: str | None = None,
+    route_name: str | None = None,
+    error_code: str | None = None,
+    client_ip: str | None = None,
+    user_agent: str | None = None,
+    app_version: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    try:
+        with get_postgres_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO logs.api_requests (
+                        request_id,
+                        occurred_at,
+                        user_id,
+                        session_id,
+                        method,
+                        path,
+                        route_name,
+                        status_code,
+                        latency_ms,
+                        error_code,
+                        client_ip,
+                        user_agent,
+                        app_version,
+                        metadata
+                    )
+                    VALUES (
+                        %s,
+                        NOW(),
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    )
+                    """,
+                    (
+                        request_id,
+                        user_id,
+                        session_id,
+                        method,
+                        path,
+                        route_name,
+                        status_code,
+                        latency_ms,
+                        error_code,
+                        client_ip,
+                        user_agent,
+                        app_version,
+                        Jsonb(metadata or {}),
+                    ),
+                )
+    except Exception as exc:
+        log_insert_error("insert_api_request", exc)
+
+
+def submit_api_request(**kwargs: Any) -> None:
+    _executor.submit(insert_api_request, **kwargs)
+
+
+def insert_external_service_call(
+    *,
+    service_name: str,
+    operation: str,
+    status: str,
+    started_at: datetime,
+    finished_at: datetime,
+    duration_ms: int,
+    request_id: str | None = None,
+    user_id: str | None = None,
+    http_status_code: int | None = None,
+    provider_error_code: str | None = None,
+    retry_count: int = 0,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    try:
+        with get_postgres_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO logs.external_service_calls (
+                        request_id,
+                        user_id,
+                        service_name,
+                        operation,
+                        status,
+                        started_at,
+                        finished_at,
+                        duration_ms,
+                        http_status_code,
+                        provider_error_code,
+                        retry_count,
+                        metadata
+                    )
+                    VALUES (
+                        %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s
+                    )
+                    """,
+                    (
+                        request_id,
+                        user_id,
+                        service_name,
+                        operation,
+                        status,
+                        started_at,
+                        finished_at,
+                        duration_ms,
+                        http_status_code,
+                        provider_error_code,
+                        retry_count,
+                        Jsonb(metadata or {}),
+                    ),
+                )
+    except Exception as exc:
+        log_insert_error("insert_external_service_call", exc)
+
+
+def submit_external_service_call(**kwargs: Any) -> None:
+    _executor.submit(insert_external_service_call, **kwargs)
+
+
+def insert_notification_delivery(
+    *,
+    notification_type: str,
+    channel: str,
+    status: str,
+    destination_ref: str | None = None,
+    request_id: str | None = None,
+    idempotency_key: str | None = None,
+    requested_at: datetime,
+    sent_at: datetime | None = None,
+    failed_at: datetime | None = None,
+    retry_count: int = 0,
+    error_code: str | None = None,
+    error_message: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    try:
+        with get_postgres_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO logs.notification_deliveries (
+                        notification_type,
+                        channel,
+                        destination_ref,
+                        status,
+                        request_id,
+                        idempotency_key,
+                        requested_at,
+                        sent_at,
+                        failed_at,
+                        retry_count,
+                        error_code,
+                        error_message,
+                        metadata
+                    )
+                    VALUES (
+                        %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s
+                    )
+                    """,
+                    (
+                        notification_type,
+                        channel,
+                        destination_ref,
+                        status,
+                        request_id,
+                        idempotency_key,
+                        requested_at,
+                        sent_at,
+                        failed_at,
+                        retry_count,
+                        error_code,
+                        error_message,
+                        Jsonb(metadata or {}),
+                    ),
+                )
+    except Exception as exc:
+        log_insert_error("insert_notification_delivery", exc)
+
+
+def submit_notification_delivery(**kwargs: Any) -> None:
+    _executor.submit(insert_notification_delivery, **kwargs)
+
+
+def insert_audit_event(
+    *,
+    actor_type: str,
+    action: str,
+    target_type: str,
+    target_id: str,
+    actor_user_id: str | None = None,
+    request_id: str | None = None,
+    before_data: dict[str, Any] | None = None,
+    after_data: dict[str, Any] | None = None,
+    reason: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    try:
+        with get_postgres_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO logs.audit_events (
+                        actor_user_id,
+                        actor_type,
+                        action,
+                        target_type,
+                        target_id,
+                        request_id,
+                        before_data,
+                        after_data,
+                        reason,
+                        metadata
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        actor_user_id,
+                        actor_type,
+                        action,
+                        target_type,
+                        target_id,
+                        request_id,
+                        Jsonb(before_data) if before_data is not None else None,
+                        Jsonb(after_data) if after_data is not None else None,
+                        reason,
+                        Jsonb(metadata or {}),
+                    ),
+                )
+    except Exception as exc:
+        log_insert_error("insert_audit_event", exc)
+
+
+def submit_audit_event(**kwargs: Any) -> None:
+    _executor.submit(insert_audit_event, **kwargs)
+
+
+def insert_security_event(
+    *,
+    event_type: str,
+    severity: str,
+    user_id: str | None = None,
+    request_id: str | None = None,
+    session_id: str | None = None,
+    source_ip: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    try:
+        with get_postgres_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO logs.security_events (
+                        event_type,
+                        severity,
+                        status,
+                        user_id,
+                        request_id,
+                        session_id,
+                        source_ip,
+                        metadata
+                    )
+                    VALUES (%s, %s, 'OPEN', %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        event_type,
+                        severity,
+                        user_id,
+                        request_id,
+                        session_id,
+                        source_ip,
+                        Jsonb(metadata or {}),
+                    ),
+                )
+    except Exception as exc:
+        log_insert_error("insert_security_event", exc)
+
+
+def submit_security_event(**kwargs: Any) -> None:
+    _executor.submit(insert_security_event, **kwargs)
 
 
 def build_query_hash(query: str) -> str:
