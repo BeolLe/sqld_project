@@ -66,6 +66,20 @@ class PopupRuntimePriorityTests(unittest.TestCase):
             is_campaign_eligible(campaign=campaign, user_profile=None)
         )
 
+    def test_phase2_campaign_does_not_bypass_normal_eligibility(self):
+        campaign = {
+            "audience_code": "authenticated",
+            "phase_code": "phase2",
+            "eligibility_rule": {},
+        }
+
+        self.assertFalse(
+            is_campaign_eligible(
+                campaign=campaign,
+                user_profile={"user_id": "user-1", "total_points": 0},
+            )
+        )
+
     def test_unregistered_renderer_is_rejected(self):
         campaign = {
             "popup_type": "notice",
@@ -91,10 +105,8 @@ class PopupRuntimePriorityTests(unittest.TestCase):
         query, params = cursor.execute.call_args.args
         self.assertEqual(result, [])
         self.assertIn("CURRENT_TIMESTAMP", query)
-        self.assertEqual(
-            params,
-            (None, None, None, False, "sqld_61_phase2"),
-        )
+        self.assertNotIn("sqld_61_phase2", query)
+        self.assertEqual(params, (None, None, None))
 
 
 if __name__ == "__main__":

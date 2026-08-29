@@ -3,10 +3,9 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from psycopg.rows import dict_row
 
@@ -17,8 +16,6 @@ router = APIRouter(prefix="/api/events", tags=["events"])
 
 KST = ZoneInfo("Asia/Seoul")
 PHONE_DIGITS_RE = re.compile(r"\D")
-PHASE2_PREVIEW_HOSTS = {"test_dummies.selfronny.com"}
-PHASE2_PREVIEW_CAMPAIGN_KEY = "sqld_61_phase2"
 # Business priority is controlled in code so an incorrectly configured survey
 # cannot outrank a maintenance or critical service notice. display_priority is
 # used only as a tie-breaker between campaigns of the same popup type.
@@ -65,25 +62,6 @@ def parse_datetime_value(raw: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed
-
-
-def extract_request_hostname(value: str | None) -> str | None:
-    if not value:
-        return None
-    candidate = value.split(",")[0].strip()
-    if "://" in candidate:
-        return urlparse(candidate).hostname
-    return candidate.split(":")[0].strip().lower() or None
-
-
-def is_phase2_preview_request(request) -> bool:
-    candidates = (
-        extract_request_hostname(request.headers.get("x-forwarded-host")),
-        extract_request_hostname(request.headers.get("host")),
-        extract_request_hostname(request.headers.get("origin")),
-        extract_request_hostname(request.headers.get("referer")),
-    )
-    return any(host in PHASE2_PREVIEW_HOSTS for host in candidates if host)
 
 
 def end_of_today_kst() -> datetime:
@@ -147,7 +125,6 @@ def is_campaign_eligible(
     *,
     campaign: dict,
     user_profile: dict | None,
-    allow_phase2_preview: bool = False,
 ) -> bool:
     if campaign.get("audience_code") == "public":
         return True
@@ -175,8 +152,6 @@ def is_campaign_eligible(
         return False
 
     if campaign["phase_code"] == "phase2":
-        if allow_phase2_preview and campaign["campaign_key"] == PHASE2_PREVIEW_CAMPAIGN_KEY:
-            return True
         required_campaign_key = rule.get("requires_campaign_key")
         if not required_campaign_key:
             return False
@@ -273,11 +248,7 @@ def validate_response_payload(req: PopupCampaignResponseUpsertRequest) -> str:
     return phone_number
 
 
-def fetch_visible_campaign_rows(
-    user_id: str | None,
-    *,
-    allow_phase2_preview: bool = False,
-) -> list[dict]:
+def fetch_visible_campaign_rows(user_id: str | None) -> list[dict]:
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
@@ -321,20 +292,13 @@ def fetch_visible_campaign_rows(
                     c.audience_code = 'public'
                     OR (%s::uuid IS NOT NULL AND c.audience_code = 'authenticated')
                   )
-                  AND (
-                    (
-                      c.exposure_start_at <= CURRENT_TIMESTAMP
-                      AND c.exposure_end_at >= CURRENT_TIMESTAMP
-                    )
-                    OR (%s AND c.campaign_key = %s)
-                  )
+                  AND c.exposure_start_at <= CURRENT_TIMESTAMP
+                  AND c.exposure_end_at >= CURRENT_TIMESTAMP
                 """,
                 (
                     user_id,
                     user_id,
                     user_id,
-                    allow_phase2_preview,
-                    PHASE2_PREVIEW_CAMPAIGN_KEY,
                 ),
             )
             rows = cur.fetchall()
@@ -360,7 +324,6 @@ def get_public_modal():
 
 @router.get("/active-popup")
 def get_active_popup(
-    request: Request,
     current_user: dict | None = Depends(get_optional_current_user),
 ):
     """Return ordered popup candidates for both anonymous and signed-in users.
@@ -369,10 +332,8 @@ def get_active_popup(
     locally dismissed public campaigns and loads the registered renderer.
     """
     user_profile = load_user_profile(current_user["user_id"]) if current_user else None
-    allow_phase2_preview = bool(current_user) and is_phase2_preview_request(request)
     rows = fetch_visible_campaign_rows(
-        current_user["user_id"] if current_user else None,
-        allow_phase2_preview=allow_phase2_preview,
+        current_user["user_id"] if current_user else None
     )
     items = [
         build_campaign_payload(
@@ -380,7 +341,6 @@ def get_active_popup(
             eligible=is_campaign_eligible(
                 campaign=row,
                 user_profile=user_profile,
-                allow_phase2_preview=allow_phase2_preview,
             ),
         )
         for row in rows
@@ -394,20 +354,15 @@ def get_active_popup(
 
 
 @router.get("/modal")
-def get_active_modal(request: Request, current_user: dict = Depends(get_current_user)):
+def get_active_modal(current_user: dict = Depends(get_current_user)):
     user_profile = load_user_profile(current_user["user_id"])
-    allow_phase2_preview = is_phase2_preview_request(request)
-    rows = fetch_visible_campaign_rows(
-        current_user["user_id"],
-        allow_phase2_preview=allow_phase2_preview,
-    )
+    rows = fetch_visible_campaign_rows(current_user["user_id"])
     items = [
         build_campaign_payload(
             row,
             eligible=is_campaign_eligible(
                 campaign=row,
                 user_profile=user_profile,
-                allow_phase2_preview=allow_phase2_preview,
             ),
         )
         for row in rows
@@ -477,15 +432,11 @@ def dismiss_modal_for_today(
 def submit_modal_response(
     campaign_key: str,
     req: PopupCampaignResponseUpsertRequest,
-    request: Request,
     current_user: dict = Depends(get_current_user),
 ):
     user_profile = load_user_profile(current_user["user_id"])
     now = datetime.now(UTC)
     phone_number = validate_response_payload(req)
-    allow_phase2_preview = (
-        campaign_key == PHASE2_PREVIEW_CAMPAIGN_KEY and is_phase2_preview_request(request)
-    )
 
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
@@ -513,14 +464,13 @@ def submit_modal_response(
             if not campaign or not campaign["is_active"]:
                 raise HTTPException(status_code=404, detail="campaign not found")
             if (
-                not allow_phase2_preview
-                and (now < campaign["response_open_at"] or now > campaign["response_close_at"])
+                now < campaign["response_open_at"]
+                or now > campaign["response_close_at"]
             ):
                 raise HTTPException(status_code=400, detail="campaign response window is closed")
             if not is_campaign_eligible(
                 campaign=campaign,
                 user_profile=user_profile,
-                allow_phase2_preview=allow_phase2_preview,
             ):
                 raise HTTPException(status_code=403, detail="campaign not eligible")
 
