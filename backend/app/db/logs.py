@@ -227,7 +227,8 @@ def submit_notification_delivery(**kwargs: Any) -> None:
     _executor.submit(insert_notification_delivery, **kwargs)
 
 
-def insert_audit_event(
+def write_audit_event(
+    conn: Any,
     *,
     actor_type: str,
     action: str,
@@ -240,44 +241,99 @@ def insert_audit_event(
     reason: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO logs.audit_events (
+                actor_user_id,
+                actor_type,
+                action,
+                target_type,
+                target_id,
+                request_id,
+                before_data,
+                after_data,
+                reason,
+                metadata
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                actor_user_id,
+                actor_type,
+                action,
+                target_type,
+                target_id,
+                request_id,
+                Jsonb(before_data) if before_data is not None else None,
+                Jsonb(after_data) if after_data is not None else None,
+                reason,
+                Jsonb(metadata or {}),
+            ),
+        )
+
+
+def insert_audit_event(**kwargs: Any) -> None:
     try:
         with get_postgres_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO logs.audit_events (
-                        actor_user_id,
-                        actor_type,
-                        action,
-                        target_type,
-                        target_id,
-                        request_id,
-                        before_data,
-                        after_data,
-                        reason,
-                        metadata
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    (
-                        actor_user_id,
-                        actor_type,
-                        action,
-                        target_type,
-                        target_id,
-                        request_id,
-                        Jsonb(before_data) if before_data is not None else None,
-                        Jsonb(after_data) if after_data is not None else None,
-                        reason,
-                        Jsonb(metadata or {}),
-                    ),
-                )
+            write_audit_event(conn, **kwargs)
     except Exception as exc:
         log_insert_error("insert_audit_event", exc)
 
 
 def submit_audit_event(**kwargs: Any) -> None:
     _executor.submit(insert_audit_event, **kwargs)
+
+
+def insert_audit_failure(
+    *,
+    actor_type: str,
+    action: str,
+    target_type: str,
+    target_id: str,
+    failure_stage: str,
+    error: Exception,
+    actor_user_id: str | None = None,
+    request_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    error_code = getattr(error, "sqlstate", None)
+    try:
+        with get_postgres_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO logs.audit_failures (
+                        request_id,
+                        actor_user_id,
+                        actor_type,
+                        action,
+                        target_type,
+                        target_id,
+                        failure_stage,
+                        error_type,
+                        error_code,
+                        error_message,
+                        metadata
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        request_id,
+                        actor_user_id,
+                        actor_type,
+                        action,
+                        target_type,
+                        target_id,
+                        failure_stage,
+                        type(error).__name__[:100],
+                        str(error_code)[:100] if error_code else None,
+                        str(error)[:1000] or None,
+                        Jsonb(metadata or {}),
+                    ),
+                )
+    except Exception as exc:
+        log_insert_error("insert_audit_failure", exc)
 
 
 def insert_security_event(

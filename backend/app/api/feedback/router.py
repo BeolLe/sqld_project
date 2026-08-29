@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from app.api.auth.router import ensure_admin, get_current_user, get_request_id
 from app.core.config import settings
-from app.db.logs import submit_audit_event
+from app.db.logs import insert_audit_failure, write_audit_event
 from app.db.postgres import get_connection
 from app.services.amplitude import send_amplitude_event
 from app.services.slack import send_slack_message
@@ -317,47 +317,67 @@ def update_feedback_admin(
 ):
     ensure_admin(current_user)
 
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE feedback.tickets
-                SET
-                    status = %s,
-                    admin_reply = %s,
-                    replied_at = CASE
-                        WHEN %s IS NOT NULL AND btrim(%s) <> '' THEN now()
-                        ELSE replied_at
-                    END,
-                    updated_at = now()
-                WHERE ticket_id = %s
-                RETURNING ticket_id, status
-                """,
-                (
-                    req.status,
-                    req.admin_reply,
-                    req.admin_reply,
-                    req.admin_reply,
-                    ticket_id,
-                ),
+    request_id = get_request_id(request)
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE feedback.tickets
+                    SET
+                        status = %s,
+                        admin_reply = %s,
+                        replied_at = CASE
+                            WHEN %s IS NOT NULL AND btrim(%s) <> '' THEN now()
+                            ELSE replied_at
+                        END,
+                        updated_at = now()
+                    WHERE ticket_id = %s
+                    RETURNING ticket_id, status
+                    """,
+                    (
+                        req.status,
+                        req.admin_reply,
+                        req.admin_reply,
+                        req.admin_reply,
+                        ticket_id,
+                    ),
+                )
+                row = cur.fetchone()
+
+            if not row:
+                raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다.")
+
+            write_audit_event(
+                conn,
+                actor_user_id=current_user["user_id"],
+                actor_type="ADMIN",
+                action="FEEDBACK_UPDATED",
+                target_type="feedback.ticket",
+                target_id=str(row[0]),
+                request_id=request_id,
+                after_data={
+                    "status": row[1],
+                    "admin_reply_set": bool(req.admin_reply and req.admin_reply.strip()),
+                },
             )
-            row = cur.fetchone()
-
-    if not row:
-        raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다.")
-
-    submit_audit_event(
-        actor_user_id=current_user["user_id"],
-        actor_type="ADMIN",
-        action="FEEDBACK_UPDATED",
-        target_type="feedback.ticket",
-        target_id=str(row[0]),
-        request_id=get_request_id(request),
-        after_data={
-            "status": row[1],
-            "admin_reply_set": bool(req.admin_reply and req.admin_reply.strip()),
-        },
-    )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        insert_audit_failure(
+            actor_user_id=current_user["user_id"],
+            actor_type="ADMIN",
+            action="FEEDBACK_UPDATED",
+            target_type="feedback.ticket",
+            target_id=ticket_id,
+            failure_stage="TRANSACTION",
+            request_id=request_id,
+            error=exc,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="피드백 변경을 완료하지 못했습니다. 변경 내용은 반영되지 않았습니다.",
+        ) from exc
 
     return {
         "ticket_id": str(row[0]),
@@ -451,32 +471,52 @@ def update_feedback_status(
 ):
     ensure_admin(current_user)
 
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE feedback.tickets
-                SET status = %s,
-                    updated_at = now()
-                WHERE ticket_id = %s
-                RETURNING ticket_id, status
-                """,
-                (req.status, ticket_id),
+    request_id = get_request_id(request)
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE feedback.tickets
+                    SET status = %s,
+                        updated_at = now()
+                    WHERE ticket_id = %s
+                    RETURNING ticket_id, status
+                    """,
+                    (req.status, ticket_id),
+                )
+                row = cur.fetchone()
+
+            if not row:
+                raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다.")
+
+            write_audit_event(
+                conn,
+                actor_user_id=current_user["user_id"],
+                actor_type="ADMIN",
+                action="FEEDBACK_STATUS_UPDATED",
+                target_type="feedback.ticket",
+                target_id=str(row[0]),
+                request_id=request_id,
+                after_data={"status": row[1]},
             )
-            row = cur.fetchone()
-
-    if not row:
-        raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다.")
-
-    submit_audit_event(
-        actor_user_id=current_user["user_id"],
-        actor_type="ADMIN",
-        action="FEEDBACK_STATUS_UPDATED",
-        target_type="feedback.ticket",
-        target_id=str(row[0]),
-        request_id=get_request_id(request),
-        after_data={"status": row[1]},
-    )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        insert_audit_failure(
+            actor_user_id=current_user["user_id"],
+            actor_type="ADMIN",
+            action="FEEDBACK_STATUS_UPDATED",
+            target_type="feedback.ticket",
+            target_id=ticket_id,
+            failure_stage="TRANSACTION",
+            request_id=request_id,
+            error=exc,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="피드백 상태 변경을 완료하지 못했습니다. 변경 내용은 반영되지 않았습니다.",
+        ) from exc
 
     return {
         "ticket_id": str(row[0]),
@@ -498,37 +538,57 @@ def update_feedback_reply(
     if not reply:
         raise HTTPException(status_code=400, detail="답변을 입력해주세요.")
 
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE feedback.tickets
-                SET admin_reply = %s,
-                    replied_at = now(),
-                    status = CASE
-                      WHEN status = 'pending' THEN 'reviewing'
-                      ELSE status
-                    END,
-                    updated_at = now()
-                WHERE ticket_id = %s
-                RETURNING ticket_id, admin_reply, replied_at, status
-                """,
-                (reply, ticket_id),
+    request_id = get_request_id(request)
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE feedback.tickets
+                    SET admin_reply = %s,
+                        replied_at = now(),
+                        status = CASE
+                          WHEN status = 'pending' THEN 'reviewing'
+                          ELSE status
+                        END,
+                        updated_at = now()
+                    WHERE ticket_id = %s
+                    RETURNING ticket_id, admin_reply, replied_at, status
+                    """,
+                    (reply, ticket_id),
+                )
+                row = cur.fetchone()
+
+            if not row:
+                raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다.")
+
+            write_audit_event(
+                conn,
+                actor_user_id=current_user["user_id"],
+                actor_type="ADMIN",
+                action="FEEDBACK_REPLY_UPDATED",
+                target_type="feedback.ticket",
+                target_id=str(row[0]),
+                request_id=request_id,
+                after_data={"status": row[3], "admin_reply_set": True},
             )
-            row = cur.fetchone()
-
-    if not row:
-        raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다.")
-
-    submit_audit_event(
-        actor_user_id=current_user["user_id"],
-        actor_type="ADMIN",
-        action="FEEDBACK_REPLY_UPDATED",
-        target_type="feedback.ticket",
-        target_id=str(row[0]),
-        request_id=get_request_id(request),
-        after_data={"status": row[3], "admin_reply_set": True},
-    )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        insert_audit_failure(
+            actor_user_id=current_user["user_id"],
+            actor_type="ADMIN",
+            action="FEEDBACK_REPLY_UPDATED",
+            target_type="feedback.ticket",
+            target_id=ticket_id,
+            failure_stage="TRANSACTION",
+            request_id=request_id,
+            error=exc,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="피드백 답변 저장을 완료하지 못했습니다. 변경 내용은 반영되지 않았습니다.",
+        ) from exc
 
     return {
         "ticket_id": str(row[0]),

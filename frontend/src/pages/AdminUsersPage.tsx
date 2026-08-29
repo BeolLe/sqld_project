@@ -74,8 +74,12 @@ export default function AdminUsersPage() {
           u.user_id === confirmTarget.user_id ? { ...u, is_admin: newIsAdmin } : u
         )
       );
-    } catch {
-      // 실패 시 상태 안 바뀜
+    } catch (caughtError) {
+      window.alert(
+        caughtError instanceof Error
+          ? caughtError.message
+          : '권한 변경에 실패했습니다. 변경 내용은 반영되지 않았습니다.'
+      );
     } finally {
       setRoleLoading(null);
     }

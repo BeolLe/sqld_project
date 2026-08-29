@@ -19,10 +19,11 @@ from jwt import ExpiredSignatureError, InvalidTokenError
 from app.core.config import settings
 from app.db.logs import (
     ensure_request_id,
+    insert_audit_failure,
     insert_auth_event,
-    submit_audit_event,
     submit_auth_event,
     submit_security_event,
+    write_audit_event,
 )
 from app.db.postgres import get_connection
 from app.db.payments import expire_open_orders_for_user
@@ -2453,43 +2454,63 @@ def update_admin_user_role(
     if user_id == current_user["user_id"] and not req.is_admin:
         raise HTTPException(status_code=400, detail="자기 자신의 관리자 권한은 해제할 수 없습니다.")
 
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT is_admin
-                FROM auth.users
-                WHERE user_id = %s
-                  AND is_active = true
-                """,
-                (user_id,),
-            )
-            before_row = cur.fetchone()
-            cur.execute(
-                """
-                UPDATE auth.users
-                SET is_admin = %s
-                WHERE user_id = %s
-                  AND is_active = true
-                RETURNING user_id, is_admin
-                """,
-                (req.is_admin, user_id),
-            )
-            row = cur.fetchone()
+    request_id = get_request_id(request)
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT is_admin
+                    FROM auth.users
+                    WHERE user_id = %s
+                      AND is_active = true
+                    """,
+                    (user_id,),
+                )
+                before_row = cur.fetchone()
+                cur.execute(
+                    """
+                    UPDATE auth.users
+                    SET is_admin = %s
+                    WHERE user_id = %s
+                      AND is_active = true
+                    RETURNING user_id, is_admin
+                    """,
+                    (req.is_admin, user_id),
+                )
+                row = cur.fetchone()
 
-    if not row:
-        raise HTTPException(status_code=404, detail="유저를 찾을 수 없습니다.")
+            if not row:
+                raise HTTPException(status_code=404, detail="유저를 찾을 수 없습니다.")
 
-    submit_audit_event(
-        actor_user_id=current_user["user_id"],
-        actor_type="ADMIN",
-        action="USER_ROLE_UPDATED",
-        target_type="auth.user",
-        target_id=str(row[0]),
-        request_id=get_request_id(request),
-        before_data={"is_admin": bool(before_row[0])} if before_row else None,
-        after_data={"is_admin": bool(row[1])},
-    )
+            write_audit_event(
+                conn,
+                actor_user_id=current_user["user_id"],
+                actor_type="ADMIN",
+                action="USER_ROLE_UPDATED",
+                target_type="auth.user",
+                target_id=str(row[0]),
+                request_id=request_id,
+                before_data={"is_admin": bool(before_row[0])} if before_row else None,
+                after_data={"is_admin": bool(row[1])},
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        insert_audit_failure(
+            actor_user_id=current_user["user_id"],
+            actor_type="ADMIN",
+            action="USER_ROLE_UPDATED",
+            target_type="auth.user",
+            target_id=user_id,
+            failure_stage="TRANSACTION",
+            request_id=request_id,
+            error=exc,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="권한 변경을 완료하지 못했습니다. 변경 내용은 반영되지 않았습니다.",
+        ) from exc
 
     return {
         "user_id": str(row[0]),

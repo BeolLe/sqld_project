@@ -97,8 +97,12 @@ export default function AdminFeedbackPage() {
       setTickets((prev) =>
         prev.map((t) => (t.ticket_id === ticketId ? { ...t, status: newStatus } : t))
       );
-    } catch {
-      // 조용히 실패 — UI에서 상태가 안 바뀜
+    } catch (caughtError) {
+      window.alert(
+        caughtError instanceof Error
+          ? caughtError.message
+          : '피드백 상태 변경에 실패했습니다. 변경 내용은 반영되지 않았습니다.'
+      );
     } finally {
       setStatusLoading(null);
     }
@@ -127,11 +131,16 @@ export default function AdminFeedbackPage() {
         ...prev,
         [ticketId]: { type: 'success', text: '답변이 저장되었습니다.' },
       }));
-    } catch {
+    } catch (caughtError) {
+      const message =
+        caughtError instanceof Error
+          ? caughtError.message
+          : '피드백 답변 저장에 실패했습니다. 변경 내용은 반영되지 않았습니다.';
       setReplyMessage((prev) => ({
         ...prev,
-        [ticketId]: { type: 'error', text: '답변 저장에 실패했습니다.' },
+        [ticketId]: { type: 'error', text: message },
       }));
+      window.alert(message);
     } finally {
       setReplyLoading(null);
     }
