@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Users, Search, Shield, ShieldOff, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback, type FormEvent } from 'react';
+import { Users, Search, Shield, ShieldOff, Loader2, Filter, RotateCcw } from 'lucide-react';
 import { apiFetch } from '../utils/api';
 import type { AdminUserItem, AdminUserListResponse } from '../types';
 
@@ -10,12 +10,50 @@ function formatDate(iso: string): string {
 
 const PAGE_SIZE = 20;
 
-export default function AdminUsersPage() {
+type RoleFilter = 'all' | 'user' | 'admin';
+
+interface UserFilters {
+  search: string;
+  registeredFrom: string;
+  registeredTo: string;
+  emailDomain: string;
+  minPoints: string;
+  maxPoints: string;
+  role: RoleFilter;
+}
+
+interface AdminUsersPageProps {
+  onRoleChanged?: () => void | Promise<void>;
+}
+
+const EMPTY_FILTERS: UserFilters = {
+  search: '',
+  registeredFrom: '',
+  registeredTo: '',
+  emailDomain: '',
+  minPoints: '',
+  maxPoints: '',
+  role: 'all',
+};
+
+function hasActiveFilters(filters: UserFilters): boolean {
+  return (
+    filters.search !== '' ||
+    filters.registeredFrom !== '' ||
+    filters.registeredTo !== '' ||
+    filters.emailDomain !== '' ||
+    filters.minPoints !== '' ||
+    filters.maxPoints !== '' ||
+    filters.role !== 'all'
+  );
+}
+
+export default function AdminUsersPage({ onRoleChanged }: AdminUsersPageProps) {
   const [users, setUsers] = useState<AdminUserItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [searchInput, setSearchInput] = useState('');
+  const [draftFilters, setDraftFilters] = useState<UserFilters>(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<UserFilters>(EMPTY_FILTERS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -31,25 +69,70 @@ export default function AdminUsersPage() {
         page: String(page),
         size: String(PAGE_SIZE),
       });
-      if (search) params.set('search', search);
+      if (appliedFilters.search) params.set('search', appliedFilters.search);
+      if (appliedFilters.registeredFrom) {
+        params.set('registered_from', appliedFilters.registeredFrom);
+      }
+      if (appliedFilters.registeredTo) {
+        params.set('registered_to', appliedFilters.registeredTo);
+      }
+      if (appliedFilters.emailDomain) {
+        params.set('email_domain', appliedFilters.emailDomain);
+      }
+      if (appliedFilters.minPoints) params.set('min_points', appliedFilters.minPoints);
+      if (appliedFilters.maxPoints) params.set('max_points', appliedFilters.maxPoints);
+      if (appliedFilters.role !== 'all') params.set('role', appliedFilters.role);
 
       const res = await apiFetch<AdminUserListResponse>(`/auth/admin/users?${params}`);
       setUsers(res.items);
       setTotal(res.total);
-    } catch {
-      setError('유저 목록을 불러올 수 없습니다.');
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error ? caughtError.message : '유저 목록을 불러올 수 없습니다.'
+      );
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [appliedFilters, page]);
 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
 
-  function handleSearch(e: React.FormEvent) {
+  function handleFilterSubmit(e: FormEvent) {
     e.preventDefault();
-    setSearch(searchInput.trim());
+
+    if (
+      draftFilters.registeredFrom &&
+      draftFilters.registeredTo &&
+      draftFilters.registeredFrom > draftFilters.registeredTo
+    ) {
+      setError('가입 시작일은 종료일보다 늦을 수 없습니다.');
+      return;
+    }
+
+    if (
+      draftFilters.minPoints !== '' &&
+      draftFilters.maxPoints !== '' &&
+      Number(draftFilters.minPoints) > Number(draftFilters.maxPoints)
+    ) {
+      setError('최소 포인트는 최대 포인트보다 클 수 없습니다.');
+      return;
+    }
+
+    setError('');
+    setAppliedFilters({
+      ...draftFilters,
+      search: draftFilters.search.trim(),
+      emailDomain: draftFilters.emailDomain.trim().toLowerCase().replace(/^@/, ''),
+    });
+    setPage(1);
+  }
+
+  function handleFilterReset() {
+    setDraftFilters(EMPTY_FILTERS);
+    setAppliedFilters(EMPTY_FILTERS);
+    setError('');
     setPage(1);
   }
 
@@ -69,11 +152,8 @@ export default function AdminUsersPage() {
         method: 'PATCH',
         body: JSON.stringify({ is_admin: newIsAdmin }),
       });
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.user_id === confirmTarget.user_id ? { ...u, is_admin: newIsAdmin } : u
-        )
-      );
+      await fetchUsers();
+      await onRoleChanged?.();
     } catch (caughtError) {
       window.alert(
         caughtError instanceof Error
@@ -86,27 +166,137 @@ export default function AdminUsersPage() {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const filtersApplied = hasActiveFilters(appliedFilters);
 
   return (
     <div className="space-y-6">
-      {/* 검색 */}
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="이메일 또는 닉네임으로 검색"
-            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
+      {/* 검색 및 필터 */}
+      <form
+        onSubmit={handleFilterSubmit}
+        className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+      >
+        <div className="mb-4 flex items-center gap-2">
+          <Filter className="h-4 w-4 text-primary-600" />
+          <h2 className="text-sm font-semibold text-sqld-navy">유저 조회 조건</h2>
         </div>
-        <button
-          type="submit"
-          className="bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
-        >
-          검색
-        </button>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-slate-600">이메일·닉네임</span>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={draftFilters.search}
+                onChange={(e) => setDraftFilters((prev) => ({ ...prev, search: e.target.value }))}
+                placeholder="이메일 또는 닉네임"
+                className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-slate-600">가입 시작일</span>
+            <input
+              type="date"
+              value={draftFilters.registeredFrom}
+              onChange={(e) =>
+                setDraftFilters((prev) => ({ ...prev, registeredFrom: e.target.value }))
+              }
+              className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-slate-600">가입 종료일</span>
+            <input
+              type="date"
+              value={draftFilters.registeredTo}
+              onChange={(e) =>
+                setDraftFilters((prev) => ({ ...prev, registeredTo: e.target.value }))
+              }
+              className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-slate-600">이메일 도메인</span>
+            <input
+              type="text"
+              value={draftFilters.emailDomain}
+              onChange={(e) =>
+                setDraftFilters((prev) => ({ ...prev, emailDomain: e.target.value }))
+              }
+              placeholder="예: gmail.com"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </label>
+
+          <div>
+            <span className="mb-1.5 block text-xs font-medium text-slate-600">포인트 범위</span>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                value={draftFilters.minPoints}
+                onChange={(e) =>
+                  setDraftFilters((prev) => ({ ...prev, minPoints: e.target.value }))
+                }
+                placeholder="최소"
+                className="min-w-0 rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <span className="text-slate-400">~</span>
+              <input
+                type="number"
+                min="0"
+                value={draftFilters.maxPoints}
+                onChange={(e) =>
+                  setDraftFilters((prev) => ({ ...prev, maxPoints: e.target.value }))
+                }
+                placeholder="최대"
+                className="min-w-0 rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+          </div>
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-slate-600">역할</span>
+            <select
+              value={draftFilters.role}
+              onChange={(e) =>
+                setDraftFilters((prev) => ({ ...prev, role: e.target.value as RoleFilter }))
+              }
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="all">전체</option>
+              <option value="user">일반 유저</option>
+              <option value="admin">관리자</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <p className="text-sm text-slate-500">
+            조회 결과{' '}
+            <span className="font-semibold text-sqld-navy">{total.toLocaleString()}명</span>
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleFilterReset}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+            >
+              <RotateCcw className="h-4 w-4" />
+              초기화
+            </button>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-700"
+            >
+              <Search className="h-4 w-4" />
+              조회
+            </button>
+          </div>
+        </div>
       </form>
 
       {/* 에러 */}
@@ -126,7 +316,7 @@ export default function AdminUsersPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-10 text-center">
           <Users className="w-10 h-10 text-slate-300 mx-auto mb-3" />
           <p className="text-sm text-slate-500">
-            {search ? '검색 결과가 없습니다.' : '유저가 없습니다.'}
+            {filtersApplied ? '조건에 맞는 유저가 없습니다.' : '유저가 없습니다.'}
           </p>
         </div>
       ) : (
@@ -218,7 +408,10 @@ export default function AdminUsersPage() {
       {/* 권한 변경 확인 모달 */}
       {confirmTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmTarget(null)} />
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setConfirmTarget(null)}
+          />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold text-sqld-navy mb-3">
               {confirmTarget.is_admin ? '관리자 해제' : '관리자 승격'}

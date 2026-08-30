@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bot, MessageSquare, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,7 +7,12 @@ import { useAIStream } from '../hooks/useAIStream';
 import { streamAIAdminProviderTest } from '../api/ai';
 import AdminFeedbackPage from './AdminFeedbackPage';
 import AdminUsersPage from './AdminUsersPage';
-import type { AIAdminProviderTestRequest, AIAdminSampleMeta } from '../types';
+import { apiFetch } from '../utils/api';
+import type {
+  AdminUserSummaryResponse,
+  AIAdminProviderTestRequest,
+  AIAdminSampleMeta,
+} from '../types';
 
 type AdminTab = 'feedback' | 'users' | 'ai_test';
 
@@ -21,12 +26,39 @@ export default function AdminPage() {
   const navigate = useNavigate();
   const { user, isLoggedIn, isInitializing } = useAuth();
   const [tab, setTab] = useState<AdminTab>('feedback');
+  const [nonAdminTotal, setNonAdminTotal] = useState<number | null>(null);
+
+  const fetchUserSummary = useCallback(async () => {
+    try {
+      const response = await apiFetch<AdminUserSummaryResponse>('/auth/admin/users/summary');
+      setNonAdminTotal(response.non_admin_total);
+    } catch {
+      setNonAdminTotal(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isInitializing && (!isLoggedIn || !user?.isAdmin)) {
       navigate('/', { replace: true });
     }
   }, [isInitializing, isLoggedIn, user, navigate]);
+
+  useEffect(() => {
+    if (isInitializing || !isLoggedIn || !user?.isAdmin) return;
+
+    let cancelled = false;
+    apiFetch<AdminUserSummaryResponse>('/auth/admin/users/summary')
+      .then((response) => {
+        if (!cancelled) setNonAdminTotal(response.non_admin_total);
+      })
+      .catch(() => {
+        if (!cancelled) setNonAdminTotal(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isInitializing, isLoggedIn, user]);
 
   if (isInitializing) {
     return (
@@ -42,9 +74,20 @@ export default function AdminPage() {
     <div className="min-h-screen bg-slate-50 py-10 px-4">
       <div className="max-w-5xl mx-auto">
         {/* 페이지 헤더 */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-sqld-navy">관리자</h1>
-          <p className="text-sm text-slate-500 mt-1">피드백 관리 및 유저 권한을 관리할 수 있습니다.</p>
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-sqld-navy">관리자</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              피드백 관리 및 유저 권한을 관리할 수 있습니다.
+            </p>
+          </div>
+          <div className="rounded-xl border border-primary-100 bg-white px-4 py-3 shadow-sm">
+            <p className="text-xs font-medium text-slate-500">관리자 제외 총 유저</p>
+            <p className="mt-0.5 text-xl font-bold text-sqld-navy">
+              {nonAdminTotal === null ? '—' : nonAdminTotal.toLocaleString()}
+              <span className="ml-1 text-sm font-medium text-slate-500">명</span>
+            </p>
+          </div>
         </div>
 
         {/* 상단 탭 */}
@@ -67,7 +110,7 @@ export default function AdminPage() {
 
         {/* 탭 콘텐츠 */}
         {tab === 'feedback' && <AdminFeedbackPage />}
-        {tab === 'users' && <AdminUsersPage />}
+        {tab === 'users' && <AdminUsersPage onRoleChanged={fetchUserSummary} />}
         {tab === 'ai_test' && <AdminAITestPage />}
       </div>
     </div>

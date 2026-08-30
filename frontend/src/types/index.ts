@@ -220,6 +220,10 @@ export interface AdminUserListResponse {
   items: AdminUserItem[];
 }
 
+export interface AdminUserSummaryResponse {
+  non_admin_total: number;
+}
+
 // ─── 시험 일정 타입 ─────────────────────────────────────────────────────────
 
 export interface ExamScheduleItem {

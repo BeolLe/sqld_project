@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import hashlib
 import ipaddress
 import json
@@ -2374,6 +2374,12 @@ def list_admin_users(
     page: int = 1,
     size: int = 20,
     search: str | None = None,
+    registered_from: date | None = None,
+    registered_to: date | None = None,
+    email_domain: str | None = None,
+    min_points: int | None = None,
+    max_points: int | None = None,
+    role: str = "all",
     current_user: dict = Depends(get_current_user),
 ):
     ensure_admin(current_user)
@@ -2383,6 +2389,42 @@ def list_admin_users(
     offset = (page - 1) * size
     search_value = f"%{(search or '').strip()}%"
     has_search = bool((search or "").strip())
+    normalized_domain = (email_domain or "").strip().lower().lstrip("@")
+    normalized_role = role.strip().lower()
+
+    if registered_from and registered_to and registered_from > registered_to:
+        raise HTTPException(status_code=400, detail="가입 시작일은 종료일보다 늦을 수 없습니다.")
+    if min_points is not None and min_points < 0:
+        raise HTTPException(status_code=400, detail="최소 포인트는 0 이상이어야 합니다.")
+    if max_points is not None and max_points < 0:
+        raise HTTPException(status_code=400, detail="최대 포인트는 0 이상이어야 합니다.")
+    if min_points is not None and max_points is not None and min_points > max_points:
+        raise HTTPException(status_code=400, detail="최소 포인트는 최대 포인트보다 클 수 없습니다.")
+    if normalized_domain and (
+        "@" in normalized_domain or any(char.isspace() for char in normalized_domain)
+    ):
+        raise HTTPException(status_code=400, detail="이메일 도메인 형식이 올바르지 않습니다.")
+    if normalized_role not in {"all", "user", "admin"}:
+        raise HTTPException(status_code=400, detail="유저 역할 필터가 올바르지 않습니다.")
+
+    filter_params = (
+        has_search,
+        search_value,
+        search_value,
+        registered_from,
+        registered_from,
+        registered_to,
+        registered_to,
+        normalized_domain,
+        normalized_domain,
+        min_points,
+        min_points,
+        max_points,
+        max_points,
+        normalized_role,
+        normalized_role,
+        normalized_role,
+    )
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -2390,14 +2432,26 @@ def list_admin_users(
                 """
                 SELECT COUNT(*)
                 FROM auth.users u
+                LEFT JOIN dashboard.user_stats ds
+                  ON ds.user_id = u.user_id
                 WHERE u.is_active = true
                   AND (
                     %s = false
                     OR u.email ILIKE %s
                     OR u.nickname ILIKE %s
                   )
+                  AND (%s::date IS NULL OR u.created_at >= %s::date)
+                  AND (%s::date IS NULL OR u.created_at < %s::date + INTERVAL '1 day')
+                  AND (%s = '' OR split_part(lower(u.email), '@', 2) = %s)
+                  AND (%s::bigint IS NULL OR COALESCE(ds.total_points, 0) >= %s::bigint)
+                  AND (%s::bigint IS NULL OR COALESCE(ds.total_points, 0) <= %s::bigint)
+                  AND (
+                    %s = 'all'
+                    OR (%s = 'user' AND u.is_admin = false)
+                    OR (%s = 'admin' AND u.is_admin = true)
+                  )
                 """,
-                (has_search, search_value, search_value),
+                filter_params,
             )
             total = int(cur.fetchone()[0])
 
@@ -2419,10 +2473,20 @@ def list_admin_users(
                     OR u.email ILIKE %s
                     OR u.nickname ILIKE %s
                   )
+                  AND (%s::date IS NULL OR u.created_at >= %s::date)
+                  AND (%s::date IS NULL OR u.created_at < %s::date + INTERVAL '1 day')
+                  AND (%s = '' OR split_part(lower(u.email), '@', 2) = %s)
+                  AND (%s::bigint IS NULL OR COALESCE(ds.total_points, 0) >= %s::bigint)
+                  AND (%s::bigint IS NULL OR COALESCE(ds.total_points, 0) <= %s::bigint)
+                  AND (
+                    %s = 'all'
+                    OR (%s = 'user' AND u.is_admin = false)
+                    OR (%s = 'admin' AND u.is_admin = true)
+                  )
                 ORDER BY u.created_at DESC, u.email ASC
                 LIMIT %s OFFSET %s
                 """,
-                (has_search, search_value, search_value, size, offset),
+                (*filter_params, size, offset),
             )
             items = [
                 {
@@ -2440,6 +2504,27 @@ def list_admin_users(
         "total": total,
         "items": items,
     }
+
+
+@router.get("/admin/users/summary")
+def get_admin_user_summary(
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_admin(current_user)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM auth.users
+                WHERE is_active = true
+                  AND is_admin = false
+                """
+            )
+            non_admin_total = int(cur.fetchone()[0])
+
+    return {"non_admin_total": non_admin_total}
 
 
 @router.patch("/admin/users/{user_id}/role")
