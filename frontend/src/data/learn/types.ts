@@ -41,6 +41,20 @@ export interface VizSpec {
   doneNote: string;
 }
 
+/**
+ * IE(정보공학) 표기법 관계 다이어그램 명세.
+ * min·max 는 그 끝에 붙은 엔터티가 **반대편 한 건에 대해** 몇 건인지를 뜻한다.
+ * 기호는 엔터티에 가까운 쪽이 max(관계차수), 먼 쪽이 min(관계선택사양)이다.
+ */
+export interface ErdSpec {
+  left: { label: string; min: 'one' | 'zero'; max: 'one' | 'many' };
+  right: { label: string; min: 'one' | 'zero'; max: 'one' | 'many' };
+  /** 관계선 위에 적을 관계명 */
+  relation: string;
+  /** 그림 아래에 붙는 설명 */
+  caption?: string;
+}
+
 export type LearnNode =
   | { kind: 'p'; text: Inline }
   | { kind: 'list'; items: Inline[] }
@@ -51,7 +65,8 @@ export type LearnNode =
   /** 한 블록 안에서 여러 하위 항목을 다룰 때 쓰는 소제목 (예: '3-1. 형태 기준'). */
   | { kind: 'subheading'; text: Inline }
   | { kind: 'trap'; text: Inline }
-  | { kind: 'viz'; spec: VizSpec };
+  | { kind: 'viz'; spec: VizSpec }
+  | { kind: 'erd'; spec: ErdSpec };
 
 /** 개념 노트의 한 단락. 목차 항목이자 빈칸 채점 단위. */
 export interface LearnBlock {

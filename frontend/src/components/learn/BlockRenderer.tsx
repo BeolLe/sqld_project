@@ -2,6 +2,7 @@ import { Brain, Lightbulb, TriangleAlert } from 'lucide-react';
 import type { Blank, LearnNode } from '../../data/learn/types';
 import InlineText from './InlineText';
 import QueryViz, { QueryVizPrintFrames } from './QueryViz';
+import ErdDiagram from './ErdDiagram';
 
 interface Props {
   nodes: LearnNode[];
@@ -154,6 +155,9 @@ export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Prop
                 </div>
               </div>
             );
+
+          case 'erd':
+            return <ErdDiagram key={key} spec={node.spec} />;
 
           default:
             return null;

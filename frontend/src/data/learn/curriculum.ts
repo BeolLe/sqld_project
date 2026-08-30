@@ -8,6 +8,7 @@ import { dmNullBlocks } from './units/dmNull';
 import { dmNatkeyBlocks } from './units/dmNatkey';
 import { saWindowBlocks } from './units/saWindow';
 import { dmAttrBlocks } from './units/dmAttr';
+import { dmRelBlocks } from './units/dmRel';
 import { sbRdbBlocks } from './units/sbRdb';
 import { sbSelectBlocks } from './units/sbSelect';
 import { sbFuncBlocks } from './units/sbFunc';
@@ -63,7 +64,13 @@ const SEED: SubjectSeed[] = [
             blocks: dmEntityBlocks,
           },
           { id: 'dm-attr', title: '속성', estimatedMin: 6, priority1: true, blocks: dmAttrBlocks },
-          { id: 'dm-rel', title: '관계', estimatedMin: 7, priority1: true },
+          {
+            id: 'dm-rel',
+            title: '관계',
+            estimatedMin: 9,
+            priority1: true,
+            blocks: dmRelBlocks,
+          },
           { id: 'dm-key', title: '식별자', estimatedMin: 8, priority1: true },
         ],
       },
