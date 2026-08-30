@@ -8,6 +8,9 @@ import { dmNullBlocks } from './units/dmNull';
 import { dmNatkeyBlocks } from './units/dmNatkey';
 import { saWindowBlocks } from './units/saWindow';
 import { dmAttrBlocks } from './units/dmAttr';
+import { sbRdbBlocks } from './units/sbRdb';
+import { sbSelectBlocks } from './units/sbSelect';
+import { sbFuncBlocks } from './units/sbFunc';
 
 /**
  * 한국데이터산업진흥원 공식 출제범위 (https://www.dataq.or.kr/www/sub/a_04.do).
@@ -111,9 +114,26 @@ const SEED: SubjectSeed[] = [
       {
         name: 'SQL 기본',
         units: [
-          { id: 'sb-rdb', title: '관계형 데이터베이스 개요', estimatedMin: 5 },
-          { id: 'sb-select', title: 'SELECT 문', estimatedMin: 8, priority1: true },
-          { id: 'sb-func', title: '함수', estimatedMin: 10, priority1: true },
+          {
+            id: 'sb-rdb',
+            title: '관계형 데이터베이스 개요',
+            estimatedMin: 6,
+            blocks: sbRdbBlocks,
+          },
+          {
+            id: 'sb-select',
+            title: 'SELECT 문',
+            estimatedMin: 8,
+            priority1: true,
+            blocks: sbSelectBlocks,
+          },
+          {
+            id: 'sb-func',
+            title: '함수',
+            estimatedMin: 13,
+            priority1: true,
+            blocks: sbFuncBlocks,
+          },
           { id: 'sb-where', title: 'WHERE 절', estimatedMin: 8, priority1: true },
           { id: 'sb-group', title: 'GROUP BY, HAVING 절', estimatedMin: 8, priority1: true },
           { id: 'sb-order', title: 'ORDER BY 절', estimatedMin: 5 },
