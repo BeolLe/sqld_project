@@ -251,6 +251,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
         authProvider: 'local',
       });
+      // 목 모드에서도 로그에 user_id 가 실리도록 실제 로그인 경로와 맞춘다.
+      tracker.setUser('mock-user');
       setIsInitializing(false);
       return;
     }
