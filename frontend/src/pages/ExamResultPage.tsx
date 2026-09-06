@@ -1,5 +1,5 @@
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Trophy, XCircle, CheckCircle, RotateCcw, Flag, Sparkles } from 'lucide-react';
 import type { Problem, AIExplainRequest } from '../types';
 import ReportErrorModal from '../components/ReportErrorModal';
@@ -7,6 +7,7 @@ import AIStreamPanel from '../components/AIStreamPanel';
 import { useAIStream } from '../hooks/useAIStream';
 import { useAIUsage } from '../contexts/AIUsageContext';
 import { logEvent } from '../utils/eventLogger';
+import { PageviewLog, ClickLog } from '../logging';
 import { fetchExamResult } from '../api/exams';
 
 interface ResultState {
@@ -112,6 +113,17 @@ export default function ExamResultPage() {
   const [loading, setLoading] = useState(!navigationState);
   const [error, setError] = useState('');
   const [reportTarget, setReportTarget] = useState<Problem | null>(null);
+
+  const resultUrl = `/exams/${id}/result`;
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'exam_result', url: resultUrl }), [resultUrl]);
+  const click = useMemo(() => new ClickLog({ page_id: 'exam_result', url: resultUrl, pageParams: { exam_id: id } }), [resultUrl, id]);
+  const pvSent = useRef(false);
+
+  useEffect(() => {
+    if (pvSent.current || loading || !result) return;
+    pvSent.current = true;
+    pageview.send({ pageParams: { exam_id: id }, data: { score: result.score, passed: result.passed, wrong_count: result.problems.filter(p => result.answers[p.id] !== p.answer).length, problem_count: result.problems.length } });
+  }, [loading, result, pageview, id]);
 
   useEffect(() => {
     if (navigationState || !id) return;
@@ -237,7 +249,7 @@ export default function ExamResultPage() {
                       번) {problem.options?.[Number(problem.answer) - 1]}
                     </p>
                     <button
-                      onClick={() => setReportTarget(problem)}
+                      onClick={() => { click.send({ object_section_id: 'wrong_list', object_section_idx: 2, object_type: 'button', object_idx: wrongList.indexOf(problem), object_id: 'error_report', data: { problem_id: problem.id } }); setReportTarget(problem); }}
                       className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium mt-2"
                     >
                       <Flag className="w-3.5 h-3.5" />
@@ -261,14 +273,14 @@ export default function ExamResultPage() {
         {/* 버튼 */}
         <div className="flex gap-3">
           <button
-            onClick={() => navigate(`/exams/${id}/taking`)}
+            onClick={() => { click.send({ object_section_id: 'action', object_section_idx: 3, object_type: 'button', object_idx: 0, object_id: 'retry', object_url: `/exams/${id}/taking` }); navigate(`/exams/${id}/taking`); }}
             className="flex items-center gap-2 flex-1 justify-center border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold py-3 rounded-xl transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
             다시 풀기
           </button>
           <button
-            onClick={() => navigate('/exams')}
+            onClick={() => { click.send({ object_section_id: 'action', object_section_idx: 3, object_type: 'button', object_idx: 1, object_id: 'exam_list', object_url: '/exams' }); navigate('/exams'); }}
             className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-xl transition-colors"
           >
             모의고사 목록

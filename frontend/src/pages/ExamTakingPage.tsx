@@ -5,6 +5,7 @@ import CountdownTimer from '../components/CountdownTimer';
 import Notepad from '../components/Notepad';
 import ReportErrorModal from '../components/ReportErrorModal';
 import { logEvent } from '../utils/eventLogger';
+import { PageviewLog, ClickLog } from '../logging';
 import { useAuth } from '../contexts/AuthContext';
 import DescriptionRenderer from '../components/DescriptionRenderer';
 import type { Problem } from '../types';
@@ -25,11 +26,13 @@ function ChoiceProblem({
   index,
   selected,
   onSelect,
+  onClickLog,
 }: {
   problem: Problem;
   index: number;
   selected?: string;
   onSelect: (val: string) => void;
+  onClickLog?: (problemId: string, val: string) => void;
 }) {
   return (
     <div className="mb-8 break-inside-avoid">
@@ -47,7 +50,7 @@ function ChoiceProblem({
                 name={problem.id}
                 value={val}
                 checked={selected === val}
-                onChange={() => onSelect(val)}
+                onChange={() => { onClickLog?.(problem.id, val); onSelect(val); }}
                 className="mt-0.5 w-4 h-4 text-primary-600 border-slate-300 focus:ring-primary-500"
               />
               <span
@@ -107,7 +110,6 @@ export default function ExamTakingPage() {
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [started] = useState(() => {
-    logEvent('exam_session_started', { examId: id }, user?.id);
     return true;
   });
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
@@ -150,7 +152,6 @@ export default function ExamTakingPage() {
     (problemId: string, val: string) => {
       setAnswers((prev) => {
         const next = { ...prev, [problemId]: val };
-        logEvent('exam_answer_selected', { problemId, selected: val, examId: id }, user?.id);
         return next;
       });
       if (id && user) {
@@ -176,7 +177,6 @@ export default function ExamTakingPage() {
         updatePoints(result.totalPoints);
       }
       logEvent('exam_submit_confirmed', { examId: id, attemptId, answers: result.answers, score: result.score }, user.id);
-      logEvent('exam_result_viewed', { examId: id, userId: user.id, score: result.score }, user.id);
 
       navigate(`/exams/${id}/result`, {
         state: {
@@ -247,6 +247,23 @@ export default function ExamTakingPage() {
   const answeredCount = Object.keys(answers).length;
   const unanswered = problems.length - answeredCount;
 
+  const examUrl = `/exams/${id}/taking`;
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'exam_taking', url: examUrl }), [examUrl]);
+  const click = useMemo(() => new ClickLog({ page_id: 'exam_taking', url: examUrl, pageParams: { exam_id: id } }), [examUrl, id]);
+  const pvSent = useRef(false);
+
+  useEffect(() => {
+    if (pvSent.current || !problems.length) return;
+    pvSent.current = true;
+    if (!user) {
+      pageview.send({ step: 'login_required', pageParams: { exam_id: id } });
+    } else if (error) {
+      pageview.send({ step: 'error', pageParams: { exam_id: id }, data: { error_message: error } });
+    } else {
+      pageview.send({ step: 'taking', pageParams: { exam_id: id }, data: { problem_count: problems.length, remaining_seconds: remainingSeconds } });
+    }
+  }, [problems.length, user, error, pageview, id, remainingSeconds]);
+
   useEffect(() => {
     if (remainingSeconds === null) return;
     syncStateRef.current.remainingSeconds = remainingSeconds;
@@ -300,7 +317,7 @@ export default function ExamTakingPage() {
       <div className="sticky top-0 z-40 bg-sqld-navy border-b border-slate-700 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between">
           <button
-            onClick={() => setExitTarget('/')}
+            onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'button', object_idx: 0, object_id: 'home', object_url: '/', data: { header_variant: 'exam' } }); setExitTarget('/'); }}
             className="flex items-center gap-2 text-white font-bold text-lg hover:opacity-80 transition-opacity"
           >
             <Database className="w-5 h-5 text-primary-500" />
@@ -310,13 +327,13 @@ export default function ExamTakingPage() {
           </button>
           <nav className="flex items-center gap-6 text-sm text-slate-300">
             <button
-              onClick={() => setExitTarget('/exams')}
+              onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 1, object_id: 'exam_list', object_url: '/exams', data: { header_variant: 'exam' } }); setExitTarget('/exams'); }}
               className="hover:text-white transition-colors"
             >
               모의고사
             </button>
             <button
-              onClick={() => setExitTarget('/sql-practice')}
+              onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 2, object_id: 'sql_practice', object_url: '/sql-practice', data: { header_variant: 'exam' } }); setExitTarget('/sql-practice'); }}
               className="hover:text-white transition-colors"
             >
               SQL 실습
@@ -341,7 +358,7 @@ export default function ExamTakingPage() {
               onChangeRemaining={setRemainingSeconds}
             />
             <button
-              onClick={() => setShowReportModal(true)}
+              onClick={() => { click.send({ object_section_id: 'exam_bar', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'error_report', data: { current_page: currentPage + 1 } }); setShowReportModal(true); }}
               className="flex items-center gap-1 text-slate-400 hover:text-amber-500 text-sm transition-colors"
               title="문제 오류 제보"
             >
@@ -349,7 +366,7 @@ export default function ExamTakingPage() {
               <span className="hidden sm:inline">오류 제보</span>
             </button>
             <button
-              onClick={() => setShowSubmitConfirm(true)}
+              onClick={() => { click.send({ object_section_id: 'exam_bar', object_section_idx: 1, object_type: 'button', object_idx: 1, object_id: 'submit', data: { answered_count: answeredCount, unanswered_count: unanswered } }); setShowSubmitConfirm(true); }}
               className="bg-primary-600 hover:bg-primary-700 text-white text-xs md:text-sm font-bold px-3 md:px-5 py-1.5 md:py-2 rounded-lg transition-colors"
             >
               최종 제출
@@ -409,6 +426,10 @@ export default function ExamTakingPage() {
                 index={pageStartIndex + index}
                 selected={answers[problem.id]}
                 onSelect={(val) => handleSelect(problem.id, val)}
+                onClickLog={(problemId, val) => click.send({
+                  object_section_id: 'problem', object_section_idx: 2, object_type: 'radio_button', object_idx: pageStartIndex + index, object_id: 'option',
+                  data: { problem_id: problemId, selected: val, problem_no: pageStartIndex + index + 1 },
+                })}
               />
             ))}
 
@@ -421,7 +442,7 @@ export default function ExamTakingPage() {
                 {Array.from({ length: totalPages }, (_, i) => (
                   <button
                     key={i}
-                    onClick={() => goToPage(i)}
+                    onClick={() => { click.send({ object_section_id: 'page_nav', object_section_idx: 3, object_type: 'button', object_idx: i, object_id: 'page', data: { target_page: i + 1, current_page: currentPage + 1 } }); goToPage(i); }}
                     className={`w-7 h-7 rounded text-xs font-medium transition-colors ${
                       i === currentPage
                         ? 'bg-sqld-navy text-white'
@@ -469,7 +490,7 @@ export default function ExamTakingPage() {
 
       {/* 모바일 메모장 플로팅 버튼 */}
       <button
-        onClick={() => setShowMobileNotepad(true)}
+        onClick={() => { click.send({ object_section_id: 'notepad', object_section_idx: 4, object_type: 'button', object_idx: 0, object_id: 'open_mobile_notepad' }); setShowMobileNotepad(true); }}
         className="md:hidden fixed bottom-16 right-4 z-30 w-12 h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg flex items-center justify-center transition-colors"
         aria-label="메모장 열기"
       >
@@ -511,13 +532,13 @@ export default function ExamTakingPage() {
             <p className="text-sm text-slate-500 mb-6">제출 후에는 답안을 변경할 수 없습니다.</p>
             <div className="flex gap-3">
               <button
-                onClick={() => setShowSubmitConfirm(false)}
+                onClick={() => { click.send({ object_section_id: 'submit_confirm_modal', object_type: 'button', object_idx: 0, object_id: 'cancel', data: { answered_count: answeredCount, unanswered_count: unanswered } }); setShowSubmitConfirm(false); }}
                 className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold py-2.5 rounded-lg text-sm transition-colors"
               >
                 계속 풀기
               </button>
               <button
-                onClick={handleSubmit}
+                onClick={() => { click.send({ object_section_id: 'submit_confirm_modal', object_type: 'button', object_idx: 1, object_id: 'submit', data: { answered_count: answeredCount, unanswered_count: unanswered } }); handleSubmit(); }}
                 className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
               >
                 제출
@@ -536,13 +557,14 @@ export default function ExamTakingPage() {
             <p className="text-sm text-slate-500 mb-6">다시 들어오면 저장된 시점부터 이어집니다.</p>
             <div className="flex gap-3">
               <button
-                onClick={() => setExitTarget(null)}
+                onClick={() => { click.send({ object_section_id: 'exit_confirm_modal', object_type: 'button', object_idx: 0, object_id: 'cancel' }); setExitTarget(null); }}
                 className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold py-2.5 rounded-lg text-sm transition-colors"
               >
                 계속 풀기
               </button>
               <button
                 onClick={() => {
+                  click.send({ object_section_id: 'exit_confirm_modal', object_type: 'button', object_idx: 1, object_id: 'leave', object_url: exitTarget });
                   persistSnapshot();
                   navigate(exitTarget);
                 }}

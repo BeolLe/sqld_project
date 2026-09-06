@@ -24,6 +24,7 @@ import { sql } from '@codemirror/lang-sql';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { keymap } from '@codemirror/view';
 import { logEvent } from '../utils/eventLogger';
+import { PageviewLog, ClickLog } from '../logging';
 import { useAuth } from '../contexts/AuthContext';
 import { useAIStream } from '../hooks/useAIStream';
 import { useAIUsage } from '../contexts/AIUsageContext';
@@ -180,7 +181,6 @@ export default function SQLPracticePage() {
 
   useEffect(() => {
     if (problem) {
-      logEvent('sql_practice_viewed', { problem_id: problem.id, difficulty: problem.difficulty, category: problem.category });
     }
   }, [problem?.id, problem?.difficulty, problem?.category]);
 
@@ -216,6 +216,18 @@ export default function SQLPracticePage() {
   const [vRatio, setVRatio] = useState(0.55);
   const vContainerRef = useRef<HTMLDivElement>(null);
   const vOnMouseDown = useResizeDrag(vContainerRef, 'vertical', setVRatio, 0.2, 0.85);
+
+  // ─── 로깅 ──────────────────────────────────────────────────────────────
+  const solvingUrl = `/sql-practice/${id}`;
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'sql_solving', url: solvingUrl }), [solvingUrl]);
+  const click = useMemo(() => new ClickLog({ page_id: 'sql_solving', url: solvingUrl, pageParams: { problem_id: id } }), [solvingUrl, id]);
+  const pvSent = useRef(false);
+
+  useEffect(() => {
+    if (pvSent.current || !problem) return;
+    pvSent.current = true;
+    pageview.send({ pageParams: { problem_id: id }, data: { difficulty: problem.difficulty, category: problem.category, correct_rate: problem.correctRate } });
+  }, [problem, pageview, id]);
 
   const handleExecute = useCallback(async () => {
     if (!problem || !query.trim()) return;
@@ -370,7 +382,7 @@ export default function SQLPracticePage() {
       <div className="shrink-0 bg-sqld-navy border-b border-slate-700 shadow-lg">
         <div className="px-4 h-12 flex items-center justify-between">
           <button
-            onClick={() => setExitTarget('/')}
+            onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'button', object_idx: 0, object_id: 'home', object_url: '/', data: { header_variant: 'practice' } }); setExitTarget('/'); }}
             className="flex items-center gap-2 text-white font-bold text-lg hover:opacity-80 transition-opacity"
           >
             <Database className="w-5 h-5 text-primary-500" />
@@ -380,19 +392,19 @@ export default function SQLPracticePage() {
           </button>
           <nav className="flex items-center gap-6 text-sm text-slate-300">
             <button
-              onClick={() => setExitTarget('/exams')}
+              onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 1, object_id: 'exam_list', object_url: '/exams', data: { header_variant: 'practice' } }); setExitTarget('/exams'); }}
               className="hover:text-white transition-colors"
             >
               모의고사
             </button>
             <button
-              onClick={() => setExitTarget('/sql-practice')}
+              onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 2, object_id: 'sql_list', object_url: '/sql-practice', data: { header_variant: 'practice' } }); setExitTarget('/sql-practice'); }}
               className="hover:text-white transition-colors"
             >
               SQL 실습
             </button>
             <button
-              onClick={() => setShowReportModal(true)}
+              onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'button', object_idx: 3, object_id: 'error_report', data: { header_variant: 'practice' } }); setShowReportModal(true); }}
               className="flex items-center gap-1 text-slate-400 hover:text-amber-400 transition-colors"
               title="문제 오류 제보"
             >
@@ -612,7 +624,7 @@ export default function SQLPracticePage() {
               <span className="text-xs text-slate-400 font-mono">SQL Editor</span>
               <div className="flex gap-2">
                 <button
-                  onClick={handleExecute}
+                  onClick={() => { click.send({ object_section_id: 'editor', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'run', data: { trigger: 'button' } }); handleExecute(); }}
                   disabled={loading}
                   className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-md transition-colors"
                 >
@@ -620,7 +632,7 @@ export default function SQLPracticePage() {
                   실행 ({isMac ? '⌘' : 'Ctrl'}+Enter)
                 </button>
                 <button
-                  onClick={handleSubmit}
+                  onClick={() => { click.send({ object_section_id: 'editor', object_section_idx: 1, object_type: 'button', object_idx: 1, object_id: 'submit', data: { trigger: 'button' } }); handleSubmit(); }}
                   disabled={loading}
                   className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-md transition-colors"
                 >
@@ -812,7 +824,7 @@ export default function SQLPracticePage() {
             {/* 닫기 버튼 */}
             <div className="px-6 py-4 border-t border-slate-100 flex justify-end">
               <button
-                onClick={() => setSubmitResult(null)}
+                onClick={() => { click.send({ object_section_id: 'submit_result_modal', object_section_idx: 90, object_type: 'button', object_idx: 0, object_id: submitResult === 'correct' ? 'confirm' : 'retry', data: { is_correct: submitResult === 'correct' } }); setSubmitResult(null); }}
                 className={`px-6 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors ${
                   submitResult === 'correct'
                     ? 'bg-emerald-600 hover:bg-emerald-700'
@@ -835,13 +847,13 @@ export default function SQLPracticePage() {
             <p className="text-sm text-slate-500 mb-6">나가기 전에 필요한 내용을 복사해 주세요.</p>
             <div className="flex gap-3">
               <button
-                onClick={() => setExitTarget(null)}
+                onClick={() => { click.send({ object_section_id: 'exit_modal', object_type: 'button', object_idx: 0, object_id: 'cancel' }); setExitTarget(null); }}
                 className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold py-2.5 rounded-lg text-sm transition-colors"
               >
                 계속 풀기
               </button>
               <button
-                onClick={() => navigate(exitTarget)}
+                onClick={() => { click.send({ object_section_id: 'exit_modal', object_type: 'button', object_idx: 1, object_id: 'leave', object_url: exitTarget }); navigate(exitTarget); }}
                 className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
               >
                 나가기

@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Database, User, LogOut, Settings, Shield, Menu, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { ClickLog } from '../logging';
 
 interface HeaderProps {
   onAuthClick: (mode: 'login' | 'signup') => void;
@@ -10,7 +11,25 @@ interface HeaderProps {
 export default function Header({ onAuthClick }: HeaderProps) {
   const { user, isLoggedIn, isInitializing, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const pageId = useMemo(() => {
+    const path = location.pathname;
+    if (path === '/') return 'main';
+    if (path.startsWith('/exams')) return path.includes('/result') ? 'exam_result' : path.includes('/taking') ? 'exam_taking' : 'exam_list';
+    if (path.startsWith('/sql-practice/')) return 'sql_solving';
+    if (path === '/sql-practice') return 'sql_list';
+    if (path === '/learn') return 'learn_index';
+    if (path.startsWith('/learn/')) return 'learn_unit';
+    if (path === '/endless') return 'endless';
+    if (path === '/dashboard') return 'dashboard';
+    if (path === '/feedback') return 'feedback';
+    if (path === '/mypage') return 'mypage';
+    return 'unknown';
+  }, [location.pathname]);
+
+  const click = useMemo(() => new ClickLog({ page_id: pageId, url: location.pathname }), [pageId, location.pathname]);
 
   function handleLogout() {
     logout();
@@ -28,7 +47,7 @@ export default function Header({ onAuthClick }: HeaderProps) {
         {/* 로고 */}
         <Link
           to="/"
-          onClick={closeMobile}
+          onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 0, object_id: 'home', object_url: '/', data: { header_variant: 'common' } }); closeMobile(); }}
           className="flex items-center gap-2 text-white font-bold text-xl hover:opacity-80 transition-opacity"
         >
           <Database className="w-6 h-6 text-primary-500" />
@@ -39,32 +58,32 @@ export default function Header({ onAuthClick }: HeaderProps) {
 
         {/* 데스크탑 네비게이션 */}
         <nav className="hidden md:flex items-center gap-6 text-sm text-slate-300">
-          <Link to="/exams" className="hover:text-white transition-colors">
+          <Link to="/exams" onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 1, object_id: 'exam_list', object_url: '/exams', data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
             모의고사
           </Link>
-          <Link to="/sql-practice" className="hover:text-white transition-colors">
+          <Link to="/sql-practice" onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 2, object_id: 'sql_list', object_url: '/sql-practice', data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
             SQL 실습
           </Link>
-          <Link to="/learn" className="hover:text-white transition-colors">
+          <Link to="/learn" onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 3, object_id: 'learn_index', object_url: '/learn', data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
             개념 학습
           </Link>
           {isLoggedIn && (
-            <Link to="/endless" className="hover:text-white transition-colors">
+            <Link to="/endless" onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 4, object_id: 'endless', object_url: '/endless', data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
               무한풀이
             </Link>
           )}
           {isLoggedIn && (
-            <Link to="/dashboard" className="hover:text-white transition-colors">
+            <Link to="/dashboard" onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 5, object_id: 'dashboard', object_url: '/dashboard', data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
               학습현황
             </Link>
           )}
           {isLoggedIn && (
-            <Link to="/feedback" className="hover:text-white transition-colors">
+            <Link to="/feedback" onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 6, object_id: 'feedback', object_url: '/feedback', data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
               피드백
             </Link>
           )}
           {isLoggedIn && user?.isAdmin && (
-            <Link to="/admin" className="flex items-center gap-1 text-primary-400 hover:text-primary-300 transition-colors">
+            <Link to="/admin" onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 7, object_id: 'admin', object_url: '/admin', data: { header_variant: 'common' } })} className="flex items-center gap-1 text-primary-400 hover:text-primary-300 transition-colors">
               <Shield className="w-3.5 h-3.5" />
               관리자
             </Link>
@@ -83,13 +102,14 @@ export default function Header({ onAuthClick }: HeaderProps) {
               </span>
               <Link
                 to="/mypage"
+                onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'icon', object_idx: 8, object_id: 'mypage', object_url: '/mypage', data: { header_variant: 'common' } })}
                 className="hidden md:block text-slate-400 hover:text-white transition-colors"
                 title="마이페이지"
               >
                 <Settings className="w-4 h-4" />
               </Link>
               <button
-                onClick={handleLogout}
+                onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'button', object_idx: 9, object_id: 'logout', data: { header_variant: 'common' } }); handleLogout(); }}
                 className="hidden md:flex items-center gap-1 text-slate-400 hover:text-white text-sm transition-colors"
               >
                 <LogOut className="w-4 h-4" />
@@ -99,13 +119,13 @@ export default function Header({ onAuthClick }: HeaderProps) {
           ) : (
             <>
               <button
-                onClick={() => onAuthClick('login')}
+                onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'button', object_idx: 10, object_id: 'login', data: { header_variant: 'common' } }); onAuthClick('login'); }}
                 className="hidden md:block text-sm text-slate-300 hover:text-white transition-colors"
               >
                 로그인
               </button>
               <button
-                onClick={() => onAuthClick('signup')}
+                onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'button', object_idx: 11, object_id: 'signup', data: { header_variant: 'common' } }); onAuthClick('signup'); }}
                 className="hidden md:flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm px-4 py-2 rounded-lg transition-colors"
               >
                 <User className="w-4 h-4" />

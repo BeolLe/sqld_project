@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { X, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { logEvent } from '../utils/eventLogger';
+import { ClickLog } from '../logging';
 import { apiFetch } from '../utils/api';
 import type { AuthMode } from '../types';
 import { TERMS_TEXT, PRIVACY_TEXT } from '../constants/legal';
@@ -102,6 +104,13 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   const termsRef = useRef<HTMLDivElement>(null);
   const privacyRef = useRef<HTMLDivElement>(null);
 
+  const location = useLocation();
+  const click = useMemo(() => {
+    const path = location.pathname;
+    const pid = path === '/' ? 'main' : path.startsWith('/exams') ? (path.includes('/result') ? 'exam_result' : path.includes('/taking') ? 'exam_taking' : 'exam_list') : path.startsWith('/sql-practice/') ? 'sql_solving' : path === '/sql-practice' ? 'sql_list' : path === '/learn' ? 'learn_index' : path.startsWith('/learn/') ? 'learn_unit' : path === '/endless' ? 'endless' : path === '/dashboard' ? 'dashboard' : path === '/feedback' ? 'feedback' : path === '/mypage' ? 'mypage' : 'main';
+    return new ClickLog({ page_id: pid, url: path });
+  }, [location.pathname]);
+
   useEffect(() => {
     const storedSocialSignup = window.sessionStorage.getItem(PENDING_SOCIAL_SIGNUP_KEY);
     if (mode === 'signup' && storedSocialSignup) {
@@ -182,6 +191,15 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   async function handleFindEmail(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    // 제출 시도 1회만 남긴다. 성공·실패는 백엔드 logs.auth_events 가 기록한다 (의사결정 C-4).
+    click.send({
+      object_section_id: 'auth_modal',
+      object_type: 'button',
+      object_idx: 5,
+      object_id: 'submit',
+      data: { mode, step },
+    });
+
     if (!findNickname.trim()) {
       setError('닉네임을 입력해주세요.');
       return;
@@ -206,6 +224,15 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   async function handleResetPasswordRequest(e?: React.FormEvent) {
     e?.preventDefault();
     setError('');
+    // 제출 시도 1회만 남긴다. 성공·실패는 백엔드 logs.auth_events 가 기록한다 (의사결정 C-4).
+    click.send({
+      object_section_id: 'auth_modal',
+      object_type: 'button',
+      object_idx: 5,
+      object_id: 'submit',
+      data: { mode, step },
+    });
+
     if (!findEmail.trim()) {
       setError('이메일을 입력해주세요.');
       return;
@@ -230,6 +257,15 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   async function handleResetTokenVerify(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    // 제출 시도 1회만 남긴다. 성공·실패는 백엔드 logs.auth_events 가 기록한다 (의사결정 C-4).
+    click.send({
+      object_section_id: 'auth_modal',
+      object_type: 'button',
+      object_idx: 5,
+      object_id: 'submit',
+      data: { mode, step },
+    });
+
     if (!resetToken.trim()) {
       setError('인증번호를 입력해주세요.');
       return;
@@ -241,6 +277,15 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   async function handleResetPasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    // 제출 시도 1회만 남긴다. 성공·실패는 백엔드 logs.auth_events 가 기록한다 (의사결정 C-4).
+    click.send({
+      object_section_id: 'auth_modal',
+      object_type: 'button',
+      object_idx: 5,
+      object_id: 'submit',
+      data: { mode, step },
+    });
+
     if (resetNewPassword.length < 8) {
       setError('새 비밀번호는 8자 이상이어야 합니다.');
       return;
@@ -272,6 +317,15 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
     e.preventDefault();
     setError('');
     setSuccess('');
+    // 제출 시도 1회만 남긴다. 성공·실패는 백엔드 logs.auth_events 가 기록한다 (의사결정 C-4).
+    click.send({
+      object_section_id: 'auth_modal',
+      object_type: 'button',
+      object_idx: 5,
+      object_id: 'submit',
+      data: { mode, step, is_social: !!pendingSocialSignup },
+    });
+
     if (!email || (!pendingSocialSignup && !password)) {
       setError(
         pendingSocialSignup
@@ -346,12 +400,12 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* 배경 오버레이 */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'button', object_idx: 0, object_id: 'close_dim', data: { mode, step } }); onClose(); }} />
 
       {/* 모달 본체 */}
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
         <button
-          onClick={onClose}
+          onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'icon', object_idx: 1, object_id: 'close', data: { mode, step } }); onClose(); }}
           className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
         >
           <X className="w-5 h-5" />
@@ -360,7 +414,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
         {/* ── 아이디 찾기 step ── */}
         {step === 'find-email' && (
           <>
-            <button onClick={goBackToAuth} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+            <button onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'button', object_idx: 2, object_id: 'back', data: { mode, step } }); goBackToAuth(); }} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
               <ArrowLeft className="w-4 h-4" /> 로그인으로 돌아가기
             </button>
             <h2 className="text-2xl font-bold text-sqld-navy mb-1">아이디 찾기</h2>
@@ -392,7 +446,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
         {/* ── 아이디 찾기 결과 ── */}
         {step === 'find-email-result' && (
           <>
-            <button onClick={goBackToAuth} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+            <button onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'button', object_idx: 2, object_id: 'back', data: { mode, step } }); goBackToAuth(); }} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
               <ArrowLeft className="w-4 h-4" /> 로그인으로 돌아가기
             </button>
             <h2 className="text-2xl font-bold text-sqld-navy mb-1">아이디 찾기 결과</h2>
@@ -401,7 +455,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
               <p className="text-lg font-semibold text-sqld-navy">{maskedEmail}</p>
             </div>
             <button
-              onClick={goBackToAuth}
+              onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'button', object_idx: 6, object_id: 'go_login', data: { mode, step } }); goBackToAuth(); }}
               className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition-colors"
             >
               로그인하러 가기
@@ -412,7 +466,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
         {/* ── 비밀번호 재설정 - 이메일 입력 ── */}
         {step === 'reset-password' && (
           <>
-            <button onClick={goBackToAuth} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+            <button onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'button', object_idx: 2, object_id: 'back', data: { mode, step } }); goBackToAuth(); }} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
               <ArrowLeft className="w-4 h-4" /> 로그인으로 돌아가기
             </button>
             <h2 className="text-2xl font-bold text-sqld-navy mb-1">비밀번호 재설정</h2>
@@ -444,7 +498,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
         {/* ── 비밀번호 재설정 - 인증번호 입력 ── */}
         {step === 'reset-password-verify' && (
           <>
-            <button onClick={() => { setStep('reset-password'); setError(''); setResetToken(''); }} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+            <button onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'button', object_idx: 2, object_id: 'back', data: { mode, step } }); setStep('reset-password'); setError(''); setResetToken(''); }} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
               <ArrowLeft className="w-4 h-4" /> 이전 단계
             </button>
             <h2 className="text-2xl font-bold text-sqld-navy mb-1">인증번호 확인</h2>
@@ -474,7 +528,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
               </button>
               <button
                 type="button"
-                onClick={handleResetPasswordRequest}
+                onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'button', object_idx: 7, object_id: 'resend', data: { mode, step } }); handleResetPasswordRequest(); }}
                 disabled={loading}
                 className="w-full text-sm text-slate-500 hover:text-primary-600 transition-colors"
               >
@@ -487,7 +541,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
         {/* ── 비밀번호 재설정 - 새 비밀번호 입력 ── */}
         {step === 'reset-password-form' && (
           <>
-            <button onClick={() => { setStep('reset-password-verify'); setError(''); }} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+            <button onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'button', object_idx: 2, object_id: 'back', data: { mode, step } }); setStep('reset-password-verify'); setError(''); }} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
               <ArrowLeft className="w-4 h-4" /> 이전 단계
             </button>
             <h2 className="text-2xl font-bold text-sqld-navy mb-1">새 비밀번호 설정</h2>
@@ -534,7 +588,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
               새 비밀번호로 로그인해주세요.
             </div>
             <button
-              onClick={goBackToAuth}
+              onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'button', object_idx: 6, object_id: 'go_login', data: { mode, step } }); goBackToAuth(); }}
               className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition-colors"
             >
               로그인하러 가기
@@ -559,7 +613,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
         {!pendingSocialSignup && (
           <button
             type="button"
-            onClick={handleGoogleLogin}
+            onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'button', object_idx: 3, object_id: 'google', data: { mode } }); handleGoogleLogin(); }}
             className="w-full flex items-center justify-center gap-3 border border-slate-200 hover:border-slate-300 bg-white text-slate-700 font-medium py-3 rounded-lg transition-colors mb-4"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
@@ -610,7 +664,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword((v) => !v)}
+                  onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'icon', object_idx: 8, object_id: 'toggle_password', data: { mode, visible: !showPassword } }); setShowPassword((v) => !v); }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -625,7 +679,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                 <input
                   type="checkbox"
                   checked={rememberEmail}
-                  onChange={(e) => setRememberEmail(e.target.checked)}
+                  onChange={(e) => { click.send({ object_section_id: 'auth_modal', object_type: 'checkbox', object_idx: 9, object_id: 'remember_email', data: { mode, is_checked: e.target.checked } }); setRememberEmail(e.target.checked); }}
                   className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                 />
                 <span className="text-sm text-slate-600">이메일 저장</span>
@@ -634,7 +688,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                 <input
                   type="checkbox"
                   checked={autoLogin}
-                  onChange={(e) => setAutoLogin(e.target.checked)}
+                  onChange={(e) => { click.send({ object_section_id: 'auth_modal', object_type: 'checkbox', object_idx: 10, object_id: 'auto_login', data: { mode, is_checked: e.target.checked } }); setAutoLogin(e.target.checked); }}
                   className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                 />
                 <span className="text-sm text-slate-600">자동 로그인</span>
@@ -668,7 +722,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                     <span className="text-sm font-medium text-slate-700">서비스 이용약관 (필수)</span>
                     <button
                       type="button"
-                      onClick={() => setTermsOpen((v) => !v)}
+                      onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'button', object_idx: 11, object_id: termsOpen ? 'terms_close' : 'terms_open', data: { mode } }); setTermsOpen((v) => !v); }}
                       className="text-xs text-primary-600 hover:underline"
                     >
                       {termsOpen ? '닫기' : '전문 보기'}
@@ -688,7 +742,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                       <input
                         type="checkbox"
                         checked={termsAgreed}
-                        onChange={(e) => setTermsAgreed(e.target.checked)}
+                        onChange={(e) => { click.send({ object_section_id: 'auth_modal', object_type: 'checkbox', object_idx: 12, object_id: 'terms_agree', data: { mode, is_checked: e.target.checked } }); setTermsAgreed(e.target.checked); }}
                         disabled={termsOpen && !termsScrolled}
                         className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 disabled:opacity-40"
                       />
@@ -712,7 +766,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                     <span className="text-sm font-medium text-slate-700">개인정보처리방침 (필수)</span>
                     <button
                       type="button"
-                      onClick={() => setPrivacyOpen((v) => !v)}
+                      onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'button', object_idx: 13, object_id: privacyOpen ? 'privacy_close' : 'privacy_open', data: { mode } }); setPrivacyOpen((v) => !v); }}
                       className="text-xs text-primary-600 hover:underline"
                     >
                       {privacyOpen ? '닫기' : '전문 보기'}
@@ -732,7 +786,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                       <input
                         type="checkbox"
                         checked={privacyAgreed}
-                        onChange={(e) => setPrivacyAgreed(e.target.checked)}
+                        onChange={(e) => { click.send({ object_section_id: 'auth_modal', object_type: 'checkbox', object_idx: 14, object_id: 'privacy_agree', data: { mode, is_checked: e.target.checked } }); setPrivacyAgreed(e.target.checked); }}
                         disabled={privacyOpen && !privacyScrolled}
                         className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 disabled:opacity-40"
                       />
@@ -754,7 +808,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                 <div className="border border-slate-200 rounded-lg overflow-hidden">
                   <button
                     type="button"
-                    onClick={() => setReasonOpen((v) => !v)}
+                    onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'button', object_idx: 15, object_id: reasonOpen ? 'reason_close' : 'reason_open', data: { mode } }); setReasonOpen((v) => !v); }}
                     className="flex items-center justify-between w-full px-4 py-3 bg-slate-50 text-left"
                   >
                     <span>
@@ -769,14 +823,14 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                     </svg>
                   </button>
                   {reasonOpen && <div className="px-4 py-3 border-t border-slate-200 space-y-2">
-                    {SIGNUP_REASON_OPTIONS.map((option) => (
+                    {SIGNUP_REASON_OPTIONS.map((option, idx) => (
                       <label key={option.value} className="flex items-center gap-2 cursor-pointer select-none">
                         <input
                           type="radio"
                           name="signupReason"
                           value={option.value}
                           checked={signupReason === option.value}
-                          onChange={(e) => setSignupReason(e.target.value)}
+                          onChange={(e) => { click.send({ object_section_id: 'auth_modal', object_type: 'radio_button', object_idx: 16 + idx, object_id: 'reason', data: { mode, selected: option.value } }); setSignupReason(e.target.value); }}
                           className="w-4 h-4 text-primary-600 focus:ring-primary-500 border-slate-300"
                         />
                         <span className="text-sm text-slate-700">{option.label}</span>
@@ -788,7 +842,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                         name="signupReason"
                         value="other"
                         checked={signupReason === 'other'}
-                        onChange={(e) => setSignupReason(e.target.value)}
+                        onChange={(e) => { click.send({ object_section_id: 'auth_modal', object_type: 'radio_button', object_idx: 19, object_id: 'reason', data: { mode, selected: 'other' } }); setSignupReason(e.target.value); }}
                         className="w-4 h-4 text-primary-600 focus:ring-primary-500 border-slate-300"
                       />
                       <span className="text-sm text-slate-700">기타</span>
@@ -841,14 +895,14 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
         {mode === 'login' && (
           <div className="flex justify-center gap-3 mt-3 text-xs text-slate-400">
             <button
-              onClick={() => { setStep('find-email'); setError(''); setFindNickname(''); }}
+              onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'link', object_idx: 20, object_id: 'find_email', data: { mode } }); setStep('find-email'); setError(''); setFindNickname(''); }}
               className="hover:text-primary-600 hover:underline transition-colors"
             >
               아이디를 잊으셨나요?
             </button>
             <span>|</span>
             <button
-              onClick={() => { setStep('reset-password'); setError(''); setFindEmail(''); setResetToken(''); }}
+              onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'link', object_idx: 21, object_id: 'reset_password', data: { mode } }); setStep('reset-password'); setError(''); setFindEmail(''); setResetToken(''); }}
               className="hover:text-primary-600 hover:underline transition-colors"
             >
               비밀번호를 잊으셨나요?
@@ -861,7 +915,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
             <>
               계정이 없으신가요?{' '}
               <button
-                onClick={() => onModeChange('signup')}
+                onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'link', object_idx: 22, object_id: 'switch_signup', data: { mode } }); onModeChange('signup'); }}
                 className="text-primary-600 hover:underline font-medium"
               >
                 회원가입
@@ -875,7 +929,7 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
                 <>
                   이미 계정이 있으신가요?{' '}
                   <button
-                    onClick={() => onModeChange('login')}
+                    onClick={() => { click.send({ object_section_id: 'auth_modal', object_type: 'link', object_idx: 23, object_id: 'switch_login', data: { mode } }); onModeChange('login'); }}
                     className="text-primary-600 hover:underline font-medium"
                   >
                     로그인
