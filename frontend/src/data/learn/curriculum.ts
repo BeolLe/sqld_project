@@ -9,6 +9,7 @@ import { dmNatkeyBlocks } from './units/dmNatkey';
 import { saWindowBlocks } from './units/saWindow';
 import { dmAttrBlocks } from './units/dmAttr';
 import { dmRelBlocks } from './units/dmRel';
+import { dmKeyBlocks } from './units/dmKey';
 import { sbRdbBlocks } from './units/sbRdb';
 import { sbSelectBlocks } from './units/sbSelect';
 import { sbFuncBlocks } from './units/sbFunc';
@@ -71,7 +72,13 @@ const SEED: SubjectSeed[] = [
             priority1: true,
             blocks: dmRelBlocks,
           },
-          { id: 'dm-key', title: '식별자', estimatedMin: 8, priority1: true },
+          {
+            id: 'dm-key',
+            title: '식별자',
+            estimatedMin: 8,
+            priority1: true,
+            blocks: dmKeyBlocks,
+          },
         ],
       },
       {
