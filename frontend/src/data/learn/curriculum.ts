@@ -13,6 +13,9 @@ import { dmKeyBlocks } from './units/dmKey';
 import { sbRdbBlocks } from './units/sbRdb';
 import { sbSelectBlocks } from './units/sbSelect';
 import { sbFuncBlocks } from './units/sbFunc';
+import { sbWhereBlocks } from './units/sbWhere';
+import { sbGroupBlocks } from './units/sbGroup';
+import { sbOrderBlocks } from './units/sbOrder';
 
 /**
  * 한국데이터산업진흥원 공식 출제범위 (https://www.dataq.or.kr/www/sub/a_04.do).
@@ -148,9 +151,26 @@ const SEED: SubjectSeed[] = [
             priority1: true,
             blocks: sbFuncBlocks,
           },
-          { id: 'sb-where', title: 'WHERE 절', estimatedMin: 8, priority1: true },
-          { id: 'sb-group', title: 'GROUP BY, HAVING 절', estimatedMin: 8, priority1: true },
-          { id: 'sb-order', title: 'ORDER BY 절', estimatedMin: 5 },
+          {
+            id: 'sb-where',
+            title: 'WHERE 절',
+            estimatedMin: 8,
+            priority1: true,
+            blocks: sbWhereBlocks,
+          },
+          {
+            id: 'sb-group',
+            title: 'GROUP BY, HAVING 절',
+            estimatedMin: 8,
+            priority1: true,
+            blocks: sbGroupBlocks,
+          },
+          {
+            id: 'sb-order',
+            title: 'ORDER BY 절',
+            estimatedMin: 5,
+            blocks: sbOrderBlocks,
+          },
           { id: 'sb-join', title: '조인', estimatedMin: 10, priority1: true },
           { id: 'sb-sjoin', title: '표준 조인', estimatedMin: 9, priority1: true },
         ],
