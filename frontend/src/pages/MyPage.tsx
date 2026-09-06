@@ -704,7 +704,7 @@ export default function MyPage() {
           loading={deleteLoading}
           authProvider={authProvider}
           socialDeleteReady={!!accountDeleteToken}
-          onClickLog={(objIdx, objId) => click.send({ object_section_id: 'delete_modal', object_type: 'button', object_idx: objIdx, object_id: objId, data: { auth_provider: authProvider } })}
+          onClickLog={(objIdx, objId) => click.send({ object_section_id: 'delete_account_modal', object_type: 'button', object_idx: objIdx, object_id: objId, data: { auth_provider: authProvider } })}
         />
       )}
     </div>

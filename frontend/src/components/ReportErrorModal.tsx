@@ -68,7 +68,7 @@ export default function ReportErrorModal({
     e.preventDefault();
     // 제보 시도 1회만 남긴다. 접수 성공 여부는 백엔드 audit 로그가 기록한다 (의사결정 C-4).
     click.send({
-      object_section_id: 'error_report_modal',
+      object_section_id: 'report_error_modal',
       object_type: 'button',
       object_idx: 5,
       object_id: 'submit',
@@ -109,10 +109,10 @@ export default function ReportErrorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { click.send({ object_section_id: 'error_report_modal', object_type: 'button', object_idx: 0, object_id: 'close_dim' }); onClose(); }} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { click.send({ object_section_id: 'report_error_modal', object_type: 'button', object_idx: 0, object_id: 'close_dim' }); onClose(); }} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
         <button
-          onClick={() => { click.send({ object_section_id: 'error_report_modal', object_type: 'icon', object_idx: 1, object_id: 'close' }); onClose(); }}
+          onClick={() => { click.send({ object_section_id: 'report_error_modal', object_type: 'icon', object_idx: 1, object_id: 'close' }); onClose(); }}
           className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
         >
           <X className="w-5 h-5" />
@@ -125,7 +125,7 @@ export default function ReportErrorModal({
               피드백 페이지에서 처리 상태를 확인할 수 있습니다.
             </p>
             <button
-              onClick={() => { click.send({ object_section_id: 'error_report_modal', object_type: 'button', object_idx: 6, object_id: 'close_success' }); onClose(); }}
+              onClick={() => { click.send({ object_section_id: 'report_error_modal', object_type: 'button', object_idx: 6, object_id: 'close_success' }); onClose(); }}
               className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition-colors"
             >
               닫기
@@ -174,7 +174,7 @@ export default function ReportErrorModal({
                         name="subtype"
                         value={st.value}
                         checked={subtype === st.value}
-                        onChange={() => { click.send({ object_section_id: 'error_report_modal', object_type: 'radio_button', object_idx: ERROR_SUBTYPES.indexOf(st), object_id: 'subtype', data: { selected: st.value } }); setSubtype(st.value); }}
+                        onChange={() => { click.send({ object_section_id: 'report_error_modal', object_type: 'radio_button', object_idx: ERROR_SUBTYPES.indexOf(st), object_id: 'subtype', data: { selected: st.value } }); setSubtype(st.value); }}
                         className="w-4 h-4 text-primary-600 border-slate-300 focus:ring-primary-500"
                       />
                       <span className="text-sm text-slate-700">{st.label}</span>

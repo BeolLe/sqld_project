@@ -97,8 +97,8 @@ export default function SQLPracticeListPage() {
               // 검색 착수 시점을 남긴다. 입력값은 수집하지 않는다 (의사결정 A-2).
               onFocus={() =>
                 click.send({
-                  object_section_id: 'search',
-                  object_section_idx: 0,
+                  object_section_id: 'filter',
+                  object_section_idx: 1,
                   object_type: 'input',
                   object_idx: 0,
                   object_id: 'search',

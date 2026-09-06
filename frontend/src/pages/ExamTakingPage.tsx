@@ -358,7 +358,7 @@ export default function ExamTakingPage() {
               onChangeRemaining={setRemainingSeconds}
             />
             <button
-              onClick={() => { click.send({ object_section_id: 'exam_info', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'error_report', data: { current_page: currentPage + 1 } }); setShowReportModal(true); }}
+              onClick={() => { click.send({ object_section_id: 'exam_bar', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'error_report', data: { current_page: currentPage + 1 } }); setShowReportModal(true); }}
               className="flex items-center gap-1 text-slate-400 hover:text-amber-500 text-sm transition-colors"
               title="문제 오류 제보"
             >
@@ -366,7 +366,7 @@ export default function ExamTakingPage() {
               <span className="hidden sm:inline">오류 제보</span>
             </button>
             <button
-              onClick={() => { click.send({ object_section_id: 'exam_info', object_section_idx: 1, object_type: 'button', object_idx: 1, object_id: 'submit', data: { answered_count: answeredCount, unanswered_count: unanswered } }); setShowSubmitConfirm(true); }}
+              onClick={() => { click.send({ object_section_id: 'exam_bar', object_section_idx: 1, object_type: 'button', object_idx: 1, object_id: 'submit', data: { answered_count: answeredCount, unanswered_count: unanswered } }); setShowSubmitConfirm(true); }}
               className="bg-primary-600 hover:bg-primary-700 text-white text-xs md:text-sm font-bold px-3 md:px-5 py-1.5 md:py-2 rounded-lg transition-colors"
             >
               최종 제출
@@ -532,13 +532,13 @@ export default function ExamTakingPage() {
             <p className="text-sm text-slate-500 mb-6">제출 후에는 답안을 변경할 수 없습니다.</p>
             <div className="flex gap-3">
               <button
-                onClick={() => { click.send({ object_section_id: 'submit_confirm', object_type: 'button', object_idx: 0, object_id: 'cancel', data: { answered_count: answeredCount, unanswered_count: unanswered } }); setShowSubmitConfirm(false); }}
+                onClick={() => { click.send({ object_section_id: 'submit_confirm_modal', object_type: 'button', object_idx: 0, object_id: 'cancel', data: { answered_count: answeredCount, unanswered_count: unanswered } }); setShowSubmitConfirm(false); }}
                 className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold py-2.5 rounded-lg text-sm transition-colors"
               >
                 계속 풀기
               </button>
               <button
-                onClick={() => { click.send({ object_section_id: 'submit_confirm', object_type: 'button', object_idx: 1, object_id: 'submit', data: { answered_count: answeredCount, unanswered_count: unanswered } }); handleSubmit(); }}
+                onClick={() => { click.send({ object_section_id: 'submit_confirm_modal', object_type: 'button', object_idx: 1, object_id: 'submit', data: { answered_count: answeredCount, unanswered_count: unanswered } }); handleSubmit(); }}
                 className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
               >
                 제출
@@ -557,14 +557,14 @@ export default function ExamTakingPage() {
             <p className="text-sm text-slate-500 mb-6">다시 들어오면 저장된 시점부터 이어집니다.</p>
             <div className="flex gap-3">
               <button
-                onClick={() => { click.send({ object_section_id: 'exit_confirm', object_type: 'button', object_idx: 0, object_id: 'cancel' }); setExitTarget(null); }}
+                onClick={() => { click.send({ object_section_id: 'exit_confirm_modal', object_type: 'button', object_idx: 0, object_id: 'cancel' }); setExitTarget(null); }}
                 className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold py-2.5 rounded-lg text-sm transition-colors"
               >
                 계속 풀기
               </button>
               <button
                 onClick={() => {
-                  click.send({ object_section_id: 'exit_confirm', object_type: 'button', object_idx: 1, object_id: 'leave', object_url: exitTarget });
+                  click.send({ object_section_id: 'exit_confirm_modal', object_type: 'button', object_idx: 1, object_id: 'leave', object_url: exitTarget });
                   persistSnapshot();
                   navigate(exitTarget);
                 }}

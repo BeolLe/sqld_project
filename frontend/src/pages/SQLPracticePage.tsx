@@ -824,7 +824,7 @@ export default function SQLPracticePage() {
             {/* 닫기 버튼 */}
             <div className="px-6 py-4 border-t border-slate-100 flex justify-end">
               <button
-                onClick={() => { click.send({ object_section_id: 'submit_result', object_section_idx: 90, object_type: 'button', object_idx: 0, object_id: submitResult === 'correct' ? 'confirm' : 'retry', data: { is_correct: submitResult === 'correct' } }); setSubmitResult(null); }}
+                onClick={() => { click.send({ object_section_id: 'submit_result_modal', object_section_idx: 90, object_type: 'button', object_idx: 0, object_id: submitResult === 'correct' ? 'confirm' : 'retry', data: { is_correct: submitResult === 'correct' } }); setSubmitResult(null); }}
                 className={`px-6 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors ${
                   submitResult === 'correct'
                     ? 'bg-emerald-600 hover:bg-emerald-700'
@@ -847,13 +847,13 @@ export default function SQLPracticePage() {
             <p className="text-sm text-slate-500 mb-6">나가기 전에 필요한 내용을 복사해 주세요.</p>
             <div className="flex gap-3">
               <button
-                onClick={() => { click.send({ object_section_id: 'exit_confirm', object_type: 'button', object_idx: 0, object_id: 'cancel' }); setExitTarget(null); }}
+                onClick={() => { click.send({ object_section_id: 'exit_modal', object_type: 'button', object_idx: 0, object_id: 'cancel' }); setExitTarget(null); }}
                 className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold py-2.5 rounded-lg text-sm transition-colors"
               >
                 계속 풀기
               </button>
               <button
-                onClick={() => { click.send({ object_section_id: 'exit_confirm', object_type: 'button', object_idx: 1, object_id: 'leave', object_url: exitTarget }); navigate(exitTarget); }}
+                onClick={() => { click.send({ object_section_id: 'exit_modal', object_type: 'button', object_idx: 1, object_id: 'leave', object_url: exitTarget }); navigate(exitTarget); }}
                 className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
               >
                 나가기
