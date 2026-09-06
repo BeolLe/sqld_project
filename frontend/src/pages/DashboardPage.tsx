@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   RadarChart,
@@ -20,6 +20,8 @@ import { Trophy, Target, Clock, BookOpen, ChevronRight, Calendar } from 'lucide-
 import type { DashboardSummary } from '../types';
 import { getNextExamDate, getDday, formatDateFull } from '../data/examSchedule';
 import { useExamSchedules } from '../contexts/ExamScheduleContext';
+import { PageviewLog, ClickLog } from '../logging';
+import { getLearnSubjectStats } from '../utils/learnProgress';
 
 // ─── 학습 시간 포맷 ─────────────────────────────────────────────────────────
 
@@ -68,12 +70,70 @@ const LEVEL_COLORS = [
   'bg-emerald-700',
 ] as const;
 
+/** 연속 학습일. 오늘 아직 학습을 안 했다면 어제부터 세어, 자정 전까지 스트릭이 끊기지 않게 한다. */
+function computeStreak(countMap: Map<string, number>): number {
+  const cursor = new Date();
+  if ((countMap.get(cursor.toISOString().slice(0, 10)) ?? 0) === 0) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  let streak = 0;
+  while ((countMap.get(cursor.toISOString().slice(0, 10)) ?? 0) > 0) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+function computeMonthCount(countMap: Map<string, number>): number {
+  // "지금 시각"에서 날짜만 하루씩 이동한다. 자정을 새로 만들면(new Date(y,m,d))
+  // UTC보다 앞선 시간대(KST 등)에서 toISOString() 변환 시 하루 밀리므로 피한다.
+  const cursor = new Date();
+  const targetMonth = cursor.getMonth();
+  let count = 0;
+  while (cursor.getMonth() === targetMonth) {
+    if ((countMap.get(cursor.toISOString().slice(0, 10)) ?? 0) > 0) count += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return count;
+}
+
+function computeWeekCount(countMap: Map<string, number>): number {
+  const today = new Date();
+  const dow = today.getDay(); // 0 = 일요일
+  let count = 0;
+  for (let i = 0; i <= dow; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - dow + i);
+    if ((countMap.get(d.toISOString().slice(0, 10)) ?? 0) > 0) count += 1;
+  }
+  return count;
+}
+
+function StatTile({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs text-slate-400">{label}</span>
+      <span className={`text-xl font-bold tabular-nums ${accent ? 'text-primary-600' : 'text-sqld-navy'}`}>
+        {value}
+        <span className="text-xs font-medium text-slate-400 ml-0.5">일</span>
+      </span>
+    </div>
+  );
+}
+
 function LearningCalendar({
   learningDays,
 }: {
   learningDays: { date: string; eventCount: number }[];
 }) {
   const grid = useMemo(() => buildCalendarGrid(learningDays), [learningDays]);
+  const countMap = useMemo(
+    () => new Map(learningDays.map((d) => [d.date, d.eventCount])),
+    [learningDays],
+  );
+  const streak = useMemo(() => computeStreak(countMap), [countMap]);
+  const monthCount = useMemo(() => computeMonthCount(countMap), [countMap]);
+  const weekCount = useMemo(() => computeWeekCount(countMap), [countMap]);
 
   // 12주 × 7일 그리드 (열 = 주, 행 = 요일)
   const weeks: CalendarDay[][] = [];
@@ -102,58 +162,66 @@ function LearningCalendar({
           <p className="text-xs text-slate-300">데이터 준비 중</p>
         </div>
       ) : (
-        <>
-          <div className="overflow-x-auto">
-            <div className="inline-flex flex-col gap-2 min-w-fit">
-              <div className="flex items-end">
-                <div className="w-8" />
-                <div className="flex gap-1">
-                  {monthLabels.map((label, index) => (
-                    <div
-                      key={`${label}-${index}`}
-                      className="w-4 md:w-5 text-[10px] md:text-xs text-slate-400 text-center"
-                    >
-                      {label}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <div className="grid grid-rows-7 gap-1 text-[10px] md:text-xs text-slate-400 pt-0.5">
-                  <span className="h-4 md:h-5" />
-                  <span className="h-4 md:h-5">월</span>
-                  <span className="h-4 md:h-5" />
-                  <span className="h-4 md:h-5">수</span>
-                  <span className="h-4 md:h-5" />
-                  <span className="h-4 md:h-5">금</span>
-                  <span className="h-4 md:h-5" />
+        <div className="flex flex-col lg:flex-row gap-6 lg:items-center">
+          <div className="shrink-0">
+            <div className="overflow-x-auto">
+              <div className="inline-flex flex-col gap-2 min-w-fit">
+                <div className="flex items-end">
+                  <div className="w-8" />
+                  <div className="flex gap-1">
+                    {monthLabels.map((label, index) => (
+                      <div
+                        key={`${label}-${index}`}
+                        className="w-4 md:w-5 text-[10px] md:text-xs text-slate-400 text-center"
+                      >
+                        {label}
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="flex gap-1">
-                  {weeks.map((week, wi) => (
-                    <div key={wi} className="grid grid-rows-7 gap-1">
-                      {week.map((day) => (
-                        <div
-                          key={day.date}
-                          title={`${day.date}: ${day.count}건`}
-                          className={`w-4 h-4 md:w-5 md:h-5 rounded-[3px] ${LEVEL_COLORS[day.level]}`}
-                        />
-                      ))}
-                    </div>
-                  ))}
+                <div className="flex gap-2">
+                  <div className="grid grid-rows-7 gap-1 text-[10px] md:text-xs text-slate-400 pt-0.5">
+                    <span className="h-4 md:h-5" />
+                    <span className="h-4 md:h-5">월</span>
+                    <span className="h-4 md:h-5" />
+                    <span className="h-4 md:h-5">수</span>
+                    <span className="h-4 md:h-5" />
+                    <span className="h-4 md:h-5">금</span>
+                    <span className="h-4 md:h-5" />
+                  </div>
+
+                  <div className="flex gap-1">
+                    {weeks.map((week, wi) => (
+                      <div key={wi} className="grid grid-rows-7 gap-1">
+                        {week.map((day) => (
+                          <div
+                            key={day.date}
+                            title={`${day.date}: ${day.count}건`}
+                            className={`w-4 h-4 md:w-5 md:h-5 rounded-[3px] ${LEVEL_COLORS[day.level]}`}
+                          />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
+            <div className="flex items-center gap-1.5 mt-3 text-xs text-slate-400">
+              <span>적음</span>
+              {LEVEL_COLORS.map((color, i) => (
+                <div key={i} className={`w-3.5 h-3.5 md:w-4 md:h-4 rounded-[3px] ${color}`} />
+              ))}
+              <span>많음</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 mt-3 text-xs text-slate-400">
-            <span>적음</span>
-            {LEVEL_COLORS.map((color, i) => (
-              <div key={i} className={`w-3.5 h-3.5 md:w-4 md:h-4 rounded-[3px] ${color}`} />
-            ))}
-            <span>많음</span>
+
+          <div className="grid grid-cols-3 gap-4 lg:flex-1 lg:border-l lg:border-slate-100 lg:pl-6">
+            <StatTile label="연속 학습일" value={streak} accent />
+            <StatTile label="이번 달 학습일" value={monthCount} />
+            <StatTile label="이번 주 학습일" value={weekCount} />
           </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -161,12 +229,13 @@ function LearningCalendar({
 
 // ─── 빈 상태 컴포넌트 ────────────────────────────────────────────────────────
 
-function EmptyState({ message, ctaLabel, ctaTo }: { message: string; ctaLabel: string; ctaTo: string }) {
+function EmptyState({ message, ctaLabel, ctaTo, onClick }: { message: string; ctaLabel: string; ctaTo: string; onClick?: () => void }) {
   return (
     <div className="text-center py-8">
       <p className="text-sm text-slate-400 mb-3">{message}</p>
       <Link
         to={ctaTo}
+        onClick={onClick}
         className="inline-flex items-center gap-1 text-sm text-primary-600 hover:underline font-medium"
       >
         {ctaLabel}
@@ -186,7 +255,28 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { schedules: examSchedules } = useExamSchedules();
-  const [subjectTab, setSubjectTab] = useState<'all' | 'exam' | 'endless'>('all');
+  const [subjectTab, setSubjectTab] = useState<'all' | 'exam' | 'endless' | 'learn'>('all');
+  const learnSubjectStats = useMemo(() => getLearnSubjectStats(), []);
+
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'dashboard', url: '/dashboard' }), []);
+  const click = useMemo(() => new ClickLog({ page_id: 'dashboard', url: '/dashboard' }), []);
+  const pvSent = useRef(false);
+
+  useEffect(() => {
+    if (pvSent.current || isInitializing) return;
+    if (!isLoggedIn) {
+      pvSent.current = true;
+      pageview.send({ step: 'login_required' });
+      return;
+    }
+    if (loading) return;
+    pvSent.current = true;
+    const hasData = (data?.stats?.totalMockExamAttemptCount ?? 0) > 0 ||
+                    (data?.stats?.totalSolvedQuestionCount ?? 0) > 0;
+    pageview.send({
+      data: { is_logged_in: true, has_learning_data: hasData, is_api_error: !!error },
+    });
+  }, [isInitializing, isLoggedIn, loading, error, data, pageview]);
 
   useEffect(() => {
     if (!isLoggedIn || isInitializing) return;
@@ -226,7 +316,17 @@ export default function DashboardPage() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <p className="text-slate-500 mb-4">로그인 후 이용 가능합니다.</p>
-          <button onClick={() => navigate('/')} className="text-primary-600 hover:underline">
+          <button
+            onClick={() => {
+              click.send({
+                object_section_id: 'login_required', object_section_idx: 1,
+                object_type: 'button', object_idx: 0, object_id: 'home', object_url: '/',
+                page_params: { step: 'login_required' },
+              });
+              navigate('/');
+            }}
+            className="text-primary-600 hover:underline"
+          >
             홈으로 돌아가기
           </button>
         </div>
@@ -277,7 +377,9 @@ export default function DashboardPage() {
     exam: [],
     endless: [],
   };
-  const subjectStats = subjectStatsByMode[subjectTab];
+  // 개념학습 탭은 서버 집계가 아니라 브라우저 로컬 기록(빈칸 채점 결과)에서 계산한다.
+  // 축 구성도 다르다 — 다른 탭은 SQL 세부 카테고리, 개념학습은 커리큘럼 주요항목(그룹) 5개다.
+  const subjectStats = subjectTab === 'learn' ? learnSubjectStats : subjectStatsByMode[subjectTab];
   const recentExams = data?.recentExamResults ?? [];
   const recentSql = data?.recentSqlAttempts ?? [];
   const learningCalendar = data?.learningCalendar ?? [];
@@ -286,14 +388,20 @@ export default function DashboardPage() {
       ? '모의고사를 응시하면 과목별 분석을 볼 수 있습니다.'
       : subjectTab === 'endless'
         ? '무한풀이를 시작하면 카테고리별 정답률을 볼 수 있습니다.'
-        : '학습 기록이 쌓이면 전체 과목별 분석을 볼 수 있습니다.';
+        : subjectTab === 'learn'
+          ? '개념 학습에서 빈칸을 채점하면 주요항목별 정답률을 볼 수 있습니다.'
+          : '학습 기록이 쌓이면 전체 과목별 분석을 볼 수 있습니다.';
   const subjectEmptyCta =
     subjectTab === 'endless'
       ? { label: '무한풀이 시작', to: '/endless' }
-      : { label: '모의고사 목록', to: '/exams' };
+      : subjectTab === 'learn'
+        ? { label: '개념 학습 목차', to: '/learn' }
+        : { label: '모의고사 목록', to: '/exams' };
 
   const hasAnyData =
-    stats.totalMockExamAttemptCount > 0 || stats.totalSolvedQuestionCount > 0;
+    stats.totalMockExamAttemptCount > 0 ||
+    stats.totalSolvedQuestionCount > 0 ||
+    learnSubjectStats.length > 0;
 
   // ─── 렌더링 ──────────────────────────────────────────────────────────────
 
@@ -375,6 +483,7 @@ export default function DashboardPage() {
             <div className="flex justify-center gap-4">
               <Link
                 to="/exams"
+                onClick={() => click.send({ object_section_id: 'empty_state', object_section_idx: 3, object_type: 'link', object_idx: 0, object_id: 'exam', object_url: '/exams' })}
                 className="inline-flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm px-5 py-2.5 rounded-lg transition-colors"
               >
                 모의고사 풀기
@@ -382,6 +491,7 @@ export default function DashboardPage() {
               </Link>
               <Link
                 to="/endless"
+                onClick={() => click.send({ object_section_id: 'empty_state', object_section_idx: 3, object_type: 'link', object_idx: 1, object_id: 'endless', object_url: '/endless' })}
                 className="inline-flex items-center gap-1.5 border border-slate-300 hover:border-slate-400 text-slate-700 text-sm px-5 py-2.5 rounded-lg transition-colors"
               >
                 무한풀이 시작
@@ -389,6 +499,7 @@ export default function DashboardPage() {
               </Link>
               <Link
                 to="/sql-practice"
+                onClick={() => click.send({ object_section_id: 'empty_state', object_section_idx: 3, object_type: 'link', object_idx: 2, object_id: 'sql_practice', object_url: '/sql-practice' })}
                 className="inline-flex items-center gap-1.5 border border-slate-300 hover:border-slate-400 text-slate-700 text-sm px-5 py-2.5 rounded-lg transition-colors"
               >
                 SQL 실습하기
@@ -406,10 +517,13 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-bold text-sqld-navy">과목별 정답률</h2>
                 <div className="flex rounded-lg border border-slate-200 overflow-hidden">
-                  {([['all', '전체'], ['exam', '모의고사'], ['endless', '무한풀이']] as const).map(([key, label]) => (
+                  {([['all', '전체', 0], ['exam', '모의고사', 1], ['endless', '무한풀이', 2], ['learn', '개념학습', 3]] as const).map(([key, label, idx]) => (
                     <button
                       key={key}
-                      onClick={() => setSubjectTab(key)}
+                      onClick={() => {
+                        click.send({ object_section_id: 'subject_accuracy', object_section_idx: 4, object_type: 'tab', object_idx: idx, object_id: key });
+                        setSubjectTab(key);
+                      }}
                       className={`px-3 py-1 text-xs font-medium transition-colors ${
                         subjectTab === key
                           ? 'bg-primary-600 text-white'
@@ -422,29 +536,44 @@ export default function DashboardPage() {
                 </div>
               </div>
               {subjectStats.length > 0 ? (
-                <ResponsiveContainer width="100%" height={260}>
-                  <RadarChart
-                    data={subjectStats.map((s) => ({
-                      subject: s.subjectName,
-                      rate: Math.round(s.accuracyRate),
-                    }))}
-                  >
-                    <PolarGrid stroke="#e2e8f0" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: '#64748b' }} />
-                    <Radar
-                      name="정답률"
-                      dataKey="rate"
-                      stroke="#2563eb"
-                      fill="#2563eb"
-                      fillOpacity={0.25}
-                    />
-                  </RadarChart>
-                </ResponsiveContainer>
+                <>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <RadarChart
+                      data={subjectStats.map((s) => ({
+                        subject: s.subjectName,
+                        rate: Math.round(s.accuracyRate),
+                      }))}
+                    >
+                      <PolarGrid stroke="#e2e8f0" />
+                      <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <Radar
+                        name="정답률"
+                        dataKey="rate"
+                        stroke="#2563eb"
+                        fill="#2563eb"
+                        fillOpacity={0.25}
+                      />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                  {subjectTab === 'learn' && (
+                    <p className="text-[11px] text-slate-400 mt-2">
+                      이 기기에만 저장되는 학습 기록입니다. 다른 기기·브라우저에서는 보이지 않습니다.
+                    </p>
+                  )}
+                </>
               ) : (
                 <EmptyState
+
                   message={subjectEmptyMessage}
                   ctaLabel={subjectEmptyCta.label}
                   ctaTo={subjectEmptyCta.to}
+                  onClick={() => click.send({
+                    object_section_id: 'subject_accuracy', object_section_idx: 4,
+                    object_type: 'link', object_idx: 4,
+                    object_id: subjectTab === 'endless' ? 'endless' : subjectTab === 'learn' ? 'learn' : 'exam',
+                    object_url: subjectEmptyCta.to,
+                    page_params: { step: subjectTab },
+                  })}
                 />
               )}
             </div>
@@ -481,6 +610,7 @@ export default function DashboardPage() {
                   message="아직 모의고사 응시 기록이 없습니다."
                   ctaLabel="모의고사 목록"
                   ctaTo="/exams"
+                  onClick={() => click.send({ object_section_id: 'exam_score_trend', object_section_idx: 5, object_type: 'link', object_idx: 0, object_id: 'exam', object_url: '/exams' })}
                 />
               )}
             </div>
@@ -503,6 +633,11 @@ export default function DashboardPage() {
                   <li key={`${exam.examId}-${exam.attemptNo}-${idx}`}>
                     <Link
                       to={`/exams/${exam.examId}/result?attemptId=${exam.attemptId}`}
+                      onClick={() => click.send({
+                        object_section_id: 'recent_exams', object_section_idx: 7, object_type: 'card', object_idx: idx,
+                        object_id: 'exam_attempt', object_url: `/exams/${exam.examId}/result?attemptId=${exam.attemptId}`,
+                        data: { exam_id: exam.examId, attempt_id: exam.attemptId, score_percent: exam.scorePercent, passed: exam.passed },
+                      })}
                       className="flex items-center justify-between text-sm hover:bg-slate-50 -mx-2 px-2 py-1.5 rounded-lg transition-colors"
                     >
                       <div>
@@ -532,6 +667,7 @@ export default function DashboardPage() {
                 message="아직 모의고사 기록이 없습니다."
                 ctaLabel="모의고사 풀러가기"
                 ctaTo="/exams"
+                onClick={() => click.send({ object_section_id: 'recent_exams', object_section_idx: 7, object_type: 'link', object_idx: 0, object_id: 'exam', object_url: '/exams' })}
               />
             )}
           </div>
@@ -545,6 +681,11 @@ export default function DashboardPage() {
                   <li key={`${item.practiceId}-${item.attemptId}-${idx}`}>
                     <Link
                       to={`/sql-practice/${item.practiceId}?attemptId=${item.attemptId}`}
+                      onClick={() => click.send({
+                        object_section_id: 'recent_sql_practices', object_section_idx: 8, object_type: 'card', object_idx: idx,
+                        object_id: 'sql_attempt', object_url: `/sql-practice/${item.practiceId}?attemptId=${item.attemptId}`,
+                        data: { practice_id: item.practiceId, attempt_id: item.attemptId, is_correct: item.isCorrect },
+                      })}
                       className="flex items-center justify-between text-sm hover:bg-slate-50 -mx-2 px-2 py-1.5 rounded-lg transition-colors"
                     >
                       <div>
@@ -571,6 +712,7 @@ export default function DashboardPage() {
                 message="아직 SQL 실습 기록이 없습니다."
                 ctaLabel="SQL 실습하러 가기"
                 ctaTo="/sql-practice"
+                onClick={() => click.send({ object_section_id: 'recent_sql_practices', object_section_idx: 8, object_type: 'link', object_idx: 0, object_id: 'sql_practice', object_url: '/sql-practice' })}
               />
             )}
           </div>

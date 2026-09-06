@@ -5,15 +5,17 @@
  * 학습 진도·빈칸 채점 결과도 화면 로컬 state 에만 남고 서버에 저장되지 않는다.
  * DB 연동 시 `REMOTE_LESSON_ENABLED` 를 켜서 `useRemoteLesson` 경로로 전환한다.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Download } from 'lucide-react';
 import { countBlanks, findUnit } from '../data/learn/curriculum';
+import { recordBlankResult } from '../utils/learnProgress';
 import BlockRenderer from '../components/learn/BlockRenderer';
 import RemoteLessonView from '../components/learn/RemoteLessonView';
 import { splitLessonSections } from '../components/learn/lessonSections';
 import { useRemoteLesson } from '../hooks/useRemoteLesson';
 import { useAuth } from '../contexts/AuthContext';
+import { PageviewLog, ClickLog } from '../logging';
 
 /**
  * 백엔드 개념교육 레슨 연동 스위치.
@@ -22,11 +24,11 @@ import { useAuth } from '../contexts/AuthContext';
  */
 const REMOTE_LESSON_ENABLED = false;
 
-function NotFound() {
+function NotFound({ onClickLog }: { onClickLog?: () => void }) {
   return (
     <div className="mx-auto max-w-3xl px-5 py-20 text-center">
       <h1 className="mb-3 text-xl font-bold text-slate-900">존재하지 않는 학습 항목입니다.</h1>
-      <Link to="/learn" className="text-primary-600 hover:underline">
+      <Link to="/learn" onClick={onClickLog} className="text-primary-600 hover:underline">
         교육 목차로 돌아가기
       </Link>
     </div>
@@ -50,7 +52,8 @@ export default function LearnUnitPage() {
       else next.delete(blankId);
       return next;
     });
-  }, []);
+    if (unitId) recordBlankResult(unitId, blankId, correct);
+  }, [unitId]);
 
   const totalBlanks = useMemo(() => (unit ? countBlanks(unit) : 0), [unit]);
 
@@ -63,10 +66,61 @@ export default function LearnUnitPage() {
     [remote.lesson],
   );
 
+  // ─── 로깅 ──────────────────────────────────────────────────────────────
+  const unitUrl = `/learn/${unitId}`;
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'learn_unit', url: unitUrl }), [unitUrl]);
+  const click = useMemo(() => new ClickLog({ page_id: 'learn_unit', url: unitUrl, pageParams: { unit_id: unitId } }), [unitUrl, unitId]);
+  const pvSent = useRef(false);
+
+  useEffect(() => {
+    if (isInitializing || pvSent.current) return;
+
+    if (!isLoggedIn) {
+      pvSent.current = true;
+      pageview.send({ step: 'login_required', pageParams: { unit_id: unitId } });
+      return;
+    }
+
+    if (!unit) {
+      pvSent.current = true;
+      pageview.send({ step: 'not_found', pageParams: { unit_id: unitId }, data: { reason: 'invalid_unit' } });
+      return;
+    }
+
+    if (!ready && remote.status === 'not-found') {
+      pvSent.current = true;
+      pageview.send({ step: 'not_found', pageParams: { unit_id: unitId }, data: { reason: 'lesson_not_found' } });
+      return;
+    }
+
+    if (!ready && remote.status === 'error') {
+      pvSent.current = true;
+      pageview.send({ step: 'not_found', pageParams: { unit_id: unitId }, data: { reason: 'lesson_error' } });
+      return;
+    }
+
+    if (ready && !quizMode) {
+      pvSent.current = true;
+      pageview.send({
+        step: 'note',
+        pageParams: { unit_id: unitId },
+        data: { subject: unit.subject, group: unit.group, unit_title: unit.title, unit_order: unit.order, estimated_minutes: unit.estimatedMin, blank_count: totalBlanks, block_count: unit.blocks.length },
+      });
+    }
+  }, [isInitializing, isLoggedIn, unit, ready, remote.status, quizMode, pageview, unitId, totalBlanks]);
+
   const enterQuiz = () => {
     setCorrectIds(new Set());
     setQuizMode(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (unit) {
+      const quizPv = new PageviewLog({ page_id: 'learn_unit', url: unitUrl });
+      quizPv.send({
+        step: 'quiz',
+        pageParams: { unit_id: unitId },
+        data: { subject: unit.subject, group: unit.group, unit_title: unit.title, blank_count: totalBlanks },
+      });
+    }
   };
 
   const exitQuiz = () => {
@@ -93,7 +147,13 @@ export default function LearnUnitPage() {
             <br />
             로그인하시면 30개 세부항목의 개념 노트와 빈칸 복습을 이용할 수 있습니다.
           </p>
-          <button onClick={() => navigate('/')} className="text-primary-600 hover:underline">
+          <button
+            onClick={() => {
+              click.send({ object_section_id: 'login_required', object_section_idx: 6, object_type: 'button', object_idx: 0, object_id: 'home', object_url: '/', data: { unit_id: unitId }, page_params: { step: 'login_required', unit_id: unitId } });
+              navigate('/');
+            }}
+            className="text-primary-600 hover:underline"
+          >
             홈으로 돌아가기
           </button>
         </div>
@@ -101,7 +161,7 @@ export default function LearnUnitPage() {
     );
   }
 
-  if (!unit) return <NotFound />;
+  if (!unit) return <NotFound onClickLog={() => click.send({ object_section_id: 'notice', object_section_idx: 5, object_type: 'link', object_idx: 0, object_id: 'unit_list', object_url: '/learn', data: { unit_id: unitId, reason: 'invalid_unit' }, page_params: { step: 'not_found', unit_id: unitId } })} />;
 
   return (
     <div className="min-h-screen bg-white">
@@ -110,6 +170,7 @@ export default function LearnUnitPage() {
           <nav className="top-20 hidden text-[0.8125rem] lg:sticky lg:block print:hidden">
             <Link
               to="/learn"
+              onClick={() => click.send({ object_section_id: 'unit_nav', object_section_idx: 1, object_type: 'link', object_idx: 0, object_id: 'unit_list', object_url: '/learn', data: { unit_id: unitId }, page_params: { step: quizMode ? 'quiz' : 'note', unit_id: unitId } })}
               className="mb-4 inline-flex items-center gap-1 text-slate-500 hover:text-primary-600"
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
@@ -125,6 +186,11 @@ export default function LearnUnitPage() {
                     <li key={block.id}>
                       <a
                         href={`#${block.id}`}
+                        onClick={() => click.send({
+                          object_section_id: 'unit_nav', object_section_idx: 1, object_type: 'link', object_idx: index + 1, object_id: 'section', object_url: `#${block.id}`,
+                          data: { unit_id: unitId, block_id: block.id, block_heading: 'heading' in block ? block.heading : block.title },
+                          page_params: { step: quizMode ? 'quiz' : 'note', unit_id: unitId },
+                        })}
                         className="-ml-0.5 block border-l-2 border-transparent py-1.5 pl-3 leading-snug text-slate-500 hover:text-slate-900"
                       >
                         {index + 1}. {'heading' in block ? block.heading : block.title}
@@ -187,6 +253,7 @@ export default function LearnUnitPage() {
                 </p>
                 <Link
                   to="/learn"
+                  onClick={() => click.send({ object_section_id: 'notice', object_section_idx: 5, object_type: 'link', object_idx: 0, object_id: 'unit_list', object_url: '/learn', data: { unit_id: unitId, reason: 'lesson_not_found' }, page_params: { step: 'not_found', unit_id: unitId } })}
                   className="mt-3 inline-block text-[0.9rem] font-semibold text-amber-900 underline"
                 >
                   목차로 돌아가기
@@ -234,7 +301,10 @@ export default function LearnUnitPage() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => window.print()}
+                    onClick={() => {
+                      click.send({ object_section_id: 'study_action', object_section_idx: 3, object_type: 'button', object_idx: 0, object_id: 'print', data: { unit_id: unitId, blank_count: totalBlanks }, page_params: { step: 'note', unit_id: unitId } });
+                      window.print();
+                    }}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
                   >
                     <Download className="h-4 w-4" aria-hidden="true" />
@@ -242,7 +312,10 @@ export default function LearnUnitPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={enterQuiz}
+                    onClick={() => {
+                      click.send({ object_section_id: 'study_action', object_section_idx: 3, object_type: 'button', object_idx: 1, object_id: 'quiz', data: { unit_id: unitId, blank_count: totalBlanks }, page_params: { step: 'note', unit_id: unitId } });
+                      enterQuiz();
+                    }}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700"
                   >
                     빈칸으로 복습하기
@@ -262,7 +335,10 @@ export default function LearnUnitPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={exitQuiz}
+                  onClick={() => {
+                    click.send({ object_section_id: 'study_action', object_section_idx: 3, object_type: 'button', object_idx: 2, object_id: 'note', data: { unit_id: unitId, correct_count: correctIds.size, blank_count: totalBlanks }, page_params: { step: 'quiz', unit_id: unitId } });
+                    exitQuiz();
+                  }}
                   className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-100"
                 >
                   개념 노트로 돌아가기
