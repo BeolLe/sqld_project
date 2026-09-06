@@ -296,6 +296,11 @@ def validate_csrf_request(request: Request) -> None:
     if request_origin not in allowed_origins:
         raise HTTPException(status_code=403, detail="invalid request origin")
 
+    # sendBeacon은 사용자 지정 CSRF 헤더를 붙일 수 없다. 행동 로그 수집은
+    # 허용된 Origin만 검사하고 계정·결제 상태를 변경하는 CSRF 검사는 생략한다.
+    if request.url.path == "/api/logs/events":
+        return
+
     csrf_cookie = request.cookies.get(settings.CSRF_COOKIE_NAME)
     csrf_header = request.headers.get("x-csrf-token")
     if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
