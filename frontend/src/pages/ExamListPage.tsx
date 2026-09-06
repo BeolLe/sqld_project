@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, FileText, ChevronRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthModal } from '../contexts/AuthModalContext';
-import { logEvent } from '../utils/eventLogger';
+import { PageviewLog, ClickLog } from '../logging';
 import type { Difficulty } from '../types';
 import { fetchExamList, type ExamListItem } from '../api/content';
 
@@ -26,6 +26,10 @@ export default function ExamListPage() {
   const [exams, setExams] = useState<ExamListItem[]>([]);
   const [error, setError] = useState('');
 
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'exam_list', url: '/exams' }), []);
+  const click = useMemo(() => new ClickLog({ page_id: 'exam_list', url: '/exams' }), []);
+  const pvSent = useRef(false);
+
   useEffect(() => {
     let mounted = true;
 
@@ -33,17 +37,24 @@ export default function ExamListPage() {
       .then((data) => {
         if (!mounted) return;
         setExams(data);
-        logEvent('exam_list_viewed', { exam_count: data.length });
+        if (!pvSent.current) {
+          pvSent.current = true;
+          pageview.send({ data: { exam_count: data.length } });
+        }
       })
       .catch((caughtError) => {
         if (!mounted) return;
         setError(caughtError instanceof Error ? caughtError.message : '모의고사 목록을 불러오지 못했습니다.');
+        if (!pvSent.current) {
+          pvSent.current = true;
+          pageview.send({ data: { exam_count: 0, is_error: true } });
+        }
       });
 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [pageview]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -60,11 +71,15 @@ export default function ExamListPage() {
               key={exam.id}
               className="bg-white border border-slate-200 rounded-xl p-5 hover:border-primary-400 hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
               onClick={() => {
+                click.send({
+                  object_section_id: 'exam_list', object_section_idx: 1, object_type: 'card', object_idx: exam.round - 1, object_id: 'exam',
+                  object_url: `/exams/${exam.id}/taking`,
+                  data: { exam_id: exam.id, exam_round: exam.round, difficulty: exam.avgDifficulty, is_logged_in: !!user },
+                });
                 if (!user) {
                   openAuthModal('login');
                   return;
                 }
-                logEvent('exam_card_clicked', { exam_id: exam.id, exam_round: exam.round, difficulty: exam.avgDifficulty });
                 navigate(`/exams/${exam.id}/taking`);
               }}
             >

@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shuffle, Home, Loader2, ChevronLeft, ChevronRight, BookOpen, Layers, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthModal } from '../contexts/AuthModalContext';
+import { PageviewLog, ClickLog } from '../logging';
 import { fetchEndlessProblems } from '../api/endless';
 import type { Problem } from '../types';
 import EndlessPracticePlayer from '../components/EndlessPracticePlayer';
@@ -119,6 +120,52 @@ export default function EndlessPracticePage() {
     }
   };
 
+  // ─── 로깅 ──────────────────────────────────────────────────────────────
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'endless', url: '/endless' }), []);
+  const click = useMemo(() => new ClickLog({ page_id: 'endless', url: '/endless' }), []);
+  const lastPvStep = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (isInitializing) return;
+    if (!isLoggedIn) {
+      if (lastPvStep.current !== 'login_required') {
+        lastPvStep.current = 'login_required';
+        pageview.send({ step: 'login_required' });
+      }
+      return;
+    }
+    if (error && lastPvStep.current !== 'load_error') {
+      lastPvStep.current = 'load_error';
+      pageview.send({ step: 'load_error' });
+      return;
+    }
+    if (loading) return;
+
+    const stepKey = step === 'mode-select' ? 'mode_select'
+      : step === 'subject-select' ? 'subject_select'
+      : step === 'category-select' ? 'category_select'
+      : 'playing';
+
+    if (lastPvStep.current === stepKey) return;
+    lastPvStep.current = stepKey;
+
+    if (stepKey === 'mode_select') {
+      pageview.send({ step: 'mode_select' });
+    } else if (stepKey === 'subject_select') {
+      pageview.send({ step: 'subject_select' });
+    } else if (stepKey === 'category_select') {
+      pageview.send({ step: 'category_select', data: { subject: selectedSubject } });
+    }
+    // playing pageview is handled by EndlessPracticePlayer
+  }, [isInitializing, isLoggedIn, error, loading, step, selectedSubject, pageview]);
+
+  // ─── 비로그인 시 인증 모달 (E-4 fix: 조기 반환 전으로 이동) ─────────────
+  useEffect(() => {
+    if (!isLoggedIn && !isInitializing) {
+      openAuthModal('login');
+    }
+  }, [isLoggedIn, isInitializing, openAuthModal]);
+
   if (isInitializing) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -127,18 +174,12 @@ export default function EndlessPracticePage() {
     );
   }
 
-  useEffect(() => {
-    if (!isLoggedIn && !isInitializing) {
-      openAuthModal('login');
-    }
-  }, [isLoggedIn, isInitializing, openAuthModal]);
-
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <p className="text-slate-500 mb-4">로그인 후 이용 가능합니다.</p>
-          <button onClick={() => navigate('/')} className="text-primary-600 hover:underline">
+          <button onClick={() => { click.send({ object_section_id: 'login_notice', object_section_idx: 1, object_type: 'link', object_idx: 0, object_id: 'home', object_url: '/', page_params: { step: 'login_required' } }); navigate('/'); }} className="text-primary-600 hover:underline">
             홈으로 돌아가기
           </button>
         </div>
@@ -160,7 +201,7 @@ export default function EndlessPracticePage() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <p className="text-red-500 mb-4">{error}</p>
-          <button onClick={() => navigate('/')} className="text-primary-600 hover:underline">
+          <button onClick={() => { click.send({ object_section_id: 'error_notice', object_section_idx: 1, object_type: 'link', object_idx: 0, object_id: 'home', object_url: '/', page_params: { step: 'load_error' } }); navigate('/'); }} className="text-primary-600 hover:underline">
             홈으로 돌아가기
           </button>
         </div>
@@ -198,7 +239,16 @@ export default function EndlessPracticePage() {
         {/* 상단 헤더 */}
         <div className="flex items-center gap-3 mb-8">
           <button
-            onClick={step === 'mode-select' ? () => navigate('/') : handleBack}
+            onClick={() => {
+              const stepKey = step === 'mode-select' ? 'mode_select' : step === 'subject-select' ? 'subject_select' : step === 'category-select' ? 'category_select' : 'playing';
+              if (step === 'mode-select') {
+                click.send({ object_section_id: 'title_bar', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'home', object_url: '/', page_params: { step: stepKey } });
+                navigate('/');
+              } else {
+                click.send({ object_section_id: 'title_bar', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'back', page_params: { step: stepKey } });
+                handleBack();
+              }
+            }}
             className="text-slate-400 hover:text-slate-600 transition-colors"
             title={step === 'mode-select' ? '홈으로' : '뒤로'}
           >
@@ -214,7 +264,7 @@ export default function EndlessPracticePage() {
         {step === 'mode-select' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <button
-              onClick={handleModeAll}
+              onClick={() => { click.send({ object_section_id: 'mode_list', object_section_idx: 2, object_type: 'card', object_idx: 0, object_id: 'random_all', page_params: { step: 'mode_select' } }); handleModeAll(); }}
               className="group bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-left hover:border-primary-300 hover:shadow-md transition-all"
             >
               <div className="bg-primary-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary-200 transition-colors">
@@ -230,7 +280,7 @@ export default function EndlessPracticePage() {
             </button>
 
             <button
-              onClick={handleModeCategory}
+              onClick={() => { click.send({ object_section_id: 'mode_list', object_section_idx: 2, object_type: 'card', object_idx: 1, object_id: 'random_by_category', page_params: { step: 'mode_select' } }); handleModeCategory(); }}
               className="group bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-left hover:border-primary-300 hover:shadow-md transition-all"
             >
               <div className="bg-amber-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-amber-200 transition-colors">
@@ -258,7 +308,7 @@ export default function EndlessPracticePage() {
               return (
                 <button
                   key={key}
-                  onClick={() => handleSubjectSelect(key)}
+                  onClick={() => { click.send({ object_section_id: 'subject_list', object_section_idx: 2, object_type: 'card', object_idx: Number(key) - 1, object_id: `subject_${key}`, page_params: { step: 'subject_select' } }); handleSubjectSelect(key); }}
                   className="group bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-left hover:border-primary-300 hover:shadow-md transition-all"
                 >
                   <div className="bg-slate-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary-100 transition-colors">
@@ -290,7 +340,10 @@ export default function EndlessPracticePage() {
                   {SUBJECT_MAP[selectedSubject].label} — {SUBJECT_MAP[selectedSubject].description}
                 </p>
                 <button
-                  onClick={handleSelectAll}
+                  onClick={() => {
+                    click.send({ object_section_id: 'category_list', object_section_idx: 2, object_type: 'button', object_idx: 0, object_id: isAllSelected ? 'deselect_all' : 'select_all', page_params: { step: 'category_select' } });
+                    handleSelectAll();
+                  }}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                     isAllSelected
                       ? 'bg-primary-100 text-primary-700 hover:bg-primary-200'
@@ -308,7 +361,11 @@ export default function EndlessPracticePage() {
                   return (
                     <button
                       key={cat}
-                      onClick={() => handleToggleCategory(cat)}
+                      onClick={() => {
+                        const willBeSelected = !isSelected;
+                        click.send({ object_section_id: 'category_list', object_section_idx: 2, object_type: 'checkbox', object_idx: 1, object_id: 'category', data: { category: cat, is_selected: willBeSelected }, page_params: { step: 'category_select' } });
+                        handleToggleCategory(cat);
+                      }}
                       className={`rounded-xl shadow-sm border px-4 py-4 text-left transition-all ${
                         isSelected
                           ? 'border-primary-400 bg-primary-50 shadow-md'
@@ -342,7 +399,7 @@ export default function EndlessPracticePage() {
                       {selectedCategories.length}개 카테고리 · {filteredProblems.length}문제 선택됨
                     </p>
                     <button
-                      onClick={handleStartPlaying}
+                      onClick={() => { click.send({ object_section_id: 'category_list', object_section_idx: 2, object_type: 'button', object_idx: 2, object_id: 'start', data: { category_count: selectedCategories.length }, page_params: { step: 'category_select' } }); handleStartPlaying(); }}
                       className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
                     >
                       시작하기 <ChevronRight className="w-5 h-5" />

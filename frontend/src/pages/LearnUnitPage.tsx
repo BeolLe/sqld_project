@@ -286,6 +286,7 @@ export default function LearnUnitPage() {
                 <BlockRenderer
                   nodes={block.nodes}
                   blanks={block.blanks}
+                  blockId={block.id}
                   quizMode={quizMode}
                   onGrade={handleGrade}
                 />

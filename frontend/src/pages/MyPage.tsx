@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, FileText, Trash2, X, Pencil } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiFetch } from '../utils/api';
+import { PageviewLog, ClickLog } from '../logging';
 import type { UserProfile } from '../types';
 import { TERMS_TEXT, PRIVACY_TEXT } from '../constants/legal';
 
@@ -35,14 +36,14 @@ function SectionCard({ icon, title, children }: { icon: React.ReactNode; title: 
 
 /* ─── 약관 보기 모달 ──────────────────────────────────────────────────────── */
 
-function TermsModal({ title, content, onClose }: { title: string; content: string; onClose: () => void }) {
+function TermsModal({ title, content, onClose, onClickLog }: { title: string; content: string; onClose: () => void; onClickLog?: (objectIdx: number, objectId: string) => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { onClickLog?.(2, 'close'); onClose(); }} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h3 className="text-lg font-bold text-sqld-navy">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={() => { onClickLog?.(0, 'close'); onClose(); }} className="text-slate-400 hover:text-slate-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -51,7 +52,7 @@ function TermsModal({ title, content, onClose }: { title: string; content: strin
         </div>
         <div className="px-6 py-4 border-t border-slate-200">
           <button
-            onClick={onClose}
+            onClick={() => { onClickLog?.(1, 'close'); onClose(); }}
             className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 rounded-lg transition-colors"
           >
             닫기
@@ -71,6 +72,7 @@ function DeleteAccountModal({
   loading,
   authProvider,
   socialDeleteReady,
+  onClickLog,
 }: {
   onClose: () => void;
   onConfirm: (password: string) => void;
@@ -78,12 +80,13 @@ function DeleteAccountModal({
   loading: boolean;
   authProvider: 'local' | 'google';
   socialDeleteReady: boolean;
+  onClickLog?: (objectIdx: number, objectId: string) => void;
 }) {
   const [password, setPassword] = useState('');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { onClickLog?.(2, 'close'); onClose(); }} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
         <h3 className="text-xl font-bold text-red-600 mb-4">정말 탈퇴하시겠습니까?</h3>
         <p className="text-sm text-slate-600 mb-4 leading-relaxed">
@@ -116,19 +119,18 @@ function DeleteAccountModal({
         )}
         <div className="flex gap-3">
           <button
-            onClick={onClose}
+            onClick={() => { onClickLog?.(0, 'cancel'); onClose(); }}
             className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-lg hover:bg-slate-50 transition-colors"
           >
             취소
           </button>
           <button
-            onClick={() => (
-              authProvider === 'local'
-                ? onConfirm(password)
-                : socialDeleteReady
-                  ? onConfirm('')
-                  : onConfirmSocial()
-            )}
+            onClick={() => {
+              onClickLog?.(1, authProvider === 'local' ? 'confirm' : socialDeleteReady ? 'confirm' : 'google_verify');
+              if (authProvider === 'local') onConfirm(password);
+              else if (socialDeleteReady) onConfirm('');
+              else onConfirmSocial();
+            }}
             disabled={(authProvider === 'local' && !password) || loading}
             className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg transition-colors"
           >
@@ -180,6 +182,17 @@ export default function MyPage() {
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [accountDeleteToken, setAccountDeleteToken] = useState('');
+
+  // ─── 로깅 ──────────────────────────────────────────────────────────────
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'mypage', url: '/mypage' }), []);
+  const click = useMemo(() => new ClickLog({ page_id: 'mypage', url: '/mypage' }), []);
+  const pvSent = useRef(false);
+
+  useEffect(() => {
+    if (isInitializing || !isLoggedIn || pvSent.current) return;
+    pvSent.current = true;
+    pageview.send({ data: { auth_provider: user?.authProvider ?? 'local' } });
+  }, [isInitializing, isLoggedIn, pageview, user?.authProvider]);
 
   // 비로그인 리다이렉트
   useEffect(() => {
@@ -484,7 +497,7 @@ export default function MyPage() {
                 </dd>
                 {!displayEmailVerified && (
                   <button
-                    onClick={handleSendVerification}
+                    onClick={() => { click.send({ object_section_id: 'profile', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'send_verification' }); handleSendVerification(); }}
                     disabled={verificationLoading}
                     className="text-sm text-primary-600 hover:text-primary-700 disabled:opacity-50"
                   >
@@ -514,7 +527,7 @@ export default function MyPage() {
                       className="flex-1 border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                     />
                     <button
-                      onClick={() => handleConfirmVerification()}
+                      onClick={() => { click.send({ object_section_id: 'profile', object_section_idx: 1, object_type: 'button', object_idx: 1, object_id: 'confirm_verification' }); handleConfirmVerification(); }}
                       disabled={verificationLoading}
                       className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg"
                     >
@@ -541,14 +554,14 @@ export default function MyPage() {
                       autoFocus
                     />
                     <button
-                      onClick={handleNicknameSave}
+                      onClick={() => { click.send({ object_section_id: 'profile', object_section_idx: 1, object_type: 'button', object_idx: 3, object_id: 'save_nickname' }); handleNicknameSave(); }}
                       disabled={nicknameLoading}
                       className="text-sm text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors"
                     >
                       {nicknameLoading ? '...' : '저장'}
                     </button>
                     <button
-                      onClick={() => { setEditingNickname(false); setNicknameMessage(null); }}
+                      onClick={() => { click.send({ object_section_id: 'profile', object_section_idx: 1, object_type: 'button', object_idx: 4, object_id: 'cancel_nickname' }); setEditingNickname(false); setNicknameMessage(null); }}
                       className="text-sm text-slate-500 hover:text-slate-700 px-2 py-1.5"
                     >
                       취소
@@ -558,7 +571,7 @@ export default function MyPage() {
                   <>
                     <dd className="text-slate-800">{displayNickname}</dd>
                     <button
-                      onClick={() => { setNewNickname(displayNickname); setEditingNickname(true); setNicknameMessage(null); }}
+                      onClick={() => { click.send({ object_section_id: 'profile', object_section_idx: 1, object_type: 'icon', object_idx: 2, object_id: 'edit_nickname' }); setNewNickname(displayNickname); setEditingNickname(true); setNicknameMessage(null); }}
                       className="text-slate-400 hover:text-primary-600 transition-colors"
                       title="닉네임 변경"
                     >
@@ -623,6 +636,7 @@ export default function MyPage() {
             <button
               type="submit"
               disabled={passwordLoading}
+              onClick={() => click.send({ object_section_id: 'password', object_section_idx: 2, object_type: 'button', object_idx: 0, object_id: 'change_password' })}
               className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold text-sm px-6 py-2.5 rounded-lg transition-colors"
             >
               {passwordLoading ? '처리 중...' : '비밀번호 변경'}
@@ -636,7 +650,7 @@ export default function MyPage() {
             <div className="flex items-center justify-between">
               <span className="text-slate-700">서비스 이용약관</span>
               <button
-                onClick={() => setTermsModal('terms')}
+                onClick={() => { click.send({ object_section_id: 'terms', object_section_idx: 3, object_type: 'link', object_idx: 0, object_id: 'terms' }); setTermsModal('terms'); }}
                 className="text-primary-600 hover:underline text-sm"
               >
                 보기
@@ -645,7 +659,7 @@ export default function MyPage() {
             <div className="flex items-center justify-between">
               <span className="text-slate-700">개인정보처리방침</span>
               <button
-                onClick={() => setTermsModal('privacy')}
+                onClick={() => { click.send({ object_section_id: 'terms', object_section_idx: 3, object_type: 'link', object_idx: 1, object_id: 'privacy' }); setTermsModal('privacy'); }}
                 className="text-primary-600 hover:underline text-sm"
               >
                 보기
@@ -665,7 +679,7 @@ export default function MyPage() {
             탈퇴 시 모든 학습 기록이 삭제되며 복구할 수 없습니다.
           </p>
           <button
-            onClick={() => setDeleteModal(true)}
+            onClick={() => { click.send({ object_section_id: 'danger_zone', object_section_idx: 4, object_type: 'button', object_idx: 0, object_id: 'delete_account' }); setDeleteModal(true); }}
             className="border border-red-300 text-red-600 hover:bg-red-50 font-semibold text-sm px-6 py-2.5 rounded-lg transition-colors"
           >
             회원 탈퇴
@@ -675,10 +689,10 @@ export default function MyPage() {
 
       {/* 약관 모달 */}
       {termsModal === 'terms' && (
-        <TermsModal title="서비스 이용약관" content={TERMS_TEXT} onClose={() => setTermsModal(null)} />
+        <TermsModal title="서비스 이용약관" content={TERMS_TEXT} onClose={() => setTermsModal(null)} onClickLog={(objIdx, objId) => click.send({ object_section_id: 'terms_modal', object_type: 'button', object_idx: objIdx, object_id: objId, data: { modal_type: 'terms' } })} />
       )}
       {termsModal === 'privacy' && (
-        <TermsModal title="개인정보처리방침" content={PRIVACY_TEXT} onClose={() => setTermsModal(null)} />
+        <TermsModal title="개인정보처리방침" content={PRIVACY_TEXT} onClose={() => setTermsModal(null)} onClickLog={(objIdx, objId) => click.send({ object_section_id: 'terms_modal', object_type: 'button', object_idx: objIdx, object_id: objId, data: { modal_type: 'privacy' } })} />
       )}
 
       {/* 탈퇴 확인 모달 */}
@@ -690,6 +704,7 @@ export default function MyPage() {
           loading={deleteLoading}
           authProvider={authProvider}
           socialDeleteReady={!!accountDeleteToken}
+          onClickLog={(objIdx, objId) => click.send({ object_section_id: 'delete_modal', object_type: 'button', object_idx: objIdx, object_id: objId, data: { auth_provider: authProvider } })}
         />
       )}
     </div>

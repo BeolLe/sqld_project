@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthModal } from '../contexts/AuthModalContext';
-import { logEvent } from '../utils/eventLogger';
+import { PageviewLog, ClickLog } from '../logging';
 import type { Difficulty } from '../types';
 import { fetchSQLPracticeList, type SQLPracticeListItem } from '../api/content';
 
@@ -30,6 +30,10 @@ export default function SQLPracticeListPage() {
   const [sort, setSort] = useState<SortKey>('default');
   const [diffFilter, setDiffFilter] = useState<Difficulty | 'all'>('all');
 
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'sql_list', url: '/sql-practice' }), []);
+  const click = useMemo(() => new ClickLog({ page_id: 'sql_list', url: '/sql-practice' }), []);
+  const pvSent = useRef(false);
+
   useEffect(() => {
     let mounted = true;
 
@@ -37,17 +41,24 @@ export default function SQLPracticeListPage() {
       .then((data) => {
         if (!mounted) return;
         setProblems(data);
-        logEvent('sql_list_viewed', { total_problems: data.length });
+        if (!pvSent.current) {
+          pvSent.current = true;
+          pageview.send({ data: { problem_count: data.length } });
+        }
       })
       .catch((caughtError) => {
         if (!mounted) return;
         setError(caughtError instanceof Error ? caughtError.message : 'SQL 실습 목록을 불러오지 못했습니다.');
+        if (!pvSent.current) {
+          pvSent.current = true;
+          pageview.send({ data: { problem_count: 0, is_error: true } });
+        }
       });
 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [pageview]);
 
   const filtered = useMemo(() => {
     let list = problems.filter((p) => {
@@ -83,6 +94,16 @@ export default function SQLPracticeListPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              // 검색 착수 시점을 남긴다. 입력값은 수집하지 않는다 (의사결정 A-2).
+              onFocus={() =>
+                click.send({
+                  object_section_id: 'search',
+                  object_section_idx: 0,
+                  object_type: 'input',
+                  object_idx: 0,
+                  object_id: 'search',
+                })
+              }
               placeholder="문제명 또는 카테고리 검색"
               className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
             />
@@ -90,10 +111,13 @@ export default function SQLPracticeListPage() {
 
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="w-4 h-4 text-slate-400" />
-            {(['all', 'easy', 'medium', 'hard'] as const).map((d) => (
+            {(['all', 'easy', 'medium', 'hard'] as const).map((d, idx) => (
               <button
                 key={d}
-                onClick={() => setDiffFilter(d)}
+                onClick={() => {
+                  click.send({ object_section_id: 'filter', object_section_idx: 1, object_type: 'button', object_idx: idx, object_id: `difficulty_${d}`, data: { selected: d } });
+                  setDiffFilter(d);
+                }}
                 className={`text-xs px-3 py-1.5 rounded-full font-semibold transition-colors border ${
                   diffFilter === d
                     ? 'bg-primary-600 text-white border-primary-600'
@@ -124,11 +148,15 @@ export default function SQLPracticeListPage() {
             <div
               key={problem.id}
               onClick={() => {
+                click.send({
+                  object_section_id: 'problem_list', object_section_idx: 2, object_type: 'card', object_idx: filtered.indexOf(problem), object_id: 'problem',
+                  object_url: `/sql-practice/${problem.id}`,
+                  data: { problem_id: problem.id, difficulty: problem.difficulty, category: problem.category, correct_rate: problem.correctRate, is_logged_in: !!user },
+                });
                 if (!user) {
                   openAuthModal('login');
                   return;
                 }
-                logEvent('sql_problem_clicked', { problem_id: problem.id, difficulty: problem.difficulty, category: problem.category, correct_rate: problem.correctRate });
                 navigate(`/sql-practice/${problem.id}`);
               }}
               className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between hover:border-primary-400 hover:shadow-md cursor-pointer transition-all"

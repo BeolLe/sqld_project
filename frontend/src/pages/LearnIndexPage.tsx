@@ -5,18 +5,19 @@
  * 하드코딩으로 판단한다. 사용자별 학습 진도·완료 표시도 아직 없다.
  * DB 연동 시 커리큘럼과 진도를 서버에서 받아 카드 상태를 계산하도록 바꾼다.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TriangleAlert } from 'lucide-react';
 import { ALL_UNITS, CURRICULUM } from '../data/learn/curriculum';
 import type { LearnUnit } from '../data/learn/types';
 import { useAuth } from '../contexts/AuthContext';
+import { PageviewLog, ClickLog } from '../logging';
 
 const CARD_CLASS =
   'group flex gap-3.5 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-px hover:border-primary-500 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500';
 
 /** 준비 중 항목은 이동시키지 않고 안내 팝업만 띄운다. */
-function PreparingDialog({ title, onClose }: { title: string; onClose: () => void }) {
+function PreparingDialog({ title, onClose, onClickLog }: { title: string; unitData?: { unit_id: string; unit_title: string }; onClose: () => void; onClickLog?: (objectIdx: number, objectId: string) => void }) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -31,7 +32,7 @@ function PreparingDialog({ title, onClose }: { title: string; onClose: () => voi
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-5"
-      onClick={onClose}
+      onClick={() => { onClickLog?.(1, 'close'); onClose(); }}
     >
       <div
         role="dialog"
@@ -54,7 +55,7 @@ function PreparingDialog({ title, onClose }: { title: string; onClose: () => voi
         <button
           ref={closeRef}
           type="button"
-          onClick={onClose}
+          onClick={() => { onClickLog?.(0, 'confirm'); onClose(); }}
           className="w-full rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700"
         >
           확인
@@ -64,7 +65,7 @@ function PreparingDialog({ title, onClose }: { title: string; onClose: () => voi
   );
 }
 
-function UnitCard({ unit, onPreparing }: { unit: LearnUnit; onPreparing: () => void }) {
+function UnitCard({ unit, unitIdx, onPreparing, onClick }: { unit: LearnUnit; unitIdx: number; onPreparing: () => void; onClick: (u: LearnUnit, idx: number) => void }) {
   const ready = unit.blocks.length > 0;
 
   const body = (
@@ -94,14 +95,14 @@ function UnitCard({ unit, onPreparing }: { unit: LearnUnit; onPreparing: () => v
 
   if (!ready) {
     return (
-      <button type="button" onClick={onPreparing} className={CARD_CLASS}>
+      <button type="button" onClick={() => { onClick(unit, unitIdx); onPreparing(); }} className={CARD_CLASS}>
         {body}
       </button>
     );
   }
 
   return (
-    <Link to={`/learn/${unit.id}`} className={CARD_CLASS}>
+    <Link to={`/learn/${unit.id}`} onClick={() => onClick(unit, unitIdx)} className={CARD_CLASS}>
       {body}
     </Link>
   );
@@ -110,10 +111,27 @@ function UnitCard({ unit, onPreparing }: { unit: LearnUnit; onPreparing: () => v
 export default function LearnIndexPage() {
   const readyCount = ALL_UNITS.filter((unit) => unit.blocks.length > 0).length;
   const totalMinutes = ALL_UNITS.reduce((sum, unit) => sum + unit.estimatedMin, 0);
+  const groupCount = CURRICULUM.reduce((sum, s) => sum + s.groups.length, 0);
   const [preparingTitle, setPreparingTitle] = useState<string | null>(null);
-  const closeDialog = useCallback(() => setPreparingTitle(null), []);
+  const [preparingUnit, setPreparingUnit] = useState<LearnUnit | null>(null);
+  const closeDialog = useCallback(() => { setPreparingTitle(null); setPreparingUnit(null); }, []);
   const { isLoggedIn, isInitializing } = useAuth();
   const navigate = useNavigate();
+
+  // ─── 로깅 ──────────────────────────────────────────────────────────────
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'learn_index', url: '/learn' }), []);
+  const click = useMemo(() => new ClickLog({ page_id: 'learn_index', url: '/learn' }), []);
+  const pvSent = useRef(false);
+
+  useEffect(() => {
+    if (isInitializing || pvSent.current) return;
+    pvSent.current = true;
+    if (isLoggedIn) {
+      pageview.send({ step: 'list', data: { ready_unit_count: readyCount, total_unit_count: ALL_UNITS.length, group_count: groupCount, total_estimated_minutes: totalMinutes } });
+    } else {
+      pageview.send({ step: 'login_required' });
+    }
+  }, [isInitializing, isLoggedIn, pageview, readyCount, groupCount, totalMinutes]);
 
   // ─── 인증 상태 분기 ──────────────────────────────────────────────────────
 
@@ -134,7 +152,13 @@ export default function LearnIndexPage() {
             <br />
             로그인하시면 30개 세부항목의 개념 노트와 빈칸 복습을 이용할 수 있습니다.
           </p>
-          <button onClick={() => navigate('/')} className="text-primary-600 hover:underline">
+          <button
+            onClick={() => {
+              click.send({ object_section_id: 'login_required', object_section_idx: 2, object_type: 'button', object_idx: 0, object_id: 'home', object_url: '/', page_params: { step: 'login_required' } });
+              navigate('/');
+            }}
+            className="text-primary-600 hover:underline"
+          >
             홈으로 돌아가기
           </button>
         </div>
@@ -203,7 +227,17 @@ export default function LearnIndexPage() {
                     <UnitCard
                       key={unit.id}
                       unit={unit}
-                      onPreparing={() => setPreparingTitle(unit.title)}
+                      unitIdx={unit.order - 1}
+                      onPreparing={() => { setPreparingTitle(unit.title); setPreparingUnit(unit); }}
+                      onClick={(u, idx) => {
+                        const ready = u.blocks.length > 0;
+                        click.send({
+                          object_section_id: 'unit_list', object_section_idx: 1, object_type: 'card', object_idx: idx, object_id: 'unit',
+                          object_url: ready ? `/learn/${u.id}` : '',
+                          data: { unit_id: u.id, unit_title: u.title, subject: subject.subject, group: group.name, estimated_minutes: u.estimatedMin, is_ready: ready },
+                          page_params: { step: 'list' },
+                        });
+                      }}
                     />
                   ))}
                 </div>
@@ -215,7 +249,20 @@ export default function LearnIndexPage() {
         <div className="pb-20" />
       </div>
 
-      {preparingTitle && <PreparingDialog title={preparingTitle} onClose={closeDialog} />}
+      {preparingTitle && (
+        <PreparingDialog
+          title={preparingTitle}
+          unitData={preparingUnit ? { unit_id: preparingUnit.id, unit_title: preparingUnit.title } : undefined}
+          onClose={closeDialog}
+          onClickLog={(objIdx, objId) => {
+            click.send({
+              object_section_id: 'preparing_modal', object_type: 'button', object_idx: objIdx, object_id: objId,
+              data: preparingUnit ? { unit_id: preparingUnit.id, unit_title: preparingUnit.title } : {},
+              page_params: { step: 'list' },
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

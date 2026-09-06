@@ -1,8 +1,12 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useMemo, useState, type KeyboardEvent } from 'react';
+import { useParams } from 'react-router-dom';
 import type { Blank } from '../../data/learn/types';
+import { ClickLog } from '../../logging';
 
 interface Props {
   blank: Blank;
+  /** 로그의 block_id 로 쓰인다. */
+  blockId: string;
   onGrade: (blankId: string, correct: boolean) => void;
 }
 
@@ -13,9 +17,15 @@ function normalize(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-export default function LearnBlank({ blank, onGrade }: Props) {
+export default function LearnBlank({ blank, blockId, onGrade }: Props) {
   const [value, setValue] = useState('');
   const [result, setResult] = useState<Result>('idle');
+
+  const { unitId } = useParams<{ unitId: string }>();
+  const click = useMemo(
+    () => new ClickLog({ page_id: 'learn_unit', url: `/learn/${unitId ?? ''}` }),
+    [unitId]
+  );
 
   const grade = () => {
     const input = normalize(value);
@@ -51,6 +61,18 @@ export default function LearnBlank({ blank, onGrade }: Props) {
         type="text"
         value={value}
         onChange={(event) => setValue(event.target.value)}
+        // 빈칸 시도 착수 시점을 남긴다. 입력값과 채점 결과는 담지 않는다 (의사결정 A-2 · D-4).
+        onFocus={() =>
+          click.send({
+            object_section_id: 'note',
+            object_section_idx: 2,
+            object_type: 'input',
+            object_idx: 0,
+            object_id: 'blank',
+            page_params: { unit_id: unitId, step: 'quiz' },
+            data: { block_id: blockId, blank_id: blank.id },
+          })
+        }
         onBlur={grade}
         onKeyDown={handleKeyDown}
         size={Math.max(4, blank.answer.length)}

@@ -1,9 +1,12 @@
+import { useMemo } from 'react';
 import { RotateCcw } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { AIStreamStatus } from '../hooks/useAIStream';
 import { normalizeMarkdownEmphasis } from '../utils/markdown';
+import { ClickLog } from '../logging';
 
 interface AIStreamPanelProps {
   status: AIStreamStatus;
@@ -97,6 +100,13 @@ export default function AIStreamPanel({
   icon = '🤖',
   tone = 'blue',
 }: AIStreamPanelProps) {
+  const location = useLocation();
+  const click = useMemo(() => {
+    const path = location.pathname;
+    const pid = path.includes('/exams') ? (path.includes('/result') ? 'exam_result' : 'exam_taking') : path.includes('/sql-practice') ? 'sql_solving' : 'endless';
+    return new ClickLog({ page_id: pid, url: path });
+  }, [location.pathname]);
+
   const containerToneClass =
     tone === 'red' ? 'border-red-200 bg-red-50' : 'border-blue-200 bg-blue-50';
   const headerBorderToneClass = tone === 'red' ? 'border-red-200' : 'border-blue-200';
@@ -137,7 +147,7 @@ export default function AIStreamPanel({
           <div className="flex items-start gap-2">
             <p className="text-xs text-red-600 flex-1">{error}</p>
             <button
-              onClick={onRetry}
+              onClick={() => { click.send({ object_section_id: 'ai_panel', object_type: 'button', object_idx: 0, object_id: 'retry' }); onRetry(); }}
               className="shrink-0 flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
             >
               <RotateCcw className="w-3 h-3" />

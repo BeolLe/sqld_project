@@ -1,8 +1,9 @@
-// test: direct main push verification
+import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Terminal, Trophy, ChevronRight, CheckCircle } from 'lucide-react';
 import ExamScheduleCard from '../components/ExamScheduleCard';
 import CreatorCredentials from '../components/CreatorCredentials';
+import { PageviewLog, ClickLog } from '../logging';
 
 const FEATURES = [
   {
@@ -44,6 +45,15 @@ const EXAM_HIGHLIGHTS = [
 
 export default function MainPage() {
   const navigate = useNavigate();
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'main', url: '/' }), []);
+  const click = useMemo(() => new ClickLog({ page_id: 'main', url: '/' }), []);
+  const pvSent = useRef(false);
+
+  useEffect(() => {
+    if (pvSent.current) return;
+    pvSent.current = true;
+    pageview.send();
+  }, [pageview]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sqld-navy to-slate-900">
@@ -64,13 +74,19 @@ export default function MainPage() {
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <button
-            onClick={() => navigate('/exams')}
+            onClick={() => {
+              click.send({ object_section_id: 'hero', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'exam_list', object_url: '/exams' });
+              navigate('/exams');
+            }}
             className="flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-bold px-8 py-4 rounded-xl text-lg transition-colors shadow-lg shadow-primary-900/40"
           >
             모의고사 풀이 <ChevronRight className="w-5 h-5" />
           </button>
           <button
-            onClick={() => navigate('/sql-practice')}
+            onClick={() => {
+              click.send({ object_section_id: 'hero', object_section_idx: 1, object_type: 'button', object_idx: 1, object_id: 'sql_practice', object_url: '/sql-practice' });
+              navigate('/sql-practice');
+            }}
             className="flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold px-8 py-4 rounded-xl text-lg transition-colors"
           >
             SQL 실습 <ChevronRight className="w-5 h-5" />

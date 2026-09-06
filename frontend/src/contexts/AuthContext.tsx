@@ -8,6 +8,7 @@ import {
 } from 'react';
 import type { User } from '../types';
 import { logEvent, setAmplitudeUserId, resetAmplitudeUserId } from '../utils/eventLogger';
+import { tracker } from '../logging';
 import { apiRequest } from '../utils/api';
 
 interface AuthResult {
@@ -149,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setUser(null);
     resetAmplitudeUserId();
+    tracker.setUser(undefined);
   }, []);
 
   const updatePoints = useCallback((points: number) => {
@@ -177,6 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const nextUser = toUser(me);
     setUser(nextUser);
     setAmplitudeUserId(nextUser.id);
+    tracker.setUser(nextUser.id);
     return nextUser;
   }, []);
 
@@ -274,8 +277,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email, password, auto_login: autoLogin }),
     });
 
-    const me = await loadCurrentUser();
-    logEvent('common_login_succeeded', { email: me.email }, me.id);
+    // 로그인 성공·실패는 백엔드 logs.auth_events 가 기록한다 (의사결정 C-4 · E-1).
+    await loadCurrentUser();
 
     return { message: '로그인에 성공했습니다.' };
   }, [loadCurrentUser]);

@@ -7,17 +7,19 @@ import ErdDiagram from './ErdDiagram';
 interface Props {
   nodes: LearnNode[];
   blanks: Blank[];
+  /** 로그의 block_id 로 쓰인다. */
+  blockId: string;
   quizMode: boolean;
   onGrade: (blankId: string, correct: boolean) => void;
 }
 
-export default function BlockRenderer({ nodes, blanks, quizMode, onGrade }: Props) {
+export default function BlockRenderer({ nodes, blanks, blockId, quizMode, onGrade }: Props) {
   return (
     <>
       {nodes.map((node, index) => {
         const key = `${node.kind}-${index}`;
         const inline = (text: string) => (
-          <InlineText text={text} blanks={blanks} quizMode={quizMode} onGrade={onGrade} />
+          <InlineText text={text} blanks={blanks} blockId={blockId} quizMode={quizMode} onGrade={onGrade} />
         );
 
         switch (node.kind) {

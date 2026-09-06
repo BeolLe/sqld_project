@@ -5,6 +5,8 @@ import LearnBlank from './LearnBlank';
 interface Props {
   text: Inline;
   blanks: Blank[];
+  /** 로그의 block_id 로 쓰인다. */
+  blockId: string;
   /** true면 {{id}} 를 입력창으로, false면 정답 텍스트로 렌더링한다. */
   quizMode: boolean;
   onGrade: (blankId: string, correct: boolean) => void;
@@ -13,7 +15,7 @@ interface Props {
 /** `{{b1}}` · `` `code` `` · `**bold**` 를 분해하는 토크나이저 */
 const TOKEN = /(\{\{\w+\}\}|`[^`]+`|\*\*[^*]+\*\*)/g;
 
-export default function InlineText({ text, blanks, quizMode, onGrade }: Props) {
+export default function InlineText({ text, blanks, blockId, quizMode, onGrade }: Props) {
   const parts = text.split(TOKEN).filter((part) => part !== '');
 
   return (
@@ -26,7 +28,7 @@ export default function InlineText({ text, blanks, quizMode, onGrade }: Props) {
           const blank = blanks.find((b) => b.id === id);
           if (!blank) return null;
           return quizMode ? (
-            <LearnBlank key={key} blank={blank} onGrade={onGrade} />
+            <LearnBlank key={key} blank={blank} blockId={blockId} onGrade={onGrade} />
           ) : (
             <span key={key} className="font-bold text-primary-600">
               {blank.answer}

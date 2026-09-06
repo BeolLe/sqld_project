@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { RotateCcw, ChevronRight, CheckCircle, XCircle, Shuffle, ChevronLeft, Flag, Sparkles } from 'lucide-react';
 import type { Problem, AIExplainRequest } from '../types';
 import DescriptionRenderer from './DescriptionRenderer';
@@ -8,16 +8,19 @@ import ReportErrorModal from './ReportErrorModal';
 import AIStreamPanel from './AIStreamPanel';
 import { useAIStream } from '../hooks/useAIStream';
 import { useAIUsage } from '../contexts/AIUsageContext';
+import { PageviewLog, ClickLog } from '../logging';
 import { logEvent } from '../utils/eventLogger';
 
 function EndlessWrongItemAI({
   problem,
   userAnswer,
   attemptId,
+  onClickLog,
 }: {
   problem: Problem;
   userAnswer: string;
   attemptId: number;
+  onClickLog?: () => void;
 }) {
   const { status, text, usage: streamUsage, error, start, retry } = useAIStream();
   const { usage, refreshUsage } = useAIUsage();
@@ -36,6 +39,7 @@ function EndlessWrongItemAI({
 
   const handleClick = () => {
     if (isExhausted || status === 'streaming') return;
+    onClickLog?.();
     const body: AIExplainRequest = {
       attempt_id: String(attemptId),
       problem_id: problem.id,
@@ -125,6 +129,10 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
   const [actionError, setActionError] = useState<string | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
 
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'endless', url: '/endless' }), []);
+  const click = useMemo(() => new ClickLog({ page_id: 'endless', url: '/endless', pageParams: { step: 'playing' } }), []);
+  const pvSent = useRef(false);
+
   const problem = queue[currentIndex] ?? null;
   const isAnswered = selectedAnswer !== null;
   const isCorrect = selectedAnswer === problem?.answer;
@@ -143,6 +151,10 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
         if (typeof stats.totalPoints === 'number') {
           updatePoints(stats.totalPoints);
         }
+        if (!pvSent.current && problem) {
+          pvSent.current = true;
+          pageview.send({ step: 'playing', data: { subject: problem.category, problem_id: problem.id } });
+        }
       })
       .catch((error) => {
         if (!cancelled) {
@@ -158,7 +170,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
     return () => {
       cancelled = true;
     };
-  }, [updatePoints]);
+  }, [updatePoints, pageview, problem]);
 
   const handleSelect = useCallback(
     async (option: string) => {
@@ -246,7 +258,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <button
-            onClick={onBack}
+            onClick={() => { click.send({ object_section_id: 'title_bar', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'back', data: { subject: problem?.category, problem_id: problem?.id } }); onBack(); }}
             className="text-slate-400 hover:text-slate-600 transition-colors"
             title="모드 선택으로"
           >
@@ -276,7 +288,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
               )}
           </div>
           <button
-            onClick={() => setShowReportModal(true)}
+            onClick={() => { click.send({ object_section_id: 'title_bar', object_section_idx: 1, object_type: 'button', object_idx: 1, object_id: 'report_error', data: { subject: problem?.category, problem_id: problem?.id } }); setShowReportModal(true); }}
             className="flex items-center gap-1 text-slate-400 hover:text-amber-500 text-sm transition-colors"
             title="문제 오류 제보"
           >
@@ -285,6 +297,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
           </button>
           <button
             onClick={() => {
+              click.send({ object_section_id: 'title_bar', object_section_idx: 1, object_type: 'button', object_idx: 2, object_id: 'reset', data: { subject: problem?.category, problem_id: problem?.id } });
               void handleReset();
             }}
             disabled={isSubmitting}
@@ -342,6 +355,9 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
               <button
                 key={optionNum}
                 onClick={() => {
+                  // 대표명은 option 하나로 두고 몇 번 보기인지는 object_idx 로 구분한다.
+                  // 보기 개수가 늘어도 명세가 깨지지 않는다 (의사결정 B-2).
+                  click.send({ object_section_id: 'problem', object_section_idx: 2, object_type: 'radio_button', object_idx: Number(optionNum), object_id: 'option', data: { subject: problem.category, problem_id: problem.id, selected_option: optionNum } });
                   void handleSelect(optionNum);
                 }}
                 disabled={isAnswered || isSubmitting}
@@ -388,6 +404,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
                     problem={problem}
                     userAnswer={selectedAnswer}
                     attemptId={answerId}
+                    onClickLog={() => click.send({ object_section_id: 'result', object_section_idx: 3, object_type: 'button', object_idx: 0, object_id: 'ai_explain', data: { subject: problem.category, problem_id: problem.id } })}
                   />
                 )}
               </div>
@@ -395,7 +412,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
 
             <div className="px-6 pb-6">
               <button
-                onClick={handleNext}
+                onClick={() => { click.send({ object_section_id: 'result', object_section_idx: 3, object_type: 'button', object_idx: 1, object_id: 'next', data: { subject: problem.category, problem_id: problem.id } }); handleNext(); }}
                 className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-xl transition-colors"
               >
                 다음 문제 <ChevronRight className="w-5 h-5" />
