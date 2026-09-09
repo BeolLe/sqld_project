@@ -68,6 +68,18 @@ async function executeSQL(query: string, practiceId: string, action: 'execute' |
   return (await response.json()) as SQLResult;
 }
 
+async function initializeSQLWorkspace(practiceId: string): Promise<void> {
+  const response = await apiRequest('/sql/workspace/init', {
+    method: 'POST',
+    body: JSON.stringify({ practice_id: practiceId }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(payload?.detail || 'SQL 환경을 준비하지 못했습니다.');
+  }
+}
+
 /** 드래그 리사이즈 핸들러 훅 — state는 호출측에서 관리 */
 function useResizeDrag(
   containerRef: React.RefObject<HTMLDivElement | null>,
@@ -129,6 +141,8 @@ export default function SQLPracticePage() {
     correctRate: number;
   } | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [workspacePreparing, setWorkspacePreparing] = useState(false);
+  const [workspaceInitError, setWorkspaceInitError] = useState('');
 
   useEffect(() => {
     if (!id || !user) return;
@@ -177,6 +191,29 @@ export default function SQLPracticePage() {
       mounted = false;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !user?.id) return;
+
+    let mounted = true;
+    setWorkspacePreparing(true);
+    setWorkspaceInitError('');
+
+    initializeSQLWorkspace(id)
+      .catch((caughtError) => {
+        if (!mounted) return;
+        setWorkspaceInitError(
+          caughtError instanceof Error ? caughtError.message : 'SQL 환경을 준비하지 못했습니다.'
+        );
+      })
+      .finally(() => {
+        if (mounted) setWorkspacePreparing(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [id, user?.id]);
 
   useEffect(() => {
     if (problem) {
@@ -230,7 +267,15 @@ export default function SQLPracticePage() {
   }, [problem, pageview, id]);
 
   const handleExecute = useCallback(async () => {
-    if (!problem || !query.trim() || sqlRequestInFlightRef.current) return;
+    if (
+      !problem ||
+      problem.id !== id ||
+      !query.trim() ||
+      workspacePreparing ||
+      sqlRequestInFlightRef.current
+    ) {
+      return;
+    }
     sqlRequestInFlightRef.current = true;
     setLoading(true);
     setExecuteError('');
@@ -238,6 +283,7 @@ export default function SQLPracticePage() {
     try {
       const nextResult = await executeSQL(query, problem.id, 'execute');
       setResult(nextResult);
+      setWorkspaceInitError('');
     } catch (caughtError) {
       setResult(null);
       setExecuteError(
@@ -247,7 +293,7 @@ export default function SQLPracticePage() {
       sqlRequestInFlightRef.current = false;
       setLoading(false);
     }
-  }, [query, id, problem, user?.id]);
+  }, [query, id, problem, user?.id, workspacePreparing]);
 
   const isMac = useMemo(() => /Mac|iPhone|iPad/.test(navigator.platform), []);
 
@@ -266,7 +312,15 @@ export default function SQLPracticePage() {
   const editorExtensions = useMemo(() => [sql()], []);
 
   const handleSubmit = useCallback(async () => {
-    if (!problem || !query.trim() || sqlRequestInFlightRef.current) return;
+    if (
+      !problem ||
+      problem.id !== id ||
+      !query.trim() ||
+      workspacePreparing ||
+      sqlRequestInFlightRef.current
+    ) {
+      return;
+    }
     sqlRequestInFlightRef.current = true;
     setExecuteError('');
     setLoading(true);
@@ -274,6 +328,7 @@ export default function SQLPracticePage() {
     try {
       const nextResult = await executeSQL(query, problem.id, 'submit');
       setResult(nextResult);
+      setWorkspaceInitError('');
       const isCorrect = nextResult.isCorrect === true;
 
       if (nextResult.isCorrect == null) {
@@ -310,7 +365,7 @@ export default function SQLPracticePage() {
       sqlRequestInFlightRef.current = false;
       setLoading(false);
     }
-  }, [query, problem, id, user?.id]);
+  }, [query, problem, id, user?.id, workspacePreparing]);
 
   if (!problem) {
     return (
@@ -578,6 +633,11 @@ export default function SQLPracticePage() {
             </CollapsibleSection>
 
             {/* API 에러 표시 */}
+            {workspaceInitError && (
+              <div className="rounded-lg px-4 py-3 text-sm font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                {workspaceInitError} 쿼리를 실행하면 다시 준비를 시도합니다.
+              </div>
+            )}
             {executeError && (
               <div className="rounded-lg px-4 py-3 text-sm font-semibold bg-red-50 text-red-600 border border-red-200">
                 {executeError}
@@ -613,15 +673,15 @@ export default function SQLPracticePage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => { click.send({ object_section_id: 'editor', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'run', data: { trigger: 'button' } }); handleExecute(); }}
-                  disabled={loading}
+                  disabled={loading || workspacePreparing || problem.id !== id}
                   className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-md transition-colors"
                 >
                   <Play className="w-3 h-3" />
-                  실행 ({isMac ? '⌘' : 'Ctrl'}+Enter)
+                  {workspacePreparing ? '환경 준비 중...' : `실행 (${isMac ? '⌘' : 'Ctrl'}+Enter)`}
                 </button>
                 <button
                   onClick={() => { click.send({ object_section_id: 'editor', object_section_idx: 1, object_type: 'button', object_idx: 1, object_id: 'submit', data: { trigger: 'button' } }); handleSubmit(); }}
-                  disabled={loading}
+                  disabled={loading || workspacePreparing || problem.id !== id}
                   className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-md transition-colors"
                 >
                   <Send className="w-3 h-3" />

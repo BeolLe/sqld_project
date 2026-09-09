@@ -5,6 +5,7 @@ from app.api.sql import router as sql_router
 from app.api.sql.router import result_fetch_limit
 from app.core.config import settings
 from app.db import oracle
+from app.services import sql_workspace
 from app.services.sql_workspace import WorkspaceValidationError, validate_query_safety
 
 
@@ -123,6 +124,24 @@ class SQLRuntimeGuardrailTests(unittest.TestCase):
             )
 
         self.assertEqual(connection.events, ["limits", "rollback"])
+
+    def test_workspace_reset_batches_drop_and_create_statements(self):
+        connection = _FakeMutationConnection()
+        with patch.object(
+            sql_workspace,
+            "fetch_namespace_tables",
+            return_value={"PX_TEST_OLD"},
+        ):
+            dropped_tables = sql_workspace.prepare_namespace(
+                connection,
+                _FakeWorkspace(),
+            )
+
+        self.assertEqual(dropped_tables, ["PX_TEST_OLD"])
+        self.assertEqual(len(connection.events), 2)
+        self.assertTrue(connection.events[0].startswith("BEGIN\n"))
+        self.assertEqual(connection.events[0].count("EXECUTE IMMEDIATE"), 13)
+        self.assertEqual(connection.events[1], "commit")
 
 
 if __name__ == "__main__":

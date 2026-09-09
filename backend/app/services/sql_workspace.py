@@ -191,33 +191,53 @@ def extract_rename_target_object(query: str) -> str | None:
 
 
 def prepare_namespace(conn, workspace: WorkspaceContext) -> list[str]:
-    dropped_tables = cleanup_namespace_tables(conn, workspace)
-    create_base_tables(conn, workspace)
-    return dropped_tables
+    existing_tables = sorted(fetch_namespace_tables(conn, workspace))
+    execute_ddl_batch(
+        conn,
+        [f"DROP TABLE {table_name} PURGE" for table_name in existing_tables]
+        + [
+            f"CREATE TABLE {workspace.table_name(base_table)} AS "
+            f"SELECT * FROM MASTER_{base_table}"
+            for base_table in BASE_TABLES
+        ],
+    )
+    return existing_tables
+
+
+def execute_ddl_batch(conn, statements: list[str]) -> None:
+    if not statements:
+        return
+
+    escaped_statements = [statement.replace("'", "''") for statement in statements]
+    block = "BEGIN\n" + "\n".join(
+        f"  EXECUTE IMMEDIATE '{statement}';" for statement in escaped_statements
+    ) + "\nEND;"
+    with conn.cursor() as cur:
+        cur.execute(block)
+    conn.commit()
 
 
 def cleanup_namespace_tables(conn, workspace: WorkspaceContext) -> list[str]:
-    existing_tables = fetch_namespace_tables(conn, workspace)
+    existing_tables = sorted(fetch_namespace_tables(conn, workspace))
     if not existing_tables:
         return []
 
-    with conn.cursor() as cur:
-        for table_name in sorted(existing_tables):
-            cur.execute(f"DROP TABLE {table_name} PURGE")
-
-    conn.commit()
-    return sorted(existing_tables)
+    execute_ddl_batch(
+        conn,
+        [f"DROP TABLE {table_name} PURGE" for table_name in existing_tables],
+    )
+    return existing_tables
 
 
 def create_base_tables(conn, workspace: WorkspaceContext) -> list[str]:
-    with conn.cursor() as cur:
-        for base_table in BASE_TABLES:
-            cur.execute(
-                f"CREATE TABLE {workspace.table_name(base_table)} AS "
-                f"SELECT * FROM MASTER_{base_table}"
-            )
-
-    conn.commit()
+    execute_ddl_batch(
+        conn,
+        [
+            f"CREATE TABLE {workspace.table_name(base_table)} AS "
+            f"SELECT * FROM MASTER_{base_table}"
+            for base_table in BASE_TABLES
+        ],
+    )
     return list(BASE_TABLES)
 
 
@@ -247,11 +267,10 @@ def cleanup_namespace_by_prefix(conn, namespace_prefix: str) -> list[str]:
     if not existing_tables:
         return []
 
-    with conn.cursor() as cur:
-        for table_name in existing_tables:
-            cur.execute(f"DROP TABLE {table_name} PURGE")
-
-    conn.commit()
+    execute_ddl_batch(
+        conn,
+        [f"DROP TABLE {table_name} PURGE" for table_name in existing_tables],
+    )
     return existing_tables
 
 
