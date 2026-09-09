@@ -339,7 +339,6 @@ export interface SQLResult {
   columns: string[];
   rows: Record<string, string | number | null>[];
   executionTimeMs: number;
-  truncated?: boolean;
   error?: string;
   isCorrect?: boolean | null;
   awardedPoints?: number;
