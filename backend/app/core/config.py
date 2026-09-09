@@ -25,11 +25,12 @@ class Settings:
         os.getenv("ORACLE_POOL_IDLE_TIMEOUT_SECONDS", "10")
     )
     ORACLE_POOL_WAIT_TIMEOUT_MS = int(
-        os.getenv("ORACLE_POOL_WAIT_TIMEOUT_MS", "10000")
+        os.getenv("ORACLE_POOL_WAIT_TIMEOUT_MS", "3000")
     )
     ORACLE_POOL_PING_INTERVAL_SECONDS = int(
         os.getenv("ORACLE_POOL_PING_INTERVAL_SECONDS", "60")
     )
+    ORACLE_CALL_TIMEOUT_MS = int(os.getenv("ORACLE_CALL_TIMEOUT_MS", "7000"))
 
     POSTGRES_HOST = os.getenv("POSTGRES_HOST", "")
     POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5432"))
@@ -71,7 +72,7 @@ class Settings:
         "SQL_EXECUTION_SLOW_SLACK_WEBHOOK_URL", ""
     )
     SQL_EXECUTION_SLOW_ALERT_THRESHOLD_MS = int(
-        os.getenv("SQL_EXECUTION_SLOW_ALERT_THRESHOLD_MS", "10000")
+        os.getenv("SQL_EXECUTION_SLOW_ALERT_THRESHOLD_MS", "5000")
     )
 
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")

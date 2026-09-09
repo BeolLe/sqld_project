@@ -41,7 +41,9 @@ def close_oracle_pool():
 
 def get_oracle_connection():
     pool = init_oracle_pool()
-    return pool.acquire()
+    connection = pool.acquire()
+    connection.call_timeout = settings.ORACLE_CALL_TIMEOUT_MS
+    return connection
 
 
 def check_oracle():

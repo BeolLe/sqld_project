@@ -117,7 +117,23 @@ def validate_statement_shape(query: str, statement_type: str) -> None:
 
 
 def validate_query_safety(query: str) -> None:
-    uppercase_query = query.upper()
+    segments = split_sql_segments(query)
+    uppercase_query = " ".join(
+        value.upper() for kind, value in segments if kind in {"code", "identifier"}
+    )
+
+    if any(
+        kind == "comment" and value.lstrip().startswith("/*+")
+        for kind, value in segments
+    ):
+        raise WorkspaceValidationError(
+            "Oracle optimizer hints are not allowed in SQL practice execution"
+        )
+
+    if re.search(r"\b(?:MASTER_|PX_[0-9A-F]{8}_)[A-Z0-9_$#]*", uppercase_query):
+        raise WorkspaceValidationError(
+            "direct references to internal SQL practice tables are not allowed"
+        )
 
     for blocked in BLOCKED_IDENTIFIER_PATTERNS:
         if blocked in uppercase_query:
@@ -305,7 +321,7 @@ def split_sql_segments(sql: str) -> list[tuple[str, str]]:
                 segments.append(("code", "".join(buffer)))
                 buffer.clear()
             literal, i = consume_double_quote(sql, i)
-            segments.append(("literal", literal))
+            segments.append(("identifier", literal))
             continue
 
         if ch == "-" and next_ch == "-":

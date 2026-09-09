@@ -22,7 +22,6 @@ import ReportErrorModal from '../components/ReportErrorModal';
 import AIStreamPanel from '../components/AIStreamPanel';
 import { sql } from '@codemirror/lang-sql';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { keymap } from '@codemirror/view';
 import { logEvent } from '../utils/eventLogger';
 import { PageviewLog, ClickLog } from '../logging';
 import { useAuth } from '../contexts/AuthContext';
@@ -207,6 +206,7 @@ export default function SQLPracticePage() {
   const [exitTarget, setExitTarget] = useState<string | null>(null);
   const [executeError, setExecuteError] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
+  const sqlRequestInFlightRef = useRef(false);
 
   // 리사이즈 state + refs — ESLint react-hooks/refs 호환을 위해 분리
   const [hRatio, setHRatio] = useState(0.42);
@@ -230,7 +230,8 @@ export default function SQLPracticePage() {
   }, [problem, pageview, id]);
 
   const handleExecute = useCallback(async () => {
-    if (!problem || !query.trim()) return;
+    if (!problem || !query.trim() || sqlRequestInFlightRef.current) return;
+    sqlRequestInFlightRef.current = true;
     setLoading(true);
     setExecuteError('');
     logEvent('sql_query_executed', { problemId: id, query }, user?.id);
@@ -243,6 +244,7 @@ export default function SQLPracticePage() {
         caughtError instanceof Error ? caughtError.message : 'SQL 실행 중 오류가 발생했습니다.'
       );
     } finally {
+      sqlRequestInFlightRef.current = false;
       setLoading(false);
     }
   }, [query, id, problem, user?.id]);
@@ -261,26 +263,11 @@ export default function SQLPracticePage() {
     return () => window.removeEventListener('keydown', handler);
   }, [handleExecute, isMac]);
 
-  // CodeMirror extensions (Ctrl+Enter 단축키 포함)
-  const editorExtensions = useMemo(
-    () => [
-      sql(),
-      keymap.of([
-        {
-          key: 'Ctrl-Enter',
-          mac: 'Cmd-Enter',
-          run: () => {
-            handleExecute();
-            return true;
-          },
-        },
-      ]),
-    ],
-    [handleExecute]
-  );
+  const editorExtensions = useMemo(() => [sql()], []);
 
   const handleSubmit = useCallback(async () => {
-    if (!problem || !query.trim()) return;
+    if (!problem || !query.trim() || sqlRequestInFlightRef.current) return;
+    sqlRequestInFlightRef.current = true;
     setExecuteError('');
     setLoading(true);
 
@@ -320,6 +307,7 @@ export default function SQLPracticePage() {
         caughtError instanceof Error ? caughtError.message : 'SQL 실행 중 오류가 발생했습니다.'
       );
     } finally {
+      sqlRequestInFlightRef.current = false;
       setLoading(false);
     }
   }, [query, problem, id, user?.id]);
@@ -674,7 +662,11 @@ export default function SQLPracticePage() {
           >
             <div className="shrink-0 flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200">
               <span className="text-xs font-semibold text-slate-600">
-                {result ? (result.error ? '오류' : `결과 (${result.rows.length}행)`) : '결과'}
+                {result
+                  ? result.error
+                    ? '오류'
+                    : `결과 (${result.rows.length}${result.truncated ? '+' : ''}행)`
+                  : '결과'}
               </span>
               {result && <span className="text-xs text-slate-400">{result.executionTimeMs}ms</span>}
             </div>
@@ -768,7 +760,7 @@ export default function SQLPracticePage() {
             {result && !result.error && (
               <div className="px-6 py-4 border-t border-slate-100">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                  실행 결과 ({result.rows.length}행 · {result.executionTimeMs}ms)
+                  실행 결과 ({result.rows.length}{result.truncated ? '+' : ''}행 · {result.executionTimeMs}ms)
                 </p>
                 <div className="rounded-lg border border-slate-200 overflow-x-auto max-h-48">
                   <table className="w-full text-xs">

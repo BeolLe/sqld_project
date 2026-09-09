@@ -1,9 +1,10 @@
 import logging
 import time
+from contextlib import ExitStack
 from datetime import date, datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
@@ -57,6 +58,7 @@ STALE_NAMESPACE_CLEANUP_INTERVAL_SECONDS = 60
 _last_stale_namespace_cleanup_at = 0.0
 
 MAX_ROWS = 50
+MAX_QUERY_LENGTH = 10_000
 RESERVED_BASE_TABLES = {
     "COURSE",
     "CUSTOMER",
@@ -91,11 +93,44 @@ def normalize_value(value):
     return value
 
 
+def result_fetch_limit(action: str, expected_result: dict | None) -> int:
+    if action == "submit" and expected_result is not None:
+        return max(int(expected_result.get("row_count") or 0), 0) + 1
+    return MAX_ROWS + 1
+
+
+def commit_namespace_mutation(conn, workspace, statement_type: str, target_object: str | None) -> None:
+    try:
+        enforce_namespace_limits(conn, workspace)
+    except WorkspaceValidationError:
+        conn.rollback()
+        if statement_type == "CREATE" and target_object:
+            try:
+                with conn.cursor() as cleanup_cur:
+                    cleanup_cur.execute(
+                        f"DROP TABLE {workspace.table_name(target_object)} PURGE"
+                    )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                logger.exception("failed to remove over-limit workspace table")
+        raise
+    except Exception:
+        conn.rollback()
+        raise
+    conn.commit()
+
+
 def validate_query(query: str) -> str:
     normalized = query.strip()
 
     if not normalized:
         raise HTTPException(status_code=400, detail="query is required")
+    if len(normalized) > MAX_QUERY_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"query is too long; maximum {MAX_QUERY_LENGTH} characters",
+        )
 
     if ";" in normalized.rstrip(";"):
         raise HTTPException(status_code=400, detail="only one query is allowed")
@@ -278,6 +313,10 @@ def record_sql_submission_and_award_points(
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
+                "SELECT pg_advisory_xact_lock(hashtext(%s))",
+                (f"sql-points:{practice['id']}:{user_id}",),
+            )
+            cur.execute(
                 """
                 SELECT EXISTS(
                     SELECT 1
@@ -419,7 +458,7 @@ def resolve_workspace_scope(
     session_id = (request.headers.get("x-session-id") or "")[:100] or None
     user_id = extract_user_id(request)
 
-    scope_key = session_id or user_id or (None if require_persistent_scope else request_id)
+    scope_key = user_id or session_id or (None if require_persistent_scope else request_id)
     if not scope_key:
         raise HTTPException(
             status_code=400,
@@ -440,17 +479,17 @@ def cleanup_stale_namespaces() -> None:
     now = time.monotonic()
     if now - _last_stale_namespace_cleanup_at < STALE_NAMESPACE_CLEANUP_INTERVAL_SECONDS:
         return
+    _last_stale_namespace_cleanup_at = now
 
     stale_records = list_stale_namespaces()
-    if not stale_records:
-        _last_stale_namespace_cleanup_at = now
-        return
-
-    with get_oracle_connection() as conn:
-        for record in stale_records:
-            cleanup_namespace_by_prefix(conn, record.namespace_prefix)
+    for record in stale_records:
+        with namespace_advisory_lock(record.scope_key):
+            current = get_namespace(record.scope_key)
+            if current is None or current.last_used_at != record.last_used_at:
+                continue
+            with get_oracle_connection() as conn:
+                cleanup_namespace_by_prefix(conn, record.namespace_prefix)
             delete_namespace(record.scope_key)
-    _last_stale_namespace_cleanup_at = now
 
 
 def namespace_is_ready(conn, workspace) -> bool:
@@ -578,6 +617,7 @@ def get_latest_submission(
 def execute_sql(
     req: SQLExecuteRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
 ):
     request_id = ensure_request_id(request.headers.get("x-request-id"))
@@ -633,27 +673,41 @@ def execute_sql(
     workspace = None
     executed_query = query
     scope_key = None
+    expected_result = None
 
-    cleanup_stale_namespaces()
-    with get_oracle_connection() as conn:
+    if action == "submit":
+        expected_result = fetch_expected_result(req.practice_id)
+        timing_marks["expectedResultLoadedMs"] = round(
+            (time.perf_counter() - started_at) * 1000
+        )
+
+    workspace, session_id, user_id, scope_key = resolve_workspace_scope(
+        request=request,
+        practice_id=req.practice_id,
+        request_id=request_id,
+    )
+    timing_marks["scopeResolvedMs"] = round((time.perf_counter() - started_at) * 1000)
+
+    with ExitStack() as stack:
+        if has_persistent_scope:
+            stack.enter_context(namespace_advisory_lock(scope_key))
+        timing_marks["workspaceLockAcquiredMs"] = round(
+            (time.perf_counter() - started_at) * 1000
+        )
+        conn = stack.enter_context(get_oracle_connection())
+        timing_marks["oracleConnectionAcquiredMs"] = round(
+            (time.perf_counter() - started_at) * 1000
+        )
         try:
-            workspace, session_id, user_id, scope_key = resolve_workspace_scope(
-                request=request,
-                practice_id=req.practice_id,
-                request_id=request_id,
-            )
-            timing_marks["scopeResolvedMs"] = round((time.perf_counter() - started_at) * 1000)
-
             if has_persistent_scope:
-                with namespace_advisory_lock(scope_key):
-                    sync_namespace_lifecycle(
-                        conn=conn,
-                        workspace=workspace,
-                        scope_key=scope_key,
-                        practice_id=req.practice_id,
-                        user_id=user_id,
-                        session_id=session_id,
-                    )
+                sync_namespace_lifecycle(
+                    conn=conn,
+                    workspace=workspace,
+                    scope_key=scope_key,
+                    practice_id=req.practice_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
             else:
                 prepare_namespace(conn, workspace)
             timing_marks["workspacePreparedMs"] = round(
@@ -692,15 +746,23 @@ def execute_sql(
                         (time.perf_counter() - started_at) * 1000
                     )
                     if is_read_only_statement(statement_type):
-                        rows = cur.fetchmany(MAX_ROWS)
+                        rows = cur.fetchmany(result_fetch_limit(action, expected_result))
                     else:
-                        conn.commit()
-                        enforce_namespace_limits(conn, workspace)
+                        commit_namespace_mutation(
+                            conn,
+                            workspace,
+                            statement_type,
+                            target_object,
+                        )
                         rows = []
                     timing_marks["rowsFetchedMs"] = round(
                         (time.perf_counter() - started_at) * 1000
                     )
                 except Exception as exc:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        logger.exception("failed to roll back Oracle SQL execution")
                     elapsed_ms = round((time.perf_counter() - started_at) * 1000)
                     logger.warning(
                         "sql_execute failed request_id=%s practice_id=%s action=%s scope_key=%s timings=%s error=%s",
@@ -711,7 +773,8 @@ def execute_sql(
                         timing_marks,
                         str(exc),
                     )
-                    notify_slow_sql_execution(
+                    background_tasks.add_task(
+                        notify_slow_sql_execution,
                         elapsed_ms=elapsed_ms,
                         request_id=request_id,
                         practice_id=req.practice_id,
@@ -758,6 +821,7 @@ def execute_sql(
                         is_correct=False if action == "submit" else None,
                         metadata={"success": False, "error": str(exc)},
                     )
+                    background_tasks.add_task(cleanup_stale_namespaces)
                     return {
                         "columns": [],
                         "rows": [],
@@ -775,14 +839,21 @@ def execute_sql(
                     {columns[index]: normalize_value(value) for index, value in enumerate(row)}
                     for row in rows
                 ]
+                visible_rows = serialized_rows[:MAX_ROWS]
+                rows_truncated = len(serialized_rows) > len(visible_rows)
                 if sql_request_id is not None:
                     insert_sql_response(
                         sql_request_id=sql_request_id,
                         success=True,
                         execution_time_ms=elapsed_ms,
-                        row_count=len(serialized_rows),
+                        row_count=len(visible_rows),
                         result_preview=serialized_rows[:10],
-                        metadata={"action": action, "columns": columns, "statementType": statement_type},
+                        metadata={
+                            "action": action,
+                            "columns": columns,
+                            "statementType": statement_type,
+                            "rowsTruncated": rows_truncated,
+                        },
                     )
                     update_sql_request_status(request_id, "succeeded")
                 is_correct = None
@@ -792,10 +863,6 @@ def execute_sql(
                 attempt_id = None
 
                 if action == "submit":
-                    expected_result = fetch_expected_result(req.practice_id)
-                    timing_marks["expectedResultLoadedMs"] = round(
-                        (time.perf_counter() - started_at) * 1000
-                    )
                     if expected_result:
                         is_correct, grading = compare_result_sets(
                             user_columns=columns,
@@ -837,7 +904,8 @@ def execute_sql(
                     is_correct=is_correct,
                     metadata={
                         "success": True,
-                        "row_count": len(serialized_rows),
+                        "row_count": len(visible_rows),
+                        "rows_truncated": rows_truncated,
                         "grading": grading,
                     },
                 )
@@ -851,10 +919,11 @@ def execute_sql(
                     action,
                     statement_type,
                     scope_key,
-                    len(serialized_rows),
+                    len(visible_rows),
                     timing_marks,
                 )
-                notify_slow_sql_execution(
+                background_tasks.add_task(
+                    notify_slow_sql_execution,
                     elapsed_ms=elapsed_ms,
                     request_id=request_id,
                     practice_id=req.practice_id,
@@ -868,7 +937,8 @@ def execute_sql(
 
                 response = {
                     "columns": columns,
-                    "rows": serialized_rows,
+                    "rows": visible_rows,
+                    "truncated": rows_truncated,
                     "executionTimeMs": elapsed_ms,
                 }
                 if (
@@ -967,6 +1037,7 @@ def execute_sql(
                         insert_id=request_id,
                     )
 
+                background_tasks.add_task(cleanup_stale_namespaces)
                 return response
         finally:
             if workspace is not None:
