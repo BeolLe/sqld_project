@@ -11,6 +11,22 @@ const SESSION_ID_KEY = 'solsqld_session_id';
 type FlushCallback = (events: LogEvent[]) => void;
 
 /**
+ * crypto.randomUUID() 는 보안 컨텍스트(https·localhost)에서만 제공된다.
+ * 사내망 http 처럼 없는 환경에서도 로깅이 죽지 않도록 대체 경로를 둔다.
+ */
+function randomId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** 이벤트 중복 제거 키. 재전송돼도 수집 API 가 한 번만 저장한다. */
+function newEventId(): string {
+  return randomId();
+}
+
+/**
  * 저장소에 UUID 를 한 번 만들어 두고 계속 재사용한다.
  *
  * 시크릿 모드나 저장소 차단 환경에서는 접근 자체가 예외를 던지므로,
@@ -21,7 +37,7 @@ function loadOrCreateId(storage: () => Storage, key: string): string | undefined
     const store = storage();
     const saved = store.getItem(key);
     if (saved) return saved;
-    const next = crypto.randomUUID();
+    const next = randomId();
     store.setItem(key, next);
     return next;
   } catch {
@@ -87,13 +103,21 @@ class LogTracker {
   push(
     event: Omit<
       LogEvent,
-      'schema_version' | 'platform' | 'timestamp' | 'user_id' | 'session_id' | 'device_id'
+      | 'event_id'
+      | 'schema_version'
+      | 'platform'
+      | 'timestamp'
+      | 'user_id'
+      | 'session_id'
+      | 'device_id'
     >
   ) {
     const full: LogEvent = {
       ...event,
+      event_id: newEventId(),
       schema_version: SCHEMA_VERSION,
       platform: PLATFORM,
+      // 수집 API 는 타임존이 붙은 값만 받는다. toISOString() 은 항상 Z 로 끝난다.
       timestamp: new Date().toISOString(),
       user_id: this.userId,
       session_id: this.sessionId,
