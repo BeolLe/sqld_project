@@ -2,22 +2,48 @@ import { tracker } from './tracker';
 import type { LogEvent } from './types';
 
 /**
- * 로그 전송 경로 (의사결정 INF).
+ * 행동 로그 전송 (의사결정 F-1 해소).
  *
- * 수집 테이블이 아직 확정되지 않았다. 백엔드 `b774f38` 이 만든 `logs` 스키마는
- * api_requests·auth_events·learning_events 등 **서버가 자기 동작을 남기는 운영 로그**라
- * 프론트 행동 로그(pageview·click)를 받을 자리가 없다.
+ * 수집 API: `POST /api/logs/events` — `{ events: [...] }` 배치 형식.
+ * 응답 202, 본문은 `{received, inserted, duplicates}`.
  *
- * 그래서 전송 코드만 준비해 두고 실제 연결은 보류한다.
- * 엔드포인트가 정해지면 `VITE_LOG_ENDPOINT` 를 채우는 것만으로 켜진다.
+ * 이 API 는 sendBeacon 호환을 위해 CSRF 토큰 대신 허용 Origin 을 검사한다.
+ * 로그인 사용자 ID 는 요청 본문이 아니라 인증 쿠키에서 서버가 확정하므로
+ * 쿠키가 함께 나가야 한다(same-origin 이라 sendBeacon·fetch 모두 자동으로 보낸다).
  */
-const LOG_ENDPOINT = import.meta.env.VITE_LOG_ENDPOINT ?? '';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+
+/** QA·로컬에서 다른 수집처로 돌려보고 싶을 때만 쓰는 우회 경로. */
+const LOG_ENDPOINT = import.meta.env.VITE_LOG_ENDPOINT || `${API_BASE_URL}/logs/events`;
+
+/**
+ * 수집 API 의 스키마는 `extra="forbid"` 라 정의되지 않은 필드가 하나라도 있으면
+ * 배치 전체가 422 로 거절된다. 또 `object_idx`·`object_section_idx` 는 0 이상만
+ * 허용하고, 한 이벤트라도 조건을 어기면 같은 배치의 나머지까지 버려진다.
+ *
+ * 전송 직전에 그 두 가지만 막아 둔다. 값을 고쳐서라도 보내는 편이,
+ * 이벤트 하나 때문에 배치 20건을 통째로 잃는 것보다 낫다.
+ */
+function sanitize(event: LogEvent): LogEvent {
+  const safe: LogEvent = { ...event };
+
+  if (typeof safe.object_idx !== 'number' || safe.object_idx < 0) {
+    safe.object_idx = 0;
+  }
+  if (typeof safe.object_section_idx === 'number' && safe.object_section_idx < 0) {
+    safe.object_section_idx = undefined;
+  }
+
+  return safe;
+}
 
 /** 페이지를 떠나는 순간에도 유실되지 않도록 sendBeacon 을 우선 쓴다. */
 function post(events: LogEvent[]): void {
-  const body = JSON.stringify({ events });
+  const body = JSON.stringify({ events: events.map(sanitize) });
 
-  if (navigator.sendBeacon) {
+  // sendBeacon 은 문서가 닫힌 뒤에도 전송을 이어가지만 성공 여부를 알 수 없다.
+  // 큐 적재에 실패하면(용량 초과 등) false 를 돌려주므로 그때만 fetch 로 넘긴다.
+  if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
     const blob = new Blob([body], { type: 'application/json' });
     if (navigator.sendBeacon(LOG_ENDPOINT, blob)) return;
   }
@@ -30,18 +56,16 @@ function post(events: LogEvent[]): void {
     keepalive: true,
   }).catch(() => {
     // 로그 전송 실패가 서비스 동작에 영향을 주지 않도록 삼킨다.
+    // 재전송은 하지 않는다. event_id 덕에 중복은 서버가 걸러내지만,
+    // 실패를 되돌려 쌓으면 장애 시 큐가 무한히 커진다.
   });
 }
 
 export function initLogTransport(): void {
-  if (!LOG_ENDPOINT) {
-    console.debug('[LogTransport] VITE_LOG_ENDPOINT 미설정 — 콘솔에만 남습니다.');
-    return;
-  }
-
   tracker.setFlushCallback(post);
 
   // 탭을 닫거나 백그라운드로 보낼 때 남은 버퍼를 비운다.
+  // pagehide 는 bfcache 로 들어갈 때도 불리므로 두 이벤트를 함께 쓴다.
   window.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') tracker.flush();
   });

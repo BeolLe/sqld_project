@@ -29,6 +29,12 @@ export type PageParamKey =
 export type PageParams = Partial<Record<PageParamKey, unknown>>;
 
 export interface LogEvent {
+  /**
+   * 이벤트 하나의 고유 키. 수집 API 가 `ON CONFLICT (event_id) DO NOTHING` 으로
+   * 중복을 걸러내므로, 같은 배치가 재전송돼도 한 번만 저장된다.
+   * 클라이언트가 발급해야 재전송이 멱등해진다 (서버가 만들면 매번 새 값이 된다).
+   */
+  event_id: string;
   page_id: string;
   url: string;
   event_type: EventType;
