@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:query-viz": "node --experimental-strip-types scripts/queryVizModel.selfcheck.ts",
+    "check:join-viz": "node --experimental-strip-types scripts/joinViz.selfcheck.ts",
     "check": "npm run format:check && npm run lint && tsc --noEmit"
   },
   "dependencies": {
