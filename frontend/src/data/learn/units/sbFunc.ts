@@ -250,6 +250,53 @@ export const sbFuncBlocks: LearnBlock[] = [
         text: 'CASE와 DECODE 모두 조건에 맞는 결과가 없으면 ELSE 또는 기본값을 반환하고, 그것도 생략하면 NULL을 반환한다.',
       },
       {
+        kind: 'viz',
+        spec: {
+          kind: 'staged',
+          query:
+            "SELECT ENAME, CASE WHEN SAL >= 4000 THEN 'A' WHEN SAL >= 3000 THEN 'B' ELSE 'C' END AS GRADE FROM EMP",
+          sources: [
+            {
+              label: 'EMP',
+              columns: ['ENAME', 'SAL'],
+              rows: [
+                ['KING', 5000],
+                ['SCOTT', 3000],
+                ['SMITH', 1800],
+              ],
+            },
+          ],
+          steps: [
+            {
+              note: 'KING: 첫 조건 SAL >= 4000이 TRUE이므로 A를 반환하고 검사를 멈춥니다.',
+              resultLabel: 'CASE 결과',
+              columns: ['ENAME', 'GRADE'],
+              rows: [['KING', 'A']],
+            },
+            {
+              note: 'SCOTT: 첫 조건은 FALSE, 두 번째 SAL >= 3000은 TRUE이므로 B입니다.',
+              resultLabel: 'CASE 결과',
+              columns: ['ENAME', 'GRADE'],
+              rows: [
+                ['KING', 'A'],
+                ['SCOTT', 'B'],
+              ],
+            },
+            {
+              note: 'SMITH: 모든 WHEN이 FALSE이므로 ELSE의 C를 반환합니다.',
+              resultLabel: '최종 결과',
+              columns: ['ENAME', 'GRADE'],
+              rows: [
+                ['KING', 'A'],
+                ['SCOTT', 'B'],
+                ['SMITH', 'C'],
+              ],
+            },
+          ],
+          doneNote: '완료 — CASE는 위에서부터 확인하고 처음 TRUE인 결과 하나만 반환합니다.',
+        },
+      },
+      {
         kind: 'trap',
         text: 'Oracle의 DECODE는 NULL과 NULL을 같은 값으로 취급한다. 하지만 `CASE 값 WHEN NULL`은 NULL을 찾지 못하므로, CASE에서는 `CASE WHEN 값 IS NULL THEN ...`처럼 작성한다.',
       },

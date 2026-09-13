@@ -72,7 +72,11 @@ export const sbGroupBlocks: LearnBlock[] = [
     heading: 'GROUP BY 사용 시 SELECT 규칙',
     blanks: [
       { id: 'b6', answer: 'GROUP BY', accepts: ['group by', 'groupby'] },
-      { id: 'b7', answer: '집계 함수', accepts: ['집계 함수', '집계함수', '다중행 함수', '그룹 함수'] },
+      {
+        id: 'b7',
+        answer: '집계 함수',
+        accepts: ['집계 함수', '집계함수', '다중행 함수', '그룹 함수'],
+      },
     ],
     nodes: [
       {
@@ -124,6 +128,56 @@ export const sbGroupBlocks: LearnBlock[] = [
       {
         kind: 'p',
         text: '`WHERE 급여 >= 3000`은 급여가 낮은 사원을 먼저 제외하고 남은 행만 그룹으로 묶는다. `HAVING AVG(급여) >= 3000`은 그룹별 평균을 계산한 뒤 평균이 조건을 만족하는 그룹만 남긴다.',
+      },
+      {
+        kind: 'viz',
+        spec: {
+          kind: 'staged',
+          query:
+            'SELECT DEPTNO, SUM(SAL) FROM EMP WHERE SAL >= 2000 GROUP BY DEPTNO HAVING SUM(SAL) >= 6000',
+          sources: [
+            {
+              label: 'EMP',
+              columns: ['ENAME', 'DEPTNO', 'SAL'],
+              rows: [
+                ['A', 10, 3000],
+                ['B', 10, 2500],
+                ['C', 20, 1900],
+                ['D', 20, 4000],
+                ['E', 20, 3500],
+              ],
+            },
+          ],
+          steps: [
+            {
+              note: 'WHERE가 SAL 2000 미만인 C 행을 먼저 제외합니다.',
+              resultLabel: 'WHERE 결과',
+              columns: ['ENAME', 'DEPTNO', 'SAL'],
+              rows: [
+                ['A', 10, 3000],
+                ['B', 10, 2500],
+                ['D', 20, 4000],
+                ['E', 20, 3500],
+              ],
+            },
+            {
+              note: 'GROUP BY가 남은 행을 부서번호별로 묶고 급여 합계를 계산합니다.',
+              resultLabel: 'GROUP BY 결과',
+              columns: ['DEPTNO', 'SUM(SAL)'],
+              rows: [
+                [10, 5500],
+                [20, 7500],
+              ],
+            },
+            {
+              note: 'HAVING이 합계 6000 이상인 그룹만 남깁니다.',
+              resultLabel: '최종 결과',
+              columns: ['DEPTNO', 'SUM(SAL)'],
+              rows: [[20, 7500]],
+            },
+          ],
+          doneNote: '완료 — WHERE는 행을 먼저 거르고 HAVING은 집계된 그룹을 거릅니다.',
+        },
       },
       {
         kind: 'memory',

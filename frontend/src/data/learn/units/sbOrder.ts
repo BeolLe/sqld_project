@@ -30,6 +30,50 @@ export const sbOrderBlocks: LearnBlock[] = [
         text: '정렬 기준을 여러 개 쓰면 왼쪽 기준부터 적용한다. 앞 기준의 값이 같은 행끼리만 다음 기준으로 순서를 결정한다.',
       },
       {
+        kind: 'viz',
+        spec: {
+          kind: 'staged',
+          query: 'SELECT ENAME, DEPTNO, SAL FROM EMP ORDER BY DEPTNO ASC, SAL DESC',
+          sources: [
+            {
+              label: 'EMP',
+              columns: ['ENAME', 'DEPTNO', 'SAL'],
+              rows: [
+                ['A', 20, 2500],
+                ['B', 10, 3000],
+                ['C', 20, 5000],
+                ['D', 10, 4000],
+              ],
+            },
+          ],
+          steps: [
+            {
+              note: '첫 번째 기준 DEPTNO ASC로 부서번호가 작은 행부터 묶어 세웁니다.',
+              resultLabel: '첫 번째 기준 적용',
+              columns: ['ENAME', 'DEPTNO', 'SAL'],
+              rows: [
+                ['B', 10, 3000],
+                ['D', 10, 4000],
+                ['A', 20, 2500],
+                ['C', 20, 5000],
+              ],
+            },
+            {
+              note: '같은 부서 안에서만 두 번째 기준 SAL DESC를 적용합니다.',
+              resultLabel: '최종 결과',
+              columns: ['ENAME', 'DEPTNO', 'SAL'],
+              rows: [
+                ['D', 10, 4000],
+                ['B', 10, 3000],
+                ['C', 20, 5000],
+                ['A', 20, 2500],
+              ],
+            },
+          ],
+          doneNote: '완료 — 여러 정렬 기준은 왼쪽부터 차례로 적용됩니다.',
+        },
+      },
+      {
         kind: 'memory',
         text: 'ASC = 오름차순·기본값 · DESC = 내림차순 · 여러 기준은 왼쪽부터',
       },
@@ -40,7 +84,11 @@ export const sbOrderBlocks: LearnBlock[] = [
     heading: '정렬 기준 작성 방법',
     blanks: [
       { id: 'b4', answer: '별칭', accepts: ['별칭', 'alias', '알리아스'] },
-      { id: 'b5', answer: '열 순서 번호', accepts: ['열 순서 번호', '컬럼 순서 번호', '열 번호', '컬럼 번호'] },
+      {
+        id: 'b5',
+        answer: '열 순서 번호',
+        accepts: ['열 순서 번호', '컬럼 순서 번호', '열 번호', '컬럼 번호'],
+      },
     ],
     nodes: [
       {
@@ -104,7 +152,11 @@ export const sbOrderBlocks: LearnBlock[] = [
     heading: 'ORDER BY의 사용 규칙과 함정',
     blanks: [
       { id: 'b8', answer: 'DISTINCT', accepts: ['distinct', '디스팅트'] },
-      { id: 'b9', answer: '보장되지 않는다', accepts: ['보장되지 않는다', '보장 안됨', '알 수 없다'] },
+      {
+        id: 'b9',
+        answer: '보장되지 않는다',
+        accepts: ['보장되지 않는다', '보장 안됨', '알 수 없다'],
+      },
     ],
     nodes: [
       {
@@ -116,8 +168,14 @@ export const sbOrderBlocks: LearnBlock[] = [
         head: ['SQL', '판단'],
         rows: [
           ['`SELECT 사원명 FROM 사원 ORDER BY 급여 DESC`', '일반 SELECT이므로 가능'],
-          ['`SELECT DISTINCT 부서번호 FROM 사원 ORDER BY 급여`', '급여가 SELECT 목록에 없어 Oracle에서 오류'],
-          ['`SELECT 부서번호, COUNT(*) FROM 사원 GROUP BY 부서번호 ORDER BY COUNT(*) DESC`', '그룹별 인원 수로 정렬하므로 가능'],
+          [
+            '`SELECT DISTINCT 부서번호 FROM 사원 ORDER BY 급여`',
+            '급여가 SELECT 목록에 없어 Oracle에서 오류',
+          ],
+          [
+            '`SELECT 부서번호, COUNT(*) FROM 사원 GROUP BY 부서번호 ORDER BY COUNT(*) DESC`',
+            '그룹별 인원 수로 정렬하므로 가능',
+          ],
         ],
       },
       {

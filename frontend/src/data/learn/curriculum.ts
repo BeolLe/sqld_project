@@ -7,6 +7,9 @@ import { dmTrxBlocks } from './units/dmTrx';
 import { dmNullBlocks } from './units/dmNull';
 import { dmNatkeyBlocks } from './units/dmNatkey';
 import { saWindowBlocks } from './units/saWindow';
+import { saSubBlocks } from './units/saSub';
+import { saSetBlocks } from './units/saSet';
+import { saGfuncBlocks } from './units/saGfunc';
 import { dmAttrBlocks } from './units/dmAttr';
 import { dmRelBlocks } from './units/dmRel';
 import { dmKeyBlocks } from './units/dmKey';
@@ -178,9 +181,25 @@ const SEED: SubjectSeed[] = [
       {
         name: 'SQL 활용',
         units: [
-          { id: 'sa-sub', title: '서브쿼리', estimatedMin: 10, priority1: true },
-          { id: 'sa-set', title: '집합 연산자', estimatedMin: 6 },
-          { id: 'sa-gfunc', title: '그룹 함수', estimatedMin: 8 },
+          {
+            id: 'sa-sub',
+            title: '서브쿼리',
+            estimatedMin: 12,
+            priority1: true,
+            blocks: saSubBlocks,
+          },
+          {
+            id: 'sa-set',
+            title: '집합 연산자',
+            estimatedMin: 9,
+            blocks: saSetBlocks,
+          },
+          {
+            id: 'sa-gfunc',
+            title: '그룹 함수',
+            estimatedMin: 10,
+            blocks: saGfuncBlocks,
+          },
           {
             id: 'sa-window',
             title: '윈도우 함수',

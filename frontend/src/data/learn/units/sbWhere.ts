@@ -101,7 +101,7 @@ export const sbWhereBlocks: LearnBlock[] = [
       },
       {
         kind: 'trap',
-        text: '`_`는 글자가 없어도 되는 기호가 아니라 **반드시 한 글자**를 뜻한다. `\'_A%\'`는 첫 글자가 무엇이든 존재하고 두 번째 글자가 A인 값이다.',
+        text: "`_`는 글자가 없어도 되는 기호가 아니라 **반드시 한 글자**를 뜻한다. `'_A%'`는 첫 글자가 무엇이든 존재하고 두 번째 글자가 A인 값이다.",
       },
     ],
   },
@@ -126,6 +126,45 @@ export const sbWhereBlocks: LearnBlock[] = [
           ['`수당 IS NULL`', '수당이 NULL이면 TRUE'],
           ['`수당 IS NOT NULL`', '수당에 값이 있으면 TRUE'],
         ],
+      },
+      {
+        kind: 'viz',
+        spec: {
+          kind: 'staged',
+          query: 'SELECT ENAME FROM EMP WHERE COMM IS NULL',
+          sources: [
+            {
+              label: 'EMP',
+              columns: ['ENAME', 'COMM'],
+              rows: [
+                ['KING', 'NULL'],
+                ['SCOTT', 300],
+                ['SMITH', 'NULL'],
+              ],
+            },
+          ],
+          steps: [
+            {
+              note: 'KING: COMM이 NULL이므로 IS NULL 조건이 TRUE입니다.',
+              resultLabel: '통과한 행',
+              columns: ['ENAME'],
+              rows: [['KING']],
+            },
+            {
+              note: 'SCOTT: COMM에 300이 있으므로 조건이 FALSE입니다.',
+              resultLabel: '통과한 행',
+              columns: ['ENAME'],
+              rows: [['KING']],
+            },
+            {
+              note: 'SMITH: COMM이 NULL이므로 TRUE이며 결과에 추가됩니다.',
+              resultLabel: '최종 결과',
+              columns: ['ENAME'],
+              rows: [['KING'], ['SMITH']],
+            },
+          ],
+          doneNote: '완료 — NULL은 = NULL이 아니라 IS NULL로 검사해야 합니다.',
+        },
       },
       {
         kind: 'p',

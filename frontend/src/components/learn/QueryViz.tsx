@@ -1,70 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Play } from 'lucide-react';
 import type { VizSpec } from '../../data/learn/types';
+import { noteAt, outputAt, sourceTables, toneOf, totalSteps, type RowTone } from './queryVizModel';
 
 interface Props {
   spec: VizSpec;
 }
 
-type RowTone = 'idle' | 'scan' | 'pick' | 'drop' | 'ref';
-
-const STEP_MS = 1000;
-
-const INITIAL_NOTE = '실행 버튼을 눌러 쿼리가 행 단위로 어떻게 동작하는지 확인하세요.';
-
-/** row-filter 통과 여부. row-reference 등 필터가 없는 kind 는 항상 통과. */
-function passes(spec: VizSpec, rowIndex: number): boolean {
-  if (spec.kind !== 'row-filter' || !spec.filter) return true;
-  return Number(spec.rows[rowIndex][spec.filter.columnIndex]) >= spec.filter.min;
-}
-
-/** cursor 시점에 rowIndex 행이 어떤 상태로 표시돼야 하는지. */
-function toneOf(spec: VizSpec, rowIndex: number, cursor: number): RowTone {
-  if (cursor < 0) return 'idle';
-  if (rowIndex === cursor) return 'scan';
-  if (rowIndex > cursor) return 'idle';
-  if (spec.kind === 'row-filter') return passes(spec, rowIndex) ? 'pick' : 'drop';
-  if (spec.kind === 'row-reference' && rowIndex === cursor - 1) return 'ref';
-  return 'idle';
-}
-
-/** cursor 시점의 캡션 문구. cursor < 0 이면 안내 문구, 끝까지 진행됐으면 spec.doneNote. */
-function noteAt(spec: VizSpec, cursor: number): string {
-  const total = spec.rows.length;
-  if (cursor < 0) return INITIAL_NOTE;
-  if (cursor >= total) return spec.doneNote;
-
-  const row = spec.rows[cursor];
-  if (spec.kind === 'row-filter' && spec.filter) {
-    const cell = Number(row[spec.filter.columnIndex]);
-    const pass = cell >= spec.filter.min;
-    return `${row[0]} — ${cell} >= ${spec.filter.min} → ${pass ? '통과' : '제외'}`;
-  }
-  if (spec.kind === 'row-reference' && spec.reference) {
-    return cursor === 0
-      ? `${row[0]} — 앞 행이 없으므로 NULL`
-      : `${row[0]} — 앞 행 ${spec.rows[cursor - 1][0]} 의 값을 가져옵니다`;
-  }
-  return '';
-}
-
-/** cursor 시점까지 진행된 결과 테이블(컬럼 + 행). */
-function outputAt(
-  spec: VizSpec,
-  cursor: number,
-): { columns: string[]; rows: Array<Array<string | number>> } {
-  const baseRows = spec.rows.slice(0, Math.max(0, cursor)).filter((_, i) => passes(spec, i));
-  const columns =
-    spec.kind === 'row-reference' && spec.reference
-      ? [...spec.columns, spec.reference.outputColumn]
-      : spec.columns;
-  const rows = baseRows.map((row, i) => {
-    if (spec.kind !== 'row-reference' || !spec.reference) return row;
-    const prev = i > 0 ? spec.rows[i - 1][spec.reference.sourceColumnIndex] : 'NULL';
-    return [...row, prev];
-  });
-  return { columns, rows };
-}
+const STEP_MS = 1800;
 
 interface VizFrameProps {
   spec: VizSpec;
@@ -95,32 +38,39 @@ const PRINT_TONE_CLASS: Record<RowTone, string> = {
 /** 쿼리 바 + 원본 테이블 + 화살표 + 결과 테이블 + 캡션. 화면·인쇄 모두 이 컴포넌트를 정지 화면으로 그린다. */
 function VizFrame({ spec, cursor, caption, runButton, forPrint = false }: VizFrameProps) {
   const toneClass = forPrint ? PRINT_TONE_CLASS : SCREEN_TONE_CLASS;
-  const { columns: outputColumns, rows: outputRows } = outputAt(spec, cursor);
+  const output = outputAt(spec, cursor);
+  const sources = sourceTables(spec);
 
   return (
     <figure className="my-1 overflow-hidden rounded-xl border border-slate-200">
-      <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 px-3.5 py-2.5">
-        <code className="overflow-x-auto whitespace-nowrap font-mono text-[0.82rem] text-slate-800">
+      <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-3.5 py-2.5">
+        <code className="min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-[0.82rem] text-slate-800">
           {spec.query}
         </code>
         {runButton}
       </div>
 
       <div className="grid items-start gap-3 p-3.5 sm:grid-cols-[1fr_auto_1fr]">
-        <div>
-          <h4 className="mb-1.5 text-[0.7rem] font-bold text-slate-400">{spec.sourceLabel}</h4>
-          <VizTable
-            columns={spec.columns}
-            rows={spec.rows}
-            rowClass={(i) => toneClass[toneOf(spec, i, cursor)]}
-          />
+        <div className="space-y-3">
+          {sources.map((source, sourceIndex) => (
+            <div key={`${source.label}-${sourceIndex}`}>
+              <h4 className="mb-1.5 text-[0.7rem] font-bold text-slate-400">{source.label}</h4>
+              <VizTable
+                columns={source.columns}
+                rows={source.rows}
+                rowClass={(rowIndex) =>
+                  sourceIndex === 0 ? toneClass[toneOf(spec, rowIndex, cursor)] : ''
+                }
+              />
+            </div>
+          ))}
         </div>
         <div className="hidden self-center text-slate-300 sm:block" aria-hidden="true">
           →
         </div>
         <div>
-          <h4 className="mb-1.5 text-[0.7rem] font-bold text-slate-400">결과</h4>
-          <VizTable columns={outputColumns} rows={outputRows} rowClass={() => ''} />
+          <h4 className="mb-1.5 text-[0.7rem] font-bold text-slate-400">{output.label}</h4>
+          <VizTable columns={output.columns} rows={output.rows} rowClass={() => ''} />
         </div>
       </div>
 
@@ -141,31 +91,25 @@ function VizFrame({ spec, cursor, caption, runButton, forPrint = false }: VizFra
 export default function QueryViz({ spec }: Props) {
   const [playing, setPlaying] = useState(false);
   const [cursor, setCursor] = useState(-1);
-  const [note, setNote] = useState(INITIAL_NOTE);
   const timer = useRef<number>();
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
-  const total = spec.rows.length;
+  const total = totalSteps(spec);
 
   useEffect(() => {
     if (!playing) return;
 
-    if (cursor >= total) {
-      setPlaying(false);
-      setNote(spec.doneNote);
-      return;
-    }
-
-    setNote(noteAt(spec, cursor));
-
-    timer.current = window.setTimeout(() => setCursor((c) => c + 1), STEP_MS);
+    timer.current = window.setTimeout(() => {
+      const next = cursor + 1;
+      setCursor(next);
+      if (next >= total) setPlaying(false);
+    }, STEP_MS);
     return () => window.clearTimeout(timer.current);
-  }, [playing, cursor, spec, total]);
+  }, [playing, cursor, total]);
 
   const start = () => {
     setCursor(0);
-    setNote('');
     setPlaying(true);
   };
 
@@ -173,7 +117,7 @@ export default function QueryViz({ spec }: Props) {
     <VizFrame
       spec={spec}
       cursor={cursor}
-      caption={note}
+      caption={noteAt(spec, cursor)}
       runButton={
         <button
           type="button"
@@ -196,14 +140,12 @@ const STEP_LABELS = ['①', '②', '③'];
  * 화면 상태 전체가 cursor 의 순수 함수라는 점을 이용해 같은 VizFrame 마크업을 재사용한다.
  */
 export function QueryVizPrintFrames({ spec }: Props) {
-  const total = spec.rows.length;
+  const total = totalSteps(spec);
   const keyframes = Array.from(new Set([0, Math.floor(total / 2), total]));
 
   return (
     <div className="space-y-4">
-      <p className="mb-1 text-[0.78rem] font-semibold text-slate-500">
-        쿼리가 행 단위로 처리되는 과정
-      </p>
+      <p className="mb-1 text-[0.78rem] font-semibold text-slate-500">쿼리 처리 과정</p>
       {keyframes.map((cursor, index) => (
         <div key={cursor} className="break-inside-avoid">
           <p className="mb-1 text-[0.72rem] font-bold text-slate-400">
@@ -239,7 +181,7 @@ function VizTable({ columns, rows, rowClass }: TableProps) {
       </thead>
       <tbody>
         {rows.map((row, index) => (
-          <tr key={String(row[0])} className={`transition-colors ${rowClass(index)}`}>
+          <tr key={`${String(row[0])}-${index}`} className={`transition-colors ${rowClass(index)}`}>
             {row.map((cell, cellIndex) => (
               <td
                 key={`${row[0]}-${cellIndex}`}

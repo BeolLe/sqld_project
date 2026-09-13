@@ -74,7 +74,11 @@ export const saWindowBlocks: LearnBlock[] = [
     id: 'w3',
     heading: 'WHERE 는 어떻게 걸러지나',
     blanks: [
-      { id: 'b3', answer: '없다', accepts: ['없다', '없음', '포함되지 않는다', '제외된다', '안된다'] },
+      {
+        id: 'b3',
+        answer: '없다',
+        accepts: ['없다', '없음', '포함되지 않는다', '제외된다', '안된다'],
+      },
     ],
     nodes: [
       {
@@ -124,8 +128,195 @@ export const saWindowBlocks: LearnBlock[] = [
         ],
       },
       {
+        kind: 'viz',
+        spec: {
+          kind: 'staged',
+          query:
+            'SELECT ENAME, SAL, RANK() OVER (ORDER BY SAL DESC), DENSE_RANK() OVER (ORDER BY SAL DESC), ROW_NUMBER() OVER (ORDER BY SAL DESC, ENAME) FROM EMP',
+          sources: [
+            {
+              label: 'EMP',
+              columns: ['ENAME', 'SAL'],
+              rows: [
+                ['KING', 5000],
+                ['FORD', 3000],
+                ['SCOTT', 3000],
+                ['JONES', 2000],
+              ],
+            },
+          ],
+          steps: [
+            {
+              note: '5000은 가장 큰 값이므로 세 함수 모두 1을 부여합니다.',
+              resultLabel: '순위 계산',
+              columns: ['ENAME', 'SAL', 'RANK', 'DENSE_RANK', 'ROW_NUMBER'],
+              rows: [['KING', 5000, 1, 1, 1]],
+            },
+            {
+              note: '3000인 두 행은 RANK와 DENSE_RANK에서 공동 2위입니다. ROW_NUMBER는 이름 기준까지 적용해 2와 3으로 나눕니다.',
+              resultLabel: '순위 계산',
+              columns: ['ENAME', 'SAL', 'RANK', 'DENSE_RANK', 'ROW_NUMBER'],
+              rows: [
+                ['KING', 5000, 1, 1, 1],
+                ['FORD', 3000, 2, 2, 2],
+                ['SCOTT', 3000, 2, 2, 3],
+              ],
+            },
+            {
+              note: '다음 행은 RANK가 자리를 건너뛰어 4, DENSE_RANK는 연속된 3을 부여합니다.',
+              resultLabel: '최종 결과',
+              columns: ['ENAME', 'SAL', 'RANK', 'DENSE_RANK', 'ROW_NUMBER'],
+              rows: [
+                ['KING', 5000, 1, 1, 1],
+                ['FORD', 3000, 2, 2, 2],
+                ['SCOTT', 3000, 2, 2, 3],
+                ['JONES', 2000, 4, 3, 4],
+              ],
+            },
+          ],
+          doneNote: '완료 — RANK는 다음 순위를 건너뛰고 DENSE_RANK는 연속 순위를 사용합니다.',
+        },
+      },
+      {
         kind: 'trap',
         text: 'Top N 을 뽑을 때 `ROW_NUMBER` 를 쓰면 동점자가 잘려나간다. "상위 3명"의 정의가 동점 포함이면 `RANK`, 정확히 3행이면 `ROW_NUMBER` 다. 선지에서 이걸 바꿔치기한다.',
+      },
+    ],
+  },
+  {
+    id: 'w5',
+    heading: 'PARTITION BY와 누적 집계',
+    blanks: [
+      { id: 'b6', answer: '다시 시작', accepts: ['다시 시작', '초기화', '리셋'] },
+      { id: 'b7', answer: '유지', accepts: ['유지', '그대로 유지', '줄지 않는다'] },
+    ],
+    nodes: [
+      {
+        kind: 'p',
+        text: '`PARTITION BY`는 계산 범위를 그룹처럼 나누지만 GROUP BY와 달리 원래 행은 {{b7}}한다. 파티션이 바뀌면 누적 계산도 {{b6}}한다.',
+      },
+      {
+        kind: 'viz',
+        spec: {
+          kind: 'staged',
+          query:
+            'SELECT DEPTNO, ENAME, SAL, SUM(SAL) OVER (PARTITION BY DEPTNO ORDER BY SAL DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS RUNNING_SAL FROM EMP',
+          sources: [
+            {
+              label: 'EMP',
+              columns: ['DEPTNO', 'ENAME', 'SAL'],
+              rows: [
+                [10, 'KING', 5000],
+                [10, 'CLARK', 2450],
+                [20, 'SCOTT', 3000],
+                [20, 'JONES', 2975],
+              ],
+            },
+          ],
+          steps: [
+            {
+              note: '10번 부서 안에서 급여 내림차순으로 누적합니다.',
+              resultLabel: '10번 파티션',
+              columns: ['DEPTNO', 'ENAME', 'SAL', 'RUNNING_SAL'],
+              rows: [
+                [10, 'KING', 5000, 5000],
+                [10, 'CLARK', 2450, 7450],
+              ],
+            },
+            {
+              note: '부서번호가 20으로 바뀌면 누적 합계가 0부터 다시 시작합니다.',
+              resultLabel: '20번 파티션 추가',
+              columns: ['DEPTNO', 'ENAME', 'SAL', 'RUNNING_SAL'],
+              rows: [
+                [10, 'KING', 5000, 5000],
+                [10, 'CLARK', 2450, 7450],
+                [20, 'SCOTT', 3000, 3000],
+              ],
+            },
+            {
+              note: '20번 부서 안에서만 다음 행의 급여를 이어서 더합니다.',
+              resultLabel: '최종 결과',
+              columns: ['DEPTNO', 'ENAME', 'SAL', 'RUNNING_SAL'],
+              rows: [
+                [10, 'KING', 5000, 5000],
+                [10, 'CLARK', 2450, 7450],
+                [20, 'SCOTT', 3000, 3000],
+                [20, 'JONES', 2975, 5975],
+              ],
+            },
+          ],
+          doneNote: '완료 — 행은 그대로 유지되고 부서별 누적 합계만 새 열로 추가됩니다.',
+        },
+      },
+      {
+        kind: 'trap',
+        text: '`PARTITION BY`를 생략하면 조회 결과 전체가 하나의 파티션이 된다. GROUP BY처럼 행 수를 줄이지 않는다는 점을 구분한다.',
+      },
+    ],
+  },
+  {
+    id: 'w6',
+    heading: 'ROWS와 RANGE 윈도우 프레임',
+    blanks: [
+      { id: 'b8', answer: '물리적 행', accepts: ['물리적 행', '행', '개별 행'] },
+      { id: 'b9', answer: '동일한 정렬값', accepts: ['동일한 정렬값', '같은 정렬값', '동점'] },
+    ],
+    nodes: [
+      {
+        kind: 'p',
+        text: '`ROWS`는 현재 위치까지의 {{b8}}을 기준으로 범위를 잡는다. `RANGE`는 현재 행과 {{b9}}을 가진 행을 같은 경계로 취급한다.',
+      },
+      {
+        kind: 'viz',
+        spec: {
+          kind: 'staged',
+          query:
+            'SELECT NAME, AMOUNT, SUM(AMOUNT) OVER (ORDER BY AMOUNT, NAME ROWS UNBOUNDED PRECEDING) ROWS_SUM, SUM(AMOUNT) OVER (ORDER BY AMOUNT RANGE UNBOUNDED PRECEDING) RANGE_SUM FROM SALES',
+          sources: [
+            {
+              label: 'SALES',
+              columns: ['NAME', 'AMOUNT'],
+              rows: [
+                ['A', 100],
+                ['B', 100],
+                ['C', 200],
+              ],
+            },
+          ],
+          steps: [
+            {
+              note: 'ROWS는 개별 행 위치를 따르므로 첫 행 A까지의 합계는 100입니다.',
+              resultLabel: '첫 번째 행',
+              columns: ['NAME', 'AMOUNT', 'ROWS_SUM', 'RANGE_SUM'],
+              rows: [['A', 100, 100, 200]],
+            },
+            {
+              note: 'RANGE는 AMOUNT가 같은 A와 B를 동점 경계로 묶어 두 행 모두 200을 봅니다.',
+              resultLabel: '동일 정렬값 처리',
+              columns: ['NAME', 'AMOUNT', 'ROWS_SUM', 'RANGE_SUM'],
+              rows: [
+                ['A', 100, 100, 200],
+                ['B', 100, 200, 200],
+              ],
+            },
+            {
+              note: '200인 C까지 오면 두 프레임 모두 전체 합계 400이 됩니다.',
+              resultLabel: '최종 결과',
+              columns: ['NAME', 'AMOUNT', 'ROWS_SUM', 'RANGE_SUM'],
+              rows: [
+                ['A', 100, 100, 200],
+                ['B', 100, 200, 200],
+                ['C', 200, 400, 400],
+              ],
+            },
+          ],
+          doneNote:
+            '완료 — 정렬값이 같은 행이 있을 때 ROWS와 RANGE의 누적 결과가 달라질 수 있습니다.',
+        },
+      },
+      {
+        kind: 'trap',
+        text: '윈도우 함수에 ORDER BY만 쓰고 프레임을 생략하면 함수와 DBMS 규칙에 따른 기본 프레임이 적용된다. 행 단위 누적이 필요하면 `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`처럼 명시한다.',
       },
     ],
   },

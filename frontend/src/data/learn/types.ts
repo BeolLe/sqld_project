@@ -24,22 +24,53 @@ export interface Blank {
  */
 export type Inline = string;
 
-/** 쿼리 동작 시각화 명세. 단원별로 데이터만 갈아끼워 재사용한다. */
-export interface VizSpec {
-  /** row-filter: 조건에 맞는 행만 통과 / row-reference: 이전 행 값을 참조 */
-  kind: 'row-filter' | 'row-reference';
+export type VizCell = string | number;
+
+export interface VizTableSpec {
+  label: string;
+  columns: string[];
+  rows: VizCell[][];
+}
+
+interface VizBaseSpec {
   /** 상단에 표시할 쿼리문 */
   query: string;
-  sourceLabel: string;
-  columns: string[];
-  rows: Array<Array<string | number>>;
-  /** row-filter 전용 — 판정 대상 컬럼과 임계값 */
-  filter?: { columnIndex: number; min: number };
-  /** row-reference 전용 — 결과에 덧붙는 컬럼명과 참조할 원본 컬럼 */
-  reference?: { outputColumn: string; sourceColumnIndex: number };
   /** 재생 완료 후 표시할 문구 */
   doneNote: string;
 }
+
+interface RowFilterVizSpec extends VizBaseSpec {
+  kind: 'row-filter';
+  sourceLabel: string;
+  columns: string[];
+  rows: VizCell[][];
+  filter: { columnIndex: number; min: number };
+}
+
+interface RowReferenceVizSpec extends VizBaseSpec {
+  kind: 'row-reference';
+  sourceLabel: string;
+  columns: string[];
+  rows: VizCell[][];
+  reference: { outputColumn: string; sourceColumnIndex: number };
+}
+
+export interface StagedVizStep {
+  note: string;
+  resultLabel: string;
+  columns: string[];
+  rows: VizCell[][];
+}
+
+interface StagedVizSpec extends VizBaseSpec {
+  /** 여러 입력과 중간 결과를 정답이 정해진 단계별 시뮬레이션으로 재생한다. */
+  kind: 'staged';
+  sources: VizTableSpec[];
+  steps: StagedVizStep[];
+}
+
+/** 실제 DB에 접속하지 않는 결정적 쿼리 동작 시뮬레이션. */
+export type VizSpec = RowFilterVizSpec | RowReferenceVizSpec | StagedVizSpec;
 
 /**
  * IE(정보공학) 표기법 관계 다이어그램 명세.

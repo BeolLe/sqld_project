@@ -136,6 +136,41 @@ export const sbSelectBlocks: LearnBlock[] = [
         ],
       },
       {
+        kind: 'viz',
+        spec: {
+          kind: 'staged',
+          query: 'SELECT DISTINCT DEPTNO FROM EMP',
+          sources: [
+            {
+              label: 'EMP',
+              columns: ['ENAME', 'DEPTNO'],
+              rows: [
+                ['KING', 10],
+                ['CLARK', 10],
+                ['SCOTT', 20],
+                ['JONES', 20],
+                ['BLAKE', 30],
+              ],
+            },
+          ],
+          steps: [
+            {
+              note: '먼저 SELECT 목록인 DEPTNO 값만 가져옵니다.',
+              resultLabel: 'SELECT 결과',
+              columns: ['DEPTNO'],
+              rows: [[10], [10], [20], [20], [30]],
+            },
+            {
+              note: 'DISTINCT가 SELECT 목록 전체에서 같은 값을 한 행만 남깁니다.',
+              resultLabel: 'DISTINCT 결과',
+              columns: ['DEPTNO'],
+              rows: [[10], [20], [30]],
+            },
+          ],
+          doneNote: '완료 — 5개 행에서 중복을 제거해 부서번호 3개가 남았습니다.',
+        },
+      },
+      {
         kind: 'memory',
         text: 'DISTINCT는 특정 열 하나가 아니라 SELECT 목록 전체 조합의 중복을 제거한다',
       },
