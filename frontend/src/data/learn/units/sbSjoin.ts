@@ -129,6 +129,10 @@ export const sbSjoinBlocks: LearnBlock[] = [
           '`FROM 사원 E JOIN 부서 D`\n' +
           '`USING (부서번호)`',
       },
+      {
+        kind: 'p',
+        text: '※ NATURAL JOIN과 USING이 짝을 찾는 과정은 **조인** 단원 EQUI JOIN의 실행 과정과 같다.',
+      },
       { kind: 'subheading', text: '3-3. 세 방식 비교' },
       {
         kind: 'table',
@@ -298,6 +302,76 @@ export const sbSjoinBlocks: LearnBlock[] = [
           ['RIGHT OUTER', '3', '인사팀 (사원명 NULL)'],
           ['FULL OUTER', '{{b11}}', '박민수와 인사팀 모두'],
         ],
+      },
+      {
+        kind: 'viz',
+        spec: {
+          kind: 'staged',
+          query: 'SELECT 사원명, 부서명 FROM 사원 [조인 종류] 부서 ON 사원.부서번호 = 부서.부서번호',
+          sources: [
+            {
+              label: '사원',
+              columns: ['사원명', '부서번호'],
+              rows: [
+                ['김철수', 10],
+                ['이영희', 20],
+                ['박민수', 'NULL'],
+              ],
+            },
+            {
+              label: '부서',
+              columns: ['부서번호', '부서명'],
+              rows: [
+                [10, '개발팀'],
+                [20, '영업팀'],
+                [40, '인사팀'],
+              ],
+            },
+          ],
+          steps: [
+            {
+              note: '① INNER JOIN: 부서번호가 같은 김철수·이영희만 짝이 된다.',
+              resultLabel: 'INNER JOIN 결과',
+              columns: ['사원명', '부서명'],
+              rows: [
+                ['김철수', '개발팀'],
+                ['이영희', '영업팀'],
+              ],
+            },
+            {
+              note: '② LEFT OUTER JOIN: 짝이 없는 박민수도 남기고 부서명을 NULL로 채운다.',
+              resultLabel: 'LEFT OUTER JOIN 결과',
+              columns: ['사원명', '부서명'],
+              rows: [
+                ['김철수', '개발팀'],
+                ['이영희', '영업팀'],
+                ['박민수', 'NULL'],
+              ],
+            },
+            {
+              note: '③ RIGHT OUTER JOIN: 사원이 없는 인사팀을 남기고 사원명을 NULL로 채운다.',
+              resultLabel: 'RIGHT OUTER JOIN 결과',
+              columns: ['사원명', '부서명'],
+              rows: [
+                ['김철수', '개발팀'],
+                ['이영희', '영업팀'],
+                ['NULL', '인사팀'],
+              ],
+            },
+            {
+              note: '④ FULL OUTER JOIN: 박민수와 인사팀을 모두 남긴다.',
+              resultLabel: 'FULL OUTER JOIN 결과',
+              columns: ['사원명', '부서명'],
+              rows: [
+                ['김철수', '개발팀'],
+                ['이영희', '영업팀'],
+                ['박민수', 'NULL'],
+                ['NULL', '인사팀'],
+              ],
+            },
+          ],
+          doneNote: '짝을 찾는 규칙은 같고, 짝 없는 행을 어느 쪽에서 남기는지만 다르다.',
+        },
       },
       {
         kind: 'memory',
