@@ -19,6 +19,8 @@ import { sbFuncBlocks } from './units/sbFunc';
 import { sbWhereBlocks } from './units/sbWhere';
 import { sbGroupBlocks } from './units/sbGroup';
 import { sbOrderBlocks } from './units/sbOrder';
+import { sbJoinBlocks } from './units/sbJoin';
+import { sbSjoinBlocks } from './units/sbSjoin';
 
 /**
  * 한국데이터산업진흥원 공식 출제범위 (https://www.dataq.or.kr/www/sub/a_04.do).
@@ -174,8 +176,20 @@ const SEED: SubjectSeed[] = [
             estimatedMin: 5,
             blocks: sbOrderBlocks,
           },
-          { id: 'sb-join', title: '조인', estimatedMin: 10, priority1: true },
-          { id: 'sb-sjoin', title: '표준 조인', estimatedMin: 9, priority1: true },
+          {
+            id: 'sb-join',
+            title: '조인',
+            estimatedMin: 10,
+            priority1: true,
+            blocks: sbJoinBlocks,
+          },
+          {
+            id: 'sb-sjoin',
+            title: '표준 조인',
+            estimatedMin: 9,
+            priority1: true,
+            blocks: sbSjoinBlocks,
+          },
         ],
       },
       {
