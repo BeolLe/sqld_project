@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Play } from 'lucide-react';
 import type { VizSpec } from '../../data/learn/types';
-import { noteAt, outputAt, sourceTables, toneOf, totalSteps, type RowTone } from './queryVizModel';
+import {
+  noteAt,
+  outputAt,
+  outputToneOf,
+  sourceTables,
+  toneOf,
+  totalSteps,
+  type RowTone,
+} from './queryVizModel';
 
 interface Props {
   spec: VizSpec;
@@ -70,7 +78,11 @@ function VizFrame({ spec, cursor, caption, runButton, forPrint = false }: VizFra
         </div>
         <div>
           <h4 className="mb-1.5 text-[0.7rem] font-bold text-slate-400">{output.label}</h4>
-          <VizTable columns={output.columns} rows={output.rows} rowClass={() => ''} />
+          <VizTable
+            columns={output.columns}
+            rows={output.rows}
+            rowClass={(rowIndex) => toneClass[outputToneOf(spec, rowIndex, cursor)]}
+          />
         </div>
       </div>
 

@@ -27,6 +27,22 @@ export function toneOf(spec: VizSpec, rowIndex: number, cursor: number): RowTone
   return 'idle';
 }
 
+/** 직전 단계와 비교해 이번 단계에서 새로 생기거나 값이 바뀐 결과 행을 강조한다. */
+export function outputToneOf(spec: VizSpec, rowIndex: number, cursor: number): RowTone {
+  const total = totalSteps(spec);
+  if (cursor < 0 || cursor >= total) return 'idle';
+
+  const current = outputAt(spec, cursor).rows[rowIndex];
+  const previous = outputAt(spec, cursor - 1).rows[rowIndex];
+  if (!current) return 'idle';
+
+  return previous &&
+    current.length === previous.length &&
+    current.every((cell, index) => cell === previous[index])
+    ? 'idle'
+    : 'scan';
+}
+
 export function noteAt(spec: VizSpec, cursor: number): string {
   const total = totalSteps(spec);
   if (cursor < 0) return INITIAL_NOTE;

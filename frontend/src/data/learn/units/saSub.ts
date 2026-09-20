@@ -80,9 +80,13 @@ export const saSubBlocks: LearnBlock[] = [
         head: ['연산자', '판단'],
         rows: [
           ['`IN`', '결과 중 같은 값이 하나라도 있으면 TRUE'],
-          ['`> ANY`', '결과 중 하나보다만 크면 TRUE → 최솟값보다 큼'],
-          ['`> ALL`', '결과의 모든 값보다 커야 TRUE → 최댓값보다 큼'],
+          ['`> ANY`', '결과 중 하나보다만 크면 TRUE'],
+          ['`> ALL`', '결과의 모든 값보다 커야 TRUE'],
         ],
+      },
+      {
+        kind: 'trap',
+        text: '`> ANY`를 최솟값 비교, `> ALL`을 최댓값 비교로 바꿔 읽는 공식은 NULL이 없고 비어 있지 않은 집합에서만 안전하다. 빈 집합이면 ANY는 FALSE, ALL은 TRUE이며 NULL이 섞이면 UNKNOWN이 될 수 있다.',
       },
       {
         kind: 'trap',

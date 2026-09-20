@@ -10,6 +10,10 @@ import { saWindowBlocks } from './units/saWindow';
 import { saSubBlocks } from './units/saSub';
 import { saSetBlocks } from './units/saSet';
 import { saGfuncBlocks } from './units/saGfunc';
+import { saTopnBlocks } from './units/saTopn';
+import { saHierBlocks } from './units/saHier';
+import { saPivotBlocks } from './units/saPivot';
+import { saRegexBlocks } from './units/saRegex';
 import { dmAttrBlocks } from './units/dmAttr';
 import { dmRelBlocks } from './units/dmRel';
 import { dmKeyBlocks } from './units/dmKey';
@@ -225,10 +229,20 @@ const SEED: SubjectSeed[] = [
             priority1: true,
             blocks: saWindowBlocks,
           },
-          { id: 'sa-topn', title: 'Top N 쿼리', estimatedMin: 6 },
-          { id: 'sa-hier', title: '계층형 질의와 셀프 조인', estimatedMin: 9 },
-          { id: 'sa-pivot', title: 'PIVOT 절과 UNPIVOT 절', estimatedMin: 6 },
-          { id: 'sa-regex', title: '정규 표현식', estimatedMin: 6 },
+          { id: 'sa-topn', title: 'Top N 쿼리', estimatedMin: 8, blocks: saTopnBlocks },
+          {
+            id: 'sa-hier',
+            title: '계층형 질의와 셀프 조인',
+            estimatedMin: 10,
+            blocks: saHierBlocks,
+          },
+          {
+            id: 'sa-pivot',
+            title: 'PIVOT 절과 UNPIVOT 절',
+            estimatedMin: 8,
+            blocks: saPivotBlocks,
+          },
+          { id: 'sa-regex', title: '정규 표현식', estimatedMin: 8, blocks: saRegexBlocks },
         ],
       },
       {

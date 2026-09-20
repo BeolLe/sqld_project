@@ -59,7 +59,8 @@ export const saGfuncBlocks: LearnBlock[] = [
         kind: 'viz',
         spec: {
           kind: 'staged',
-          query: 'SELECT DEPTNO, JOB, SUM(AMT) FROM SALES GROUP BY ROLLUP(DEPTNO, JOB)',
+          query:
+            "SELECT CASE WHEN GROUPING(DEPTNO) = 1 THEN 'ALL' ELSE TO_CHAR(DEPTNO) END AS DEPTNO, CASE WHEN GROUPING(JOB) = 1 THEN 'ALL' ELSE JOB END AS JOB, SUM(AMT) FROM SALES GROUP BY ROLLUP(DEPTNO, JOB) ORDER BY GROUPING_ID(DEPTNO, JOB), DEPTNO, JOB",
           sources: [{ label: 'SALES', columns: ['DEPTNO', 'JOB', 'AMT'], rows: SALES_ROWS }],
           steps: [
             {
@@ -103,7 +104,8 @@ export const saGfuncBlocks: LearnBlock[] = [
         kind: 'viz',
         spec: {
           kind: 'staged',
-          query: 'SELECT DEPTNO, JOB, SUM(AMT) FROM SALES GROUP BY CUBE(DEPTNO, JOB)',
+          query:
+            "SELECT CASE WHEN GROUPING(DEPTNO) = 1 THEN 'ALL' ELSE TO_CHAR(DEPTNO) END AS DEPTNO, CASE WHEN GROUPING(JOB) = 1 THEN 'ALL' ELSE JOB END AS JOB, SUM(AMT) FROM SALES GROUP BY CUBE(DEPTNO, JOB) ORDER BY GROUPING_ID(DEPTNO, JOB), DEPTNO, JOB",
           sources: [{ label: 'SALES', columns: ['DEPTNO', 'JOB', 'AMT'], rows: SALES_ROWS }],
           steps: [
             {
@@ -161,7 +163,7 @@ export const saGfuncBlocks: LearnBlock[] = [
         spec: {
           kind: 'staged',
           query:
-            'SELECT DEPTNO, JOB, SUM(AMT) FROM SALES GROUP BY GROUPING SETS ((DEPTNO), (JOB), ())',
+            "SELECT CASE WHEN GROUPING(DEPTNO) = 1 THEN 'ALL' ELSE TO_CHAR(DEPTNO) END AS DEPTNO, CASE WHEN GROUPING(JOB) = 1 THEN 'ALL' ELSE JOB END AS JOB, SUM(AMT) FROM SALES GROUP BY GROUPING SETS ((DEPTNO), (JOB), ()) ORDER BY GROUPING_ID(DEPTNO, JOB), DEPTNO, JOB",
           sources: [{ label: 'SALES', columns: ['DEPTNO', 'JOB', 'AMT'], rows: SALES_ROWS }],
           steps: [
             {

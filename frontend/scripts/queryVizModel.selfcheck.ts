@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 
-import { noteAt, outputAt, totalSteps } from '../src/components/learn/queryVizModel.ts';
+import {
+  noteAt,
+  outputAt,
+  outputToneOf,
+  totalSteps,
+} from '../src/components/learn/queryVizModel.ts';
 import type { VizSpec } from '../src/data/learn/types.ts';
 
 const staged: VizSpec = {
@@ -22,6 +27,10 @@ assert.deepEqual(outputAt(staged, 1), {
   rows: [[1], [2]],
 });
 assert.equal(noteAt(staged, 2), '완료');
+assert.equal(outputToneOf(staged, 0, 0), 'scan');
+assert.equal(outputToneOf(staged, 0, 1), 'idle');
+assert.equal(outputToneOf(staged, 1, 1), 'scan');
+assert.equal(outputToneOf(staged, 1, 2), 'idle');
 
 const filtered: VizSpec = {
   kind: 'row-filter',
@@ -34,4 +43,6 @@ const filtered: VizSpec = {
 };
 
 assert.deepEqual(outputAt(filtered, 3).rows, [[2], [3]]);
+assert.equal(outputToneOf(filtered, 0, 2), 'scan');
+assert.equal(outputToneOf(filtered, 0, 3), 'idle');
 console.log('queryVizModel self-check passed');
