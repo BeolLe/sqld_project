@@ -21,6 +21,10 @@ import { sbGroupBlocks } from './units/sbGroup';
 import { sbOrderBlocks } from './units/sbOrder';
 import { sbJoinBlocks } from './units/sbJoin';
 import { sbSjoinBlocks } from './units/sbSjoin';
+import { adDmlBlocks } from './units/adDml';
+import { adTclBlocks } from './units/adTcl';
+import { adDdlBlocks } from './units/adDdl';
+import { adDclBlocks } from './units/adDcl';
 
 /**
  * 한국데이터산업진흥원 공식 출제범위 (https://www.dataq.or.kr/www/sub/a_04.do).
@@ -230,11 +234,22 @@ const SEED: SubjectSeed[] = [
       {
         name: '관리 구문',
         units: [
-          { id: 'ad-dml', title: 'DML', estimatedMin: 7, priority1: true },
-          { id: 'ad-tcl', title: 'TCL', estimatedMin: 6 },
-          // adDdlBlocks 는 작성되어 있으나 1차 공개 범위에서 제외한다 — blocks 만 다시 연결하면 바로 노출된다.
-          { id: 'ad-ddl', title: 'DDL', estimatedMin: 8, priority1: true },
-          { id: 'ad-dcl', title: 'DCL', estimatedMin: 5 },
+          {
+            id: 'ad-dml',
+            title: 'DML',
+            estimatedMin: 7,
+            priority1: true,
+            blocks: adDmlBlocks,
+          },
+          { id: 'ad-tcl', title: 'TCL', estimatedMin: 6, blocks: adTclBlocks },
+          {
+            id: 'ad-ddl',
+            title: 'DDL',
+            estimatedMin: 8,
+            priority1: true,
+            blocks: adDdlBlocks,
+          },
+          { id: 'ad-dcl', title: 'DCL', estimatedMin: 5, blocks: adDclBlocks },
         ],
       },
     ],
