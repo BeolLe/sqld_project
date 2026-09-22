@@ -6,6 +6,8 @@ SQLD 개념 학습, 모의고사, Oracle SQL 실습을 제공하는 학습 플�
 
 > 코드 열람 안내: `airflow-practice` 링크는 현재 비로그인 상태에서 열리지 않습니다. 애플리케이션과 GitOps 코드는 공개 저장소에서 확인할 수 있습니다.
 
+공개된 분석 실행 환경은 GitOps의 [dbt 컨테이너 정의](https://github.com/BeolLe/sqld_project_gitops/blob/main/images/dbt-runner/Dockerfile), [이미지 빌드](https://github.com/BeolLe/sqld_project_gitops/blob/main/.github/workflows/dbt-runner-ghcr.yaml), [Airflow 배포 설정](https://github.com/BeolLe/sqld_project_gitops/blob/main/infra/airflow/values.yaml), [Redash 배포 구성](https://github.com/BeolLe/sqld_project_gitops/tree/main/infra/analytics/redash)에서 확인할 수 있습니다. 모델·DAG 코드와 실행 환경을 저장소별로 분리했습니다.
+
 ## 담당 범위와 코드
 
 **서현석 담당:** 백엔드 API, PostgreSQL 데이터 구조, dbt 분석 모델, Airflow 파이프라인, Kubernetes·GitOps 배포 구성. 프론트엔드는 협업하여 개발했습니다.
@@ -17,7 +19,7 @@ SQLD 개념 학습, 모의고사, Oracle SQL 실습을 제공하는 학습 플�
 | Airflow 배치·리포트 | Kubernetes Pod에서 dbt build 실행, Gold 지표 조회 후 Slack 일일 리포트 발송 | [dbt 실행 DAG](https://github.com/BeolLe/airflow-practice/blob/main/solsqld/analytics_dbt.py) · [리포트 DAG](https://github.com/BeolLe/airflow-practice/blob/main/solsqld/slack_daily_report_dag.py) · [리포트 조회·발송](https://github.com/BeolLe/airflow-practice/blob/main/solsqld/slack_daily_report.py) |
 | 로그 명세 동기화 | YAML 설정에서 DAG 생성, Google Sheets 명세 검증 및 PostgreSQL 행 추가·갱신 | [동적 DAG 생성](https://github.com/BeolLe/airflow-practice/blob/main/solsqld/log_schema_dynamic_dags.py) · [동기화 로직](https://github.com/BeolLe/airflow-practice/tree/main/solsqld/sqld_log_schema_sync) |
 | 백엔드·로그 수집 | 인증·모의고사·SQL 실습 API, 사용자 행동 로그 배치 수집과 event_id 중복 방지 | [백엔드](https://github.com/BeolLe/sqld_project/tree/main/backend/app) · [로그 수집 API](https://github.com/BeolLe/sqld_project/blob/main/backend/app/api/logs/router.py) · [로그 저장](https://github.com/BeolLe/sqld_project/blob/main/backend/app/db/service_logs.py) |
-| 배포·운영 | GitHub Actions·GHCR 이미지 빌드, ArgoCD 배포 및 Airflow 실행 환경 구성 | [앱 빌드 워크플로우](https://github.com/BeolLe/sqld_project/tree/main/.github/workflows) · [GitOps 설정](https://github.com/BeolLe/sqld_project_gitops/tree/main/infra) · [dbt 실행 이미지 빌드](https://github.com/BeolLe/sqld_project_gitops/blob/main/.github/workflows/dbt-runner-ghcr.yaml) |
+| 배포·운영 | GitHub Actions·GHCR 이미지 빌드, ArgoCD 배포 및 Airflow 실행 환경 구성 | [앱 빌드 워크플로우](https://github.com/BeolLe/sqld_project/tree/main/.github/workflows) · [GitOps 담당 범위와 코드](https://github.com/BeolLe/sqld_project_gitops#담당-범위와-코드) |
 
 ## 분석 데이터 흐름
 
@@ -94,4 +96,6 @@ uv run uvicorn app.main:app --reload
 
 백엔드 API는 `/api` 경로를 사용하며, 실행에는 별도의 DB 연결 및 환경 설정이 필요합니다.
 
-앱 배포는 `GitHub Actions → GHCR → GitOps 이미지 정보 갱신 → ArgoCD → Kubernetes` 흐름으로 구성했습니다. Airflow DAG는 `airflow-practice`의 코드를 git-sync로 가져오며, dbt는 별도 실행 이미지의 Kubernetes Pod에서 수행합니다.
+앱 자동 배포는 `GitHub Actions → GHCR → GitOps 이미지 정보 갱신 → ArgoCD → Kubernetes` 흐름으로 구성했습니다. 자동 갱신 대상과 공개 서비스(`app-public`) 매니페스트의 구분은 [GitOps 배포 흐름](https://github.com/BeolLe/sqld_project_gitops#앱-배포-흐름)에 정리했습니다.
+
+Airflow DAG는 `airflow-practice`의 코드를 git-sync로 가져오며, dbt는 별도 실행 이미지의 Kubernetes Pod에서 수행합니다.
