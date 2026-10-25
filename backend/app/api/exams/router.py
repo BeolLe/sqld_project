@@ -1,36 +1,46 @@
 from datetime import datetime, timezone
 from decimal import Decimal
+import json
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from psycopg.rows import dict_row
 
 from app.api.auth.router import get_current_user
 from app.db.postgres import get_connection
+from app.db.exam_scope import require_exam_schema, scope_filter, scope_params
+from app.core.exam_scope import ExamType, exam_code
+from app.services.exam_grading import grade_exam
 from app.services.amplitude import send_amplitude_event
 
 router = APIRouter(prefix="/api/exams", tags=["exams"])
 
 
-class AnswerSaveRequest(BaseModel):
+class AttemptRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    attempt_uuid: UUID | None = Field(default=None, alias="attemptUuid")
+
+
+class AnswerSaveRequest(AttemptRequest):
     problem_id: str
     selected_answer: str
-    current_page_no: int | None = None
-    remaining_seconds: int | None = None
+    current_page_no: int | None = Field(default=None, ge=1)
+    remaining_seconds: int | None = Field(default=None, ge=0)
 
 
-class MemoSaveRequest(BaseModel):
+class MemoSaveRequest(AttemptRequest):
     content: str
 
 
-class SessionSyncRequest(BaseModel):
-    current_page_no: int | None = None
-    remaining_seconds: int | None = None
+class SessionSyncRequest(AttemptRequest):
+    current_page_no: int | None = Field(default=None, ge=1)
+    remaining_seconds: int | None = Field(default=None, ge=0)
 
 
-class SubmitExamRequest(BaseModel):
-    remaining_seconds: int | None = None
-    current_page_no: int | None = None
+class SubmitExamRequest(AttemptRequest):
+    remaining_seconds: int | None = Field(default=None, ge=0)
+    current_page_no: int | None = Field(default=None, ge=1)
 
 
 def normalize_decimal(value):
@@ -39,19 +49,21 @@ def normalize_decimal(value):
     return value
 
 
-def get_exam_code(exam_id: str) -> str:
-    return f"sqld_mock_{exam_id}"
+def get_exam_code(exam_id: str, exam_type: ExamType = "sqld") -> str:
+    return exam_code(exam_id, exam_type)
 
 
-def fetch_exam(conn, exam_id: str) -> dict:
+def fetch_exam(conn, exam_id: str, exam_type: ExamType = "sqld") -> dict:
+    scoped = require_exam_schema(conn, exam_type)
+    columns = "exam_type, grading_policy, pass_threshold_percent" if scoped else "'sqld' AS exam_type, 'legacy_equal' AS grading_policy, 60 AS pass_threshold_percent"
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            """
-            SELECT id, exam_code, title, total_question_count, duration_seconds
+            f"""
+            SELECT id, exam_code, title, total_question_count, duration_seconds, {columns}
             FROM exam.exams
-            WHERE exam_code = %s
+            WHERE exam_code = %s {scope_filter(scoped)}
             """,
-            (get_exam_code(exam_id),),
+            (get_exam_code(exam_id, exam_type),) + scope_params(scoped, exam_type),
         )
         exam = cur.fetchone()
 
@@ -70,6 +82,45 @@ def ensure_dashboard_row(conn, user_id: str) -> None:
             """,
             (user_id,),
         )
+
+
+def lock_user_progress(conn, user_id: str) -> None:
+    # One existing shared row serializes this user's attempt creation and awards.
+    ensure_dashboard_row(conn, user_id)
+    with conn.cursor() as cur:
+        cur.execute("SELECT user_id FROM dashboard.user_stats WHERE user_id = %s::uuid FOR UPDATE", (user_id,))
+
+
+def resolve_attempt(conn, *, exam: dict, user_id: str, attempt_uuid, allow_submitted=False):
+    lock_user_progress(conn, user_id)
+    if attempt_uuid is not None:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                "SELECT * FROM exam.exam_attempts WHERE attempt_uuid = %s::uuid "
+                "AND exam_id = %s AND user_id = %s::uuid FOR UPDATE",
+                (str(attempt_uuid), exam["id"], user_id),
+            )
+            attempt = cur.fetchone()
+        if attempt is None:
+            raise HTTPException(status_code=404, detail="exam attempt not found")
+    else:
+        if exam["exam_type"] != "sqld":
+            raise HTTPException(status_code=422, detail="attemptUuid is required for ADsP writes")
+        attempt = get_latest_attempt(conn, exam_id=exam["id"], user_id=user_id) if allow_submitted else None
+        if attempt is None:
+            attempt = get_or_create_attempt(conn, exam=exam, user_id=user_id)
+    allowed = {"in_progress", "submitted"} if allow_submitted else {"in_progress"}
+    if attempt["status"] not in allowed:
+        raise HTTPException(status_code=409, detail="attempt is not writable")
+    return attempt
+
+
+def stored_result_payload(conn, attempt_id, stored_result):
+    snapshot = (stored_result or {}).get("grading_snapshot") or {}
+    if isinstance(snapshot, dict) and isinstance(snapshot.get("result"), dict):
+        return snapshot["result"]
+    # Old snapshots did not contain grading facts. Preserve the legacy rendering.
+    return build_result_payload(conn, attempt_id)
 
 
 def get_or_create_attempt(conn, *, exam: dict, user_id: str) -> dict:
@@ -173,7 +224,7 @@ def load_attempt_state(conn, attempt_id: int) -> tuple[dict[str, str], str]:
     return answers, (memo["memo_content"] if memo else "")
 
 
-def build_result_payload(conn, attempt_id: int) -> dict:
+def build_result_payload(conn, attempt_id: int, *, grading_policy: str = 'legacy_equal') -> dict:
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
@@ -227,7 +278,7 @@ def build_result_payload(conn, attempt_id: int) -> dict:
                 "answer": row["correct_answer"],
                 "explanation": row["explanation"],
                 "options": row["choice_payload"] or [],
-                "points": question_payload.get("points", 2),
+                "points": question_payload.get("points") if grading_policy == 'weighted' else question_payload.get("points", 2),
                 "subjectId": row["subject_id"],
             }
         )
@@ -315,8 +366,8 @@ def get_exam_schedules(
     params: list = [resolved_year]
 
     if exam_type:
-        query += " AND exam_type = %s"
-        params.append(exam_type)
+        query += " AND exam_type = ANY(%s)"
+        params.append(["sqld", "SQL 개발자"] if exam_type == "sqld" else [exam_type])
 
     query += " ORDER BY display_order ASC, round_label ASC"
 
@@ -356,14 +407,15 @@ def get_exam_schedules(
 
 
 @router.get("/{exam_id}/session")
-def get_exam_session(exam_id: str, current_user: dict = Depends(get_current_user)):
+def get_exam_session(exam_id: str, current_user: dict = Depends(get_current_user), exam_type: ExamType = "sqld"):
     with get_connection() as conn:
-        exam = fetch_exam(conn, exam_id)
-        ensure_dashboard_row(conn, current_user["user_id"])
+        exam = fetch_exam(conn, exam_id, exam_type)
+        lock_user_progress(conn, current_user["user_id"])
         attempt = get_or_create_attempt(conn, exam=exam, user_id=current_user["user_id"])
         answers, memo_content = load_attempt_state(conn, attempt["id"])
 
     return {
+        "examType": exam_type,
         "attemptId": attempt["id"],
         "attemptUuid": str(attempt["attempt_uuid"]),
         "examId": exam_id,
@@ -380,10 +432,11 @@ def save_exam_answer(
     exam_id: str,
     req: AnswerSaveRequest,
     current_user: dict = Depends(get_current_user),
+    exam_type: ExamType = "sqld",
 ):
     with get_connection() as conn:
-        exam = fetch_exam(conn, exam_id)
-        attempt = get_or_create_attempt(conn, exam=exam, user_id=current_user["user_id"])
+        exam = fetch_exam(conn, exam_id, exam_type)
+        attempt = resolve_attempt(conn, exam=exam, user_id=current_user["user_id"], attempt_uuid=req.attempt_uuid)
 
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
@@ -432,10 +485,11 @@ def save_exam_memo(
     exam_id: str,
     req: MemoSaveRequest,
     current_user: dict = Depends(get_current_user),
+    exam_type: ExamType = "sqld",
 ):
     with get_connection() as conn:
-        exam = fetch_exam(conn, exam_id)
-        attempt = get_or_create_attempt(conn, exam=exam, user_id=current_user["user_id"])
+        exam = fetch_exam(conn, exam_id, exam_type)
+        attempt = resolve_attempt(conn, exam=exam, user_id=current_user["user_id"], attempt_uuid=req.attempt_uuid)
 
         with conn.cursor() as cur:
             cur.execute(
@@ -468,10 +522,11 @@ def sync_exam_session(
     exam_id: str,
     req: SessionSyncRequest,
     current_user: dict = Depends(get_current_user),
+    exam_type: ExamType = "sqld",
 ):
     with get_connection() as conn:
-        exam = fetch_exam(conn, exam_id)
-        attempt = get_or_create_attempt(conn, exam=exam, user_id=current_user["user_id"])
+        exam = fetch_exam(conn, exam_id, exam_type)
+        attempt = resolve_attempt(conn, exam=exam, user_id=current_user["user_id"], attempt_uuid=req.attempt_uuid)
         update_attempt_counters(
             conn,
             attempt["id"],
@@ -487,9 +542,10 @@ def get_latest_exam_result(
     exam_id: str,
     attempt_id: int | None = None,
     current_user: dict = Depends(get_current_user),
+    exam_type: ExamType = "sqld",
 ):
     with get_connection() as conn:
-        exam = fetch_exam(conn, exam_id)
+        exam = fetch_exam(conn, exam_id, exam_type)
         with conn.cursor(row_factory=dict_row) as cur:
             attempt_filter = ""
             params: list = [exam["id"], current_user["user_id"]]
@@ -518,7 +574,7 @@ def get_latest_exam_result(
 
             cur.execute(
                 """
-                SELECT passed, failed_by_subject_cutoff, score_percent
+                SELECT passed, failed_by_subject_cutoff, score_percent, grading_snapshot
                 FROM exam.exam_attempt_results
                 WHERE attempt_id = %s
                 """,
@@ -526,9 +582,10 @@ def get_latest_exam_result(
             )
             stored_result = cur.fetchone()
 
-        result_payload = build_result_payload(conn, attempt["id"])
+        result_payload = stored_result_payload(conn, attempt["id"], stored_result)
 
     return {
+        "examType": exam_type,
         "attemptId": attempt["id"],
         "passed": bool(stored_result["passed"]) if stored_result else False,
         "failedBySubjectCutoff": bool(stored_result["failed_by_subject_cutoff"]) if stored_result else False,
@@ -542,20 +599,18 @@ def submit_exam(
     exam_id: str,
     req: SubmitExamRequest,
     current_user: dict = Depends(get_current_user),
+    exam_type: ExamType = "sqld",
 ):
     with get_connection() as conn:
-        exam = fetch_exam(conn, exam_id)
-        ensure_dashboard_row(conn, current_user["user_id"])
-        attempt = get_latest_attempt(conn, exam_id=exam["id"], user_id=current_user["user_id"])
-        if not attempt:
-            attempt = get_or_create_attempt(conn, exam=exam, user_id=current_user["user_id"])
+        exam = fetch_exam(conn, exam_id, exam_type)
+        attempt = resolve_attempt(conn, exam=exam, user_id=current_user["user_id"],
+                                  attempt_uuid=req.attempt_uuid, allow_submitted=True)
 
         if attempt["status"] == "submitted":
-            result_payload = build_result_payload(conn, attempt["id"])
             with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(
                     """
-                    SELECT passed, failed_by_subject_cutoff, score_percent
+                    SELECT passed, failed_by_subject_cutoff, score_percent, grading_snapshot
                     FROM exam.exam_attempt_results
                     WHERE attempt_id = %s
                     """,
@@ -572,7 +627,9 @@ def submit_exam(
                 )
                 stats_row = cur.fetchone()
 
+            result_payload = stored_result_payload(conn, attempt["id"], stored_result)
             return {
+                "examType": exam_type,
                 "attemptId": attempt["id"],
                 "passed": bool(stored_result["passed"]) if stored_result else False,
                 "failedBySubjectCutoff": bool(stored_result["failed_by_subject_cutoff"]) if stored_result else False,
@@ -590,38 +647,39 @@ def submit_exam(
                 remaining_seconds=req.remaining_seconds,
             )
 
-        result_payload = build_result_payload(conn, attempt["id"])
+        result_payload = build_result_payload(conn, attempt["id"], grading_policy=exam["grading_policy"])
         total_question_count = exam["total_question_count"]
-        correct_count = result_payload["correctCount"]
+        if exam["grading_policy"] == 'legacy_equal':
+            # Original SQLD grouped q.subject_id and used a fixed 40% cutoff;
+            # do not introduce a new requirement on legacy exam.subjects columns.
+            subjects = [{'id': subject_id, 'pass_threshold_percent': 40}
+                        for subject_id in dict.fromkeys(p['subjectId'] for p in result_payload['problems'])]
+        else:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute("SELECT id, pass_threshold_percent FROM exam.subjects WHERE exam_id = %s ORDER BY id", (exam["id"],))
+                subjects = cur.fetchall()
+        try:
+            grading = grade_exam(result_payload["problems"], result_payload["answers"],
+                                 policy=exam["grading_policy"], total_question_count=total_question_count,
+                                 total_cutoff=exam["pass_threshold_percent"], subjects=subjects)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        correct_count = grading["correctCount"]
         awarded_points = correct_count
-        score_percent = round((correct_count / total_question_count) * 100, 2) if total_question_count else 0
-        passed_total_score = score_percent >= 60
+        score_percent = grading["scorePercent"]
+        failed_by_subject_cutoff = grading["failedBySubjectCutoff"]
+        passed = grading["passed"]
+        result_payload.update(score=grading["score"], maxScore=grading["maxScore"])
+        remaining = req.remaining_seconds if req.remaining_seconds is not None else attempt["remaining_seconds"]
+        elapsed_seconds = max(attempt["duration_seconds"] - min(remaining, attempt["duration_seconds"]), 0)
+        if exam["grading_policy"] == "legacy_equal":
+            elapsed_seconds = max(exam["duration_seconds"] - (req.remaining_seconds or 0), 0)
+        snapshot = {"elapsedLearningSeconds": elapsed_seconds, "schemaVersion": 1, "examType": exam_type, "grading": grading, "result": result_payload}
 
         with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                """
-                SELECT
-                    q.subject_id,
-                    COUNT(*) AS question_count,
-                    COUNT(*) FILTER (WHERE a.selected_choice = ak.correct_answer) AS correct_count
-                FROM exam.exam_questions q
-                JOIN exam.answer_keys ak
-                  ON ak.question_id = q.id
-                LEFT JOIN exam.exam_attempt_answers a
-                  ON a.question_id = q.id
-                 AND a.attempt_id = %s
-                WHERE q.exam_id = %s
-                GROUP BY q.subject_id
-                """,
-                (attempt["id"], exam["id"]),
-            )
-            subject_rows = cur.fetchall()
-
-            failed_by_subject_cutoff = False
-            for row in subject_rows:
-                subject_percent = round((row["correct_count"] / row["question_count"]) * 100, 2) if row["question_count"] else 0
-                is_failed_cutoff = passed_total_score and subject_percent < 40
-                failed_by_subject_cutoff = failed_by_subject_cutoff or is_failed_cutoff
+            for row in grading["subjects"]:
+                subject_percent = row["score_percent"]
+                is_failed_cutoff = row["is_failed_cutoff"]
                 cur.execute(
                     """
                     INSERT INTO exam.exam_attempt_subject_results (
@@ -649,7 +707,7 @@ def submit_exam(
                         row["correct_count"],
                         subject_percent,
                         is_failed_cutoff,
-                        '{"source":"submit"}',
+                        json.dumps(row),
                     ),
                 )
 
@@ -680,11 +738,9 @@ def submit_exam(
                         row["subject_id"],
                         row["question_count"],
                         row["correct_count"],
-                        subject_percent,
+                        row["accuracy_rate"],
                     ),
                 )
-
-            passed = passed_total_score and not failed_by_subject_cutoff
 
             cur.execute(
                 """
@@ -714,7 +770,7 @@ def submit_exam(
                     score_percent,
                     passed,
                     failed_by_subject_cutoff,
-                    '{"source":"submit"}',
+                    json.dumps(snapshot),
                 ),
             )
 
@@ -734,12 +790,11 @@ def submit_exam(
                 (
                     req.remaining_seconds,
                     req.current_page_no,
-                    '{"source":"submit"}',
+                    json.dumps({"examType": exam_type, "examCode": exam["exam_code"],
+                                "durationSeconds": exam["duration_seconds"], "gradingPolicy": exam["grading_policy"]}),
                     attempt["id"],
                 ),
             )
-
-            elapsed_seconds = max(exam["duration_seconds"] - (req.remaining_seconds or 0), 0)
 
             cur.execute(
                 """
@@ -802,6 +857,7 @@ def submit_exam(
         user_id=current_user["user_id"],
         event_properties={
             "exam_id": exam_id,
+            "exam_type": exam_type,
             "attempt_id": attempt["id"],
             "score_percent": score_percent,
             "passed": passed,
@@ -815,6 +871,7 @@ def submit_exam(
     )
 
     return {
+        "examType": exam_type,
         "attemptId": attempt["id"],
         "passed": passed,
         "failedBySubjectCutoff": failed_by_subject_cutoff,

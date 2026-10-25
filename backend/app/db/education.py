@@ -6,6 +6,8 @@ from typing import Any
 from psycopg.rows import dict_row
 
 from app.db.postgres import get_connection
+from app.core.exam_scope import ExamType
+from app.db.exam_scope import require_exam_schema, scope_filter, scope_params
 
 
 def _isoformat(value: datetime | None) -> str | None:
@@ -69,11 +71,12 @@ def build_curriculum_tree(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return roots
 
 
-def list_published_curricula() -> list[dict[str, Any]]:
+def list_published_curricula(exam_type: ExamType = "sqld") -> list[dict[str, Any]]:
     with get_connection() as conn:
+        scoped = require_exam_schema(conn, exam_type)
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                """
+                f"""
                 SELECT
                     curriculum.curriculum_code,
                     curriculum.title,
@@ -88,10 +91,11 @@ def list_published_curricula() -> list[dict[str, Any]]:
                 LEFT JOIN education.lessons lesson
                   ON lesson.unit_id = unit.unit_id
                  AND lesson.status = 'PUBLISHED'
-                WHERE curriculum.status = 'PUBLISHED'
+                WHERE curriculum.status = 'PUBLISHED' {scope_filter(scoped, "curriculum")}
                 GROUP BY curriculum.curriculum_id
                 ORDER BY curriculum.published_at DESC, curriculum.curriculum_id DESC
-                """
+                """,
+                scope_params(scoped, exam_type),
             )
             rows = cur.fetchall()
 
@@ -108,11 +112,12 @@ def list_published_curricula() -> list[dict[str, Any]]:
     ]
 
 
-def get_published_curriculum(curriculum_code: str) -> dict[str, Any] | None:
+def get_published_curriculum(curriculum_code: str, exam_type: ExamType = "sqld") -> dict[str, Any] | None:
     with get_connection() as conn:
+        scoped = require_exam_schema(conn, exam_type)
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                """
+                f"""
                 SELECT
                     curriculum_id,
                     curriculum_code,
@@ -121,17 +126,17 @@ def get_published_curriculum(curriculum_code: str) -> dict[str, Any] | None:
                     description,
                     published_at
                 FROM education.curricula
-                WHERE curriculum_code = %s
+                WHERE curriculum_code = %s {scope_filter(scoped)}
                   AND status = 'PUBLISHED'
                 """,
-                (curriculum_code,),
+                (curriculum_code,) + scope_params(scoped, exam_type),
             )
             curriculum = cur.fetchone()
             if curriculum is None:
                 return None
 
             cur.execute(
-                """
+                f"""
                 SELECT
                     unit.unit_id,
                     unit.unit_code,
@@ -174,11 +179,12 @@ def get_published_curriculum(curriculum_code: str) -> dict[str, Any] | None:
     }
 
 
-def get_published_lesson(lesson_id: int) -> dict[str, Any] | None:
+def get_published_lesson(lesson_id: int, exam_type: ExamType = "sqld") -> dict[str, Any] | None:
     with get_connection() as conn:
+        scoped = require_exam_schema(conn, exam_type)
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                """
+                f"""
                 SELECT
                     lesson.lesson_id,
                     lesson.lesson_code,
@@ -205,10 +211,10 @@ def get_published_lesson(lesson_id: int) -> dict[str, Any] | None:
                 JOIN education.curricula curriculum
                   ON curriculum.curriculum_id = unit.curriculum_id
                  AND curriculum.status = 'PUBLISHED'
-                WHERE lesson.lesson_id = %s
+                WHERE lesson.lesson_id = %s {scope_filter(scoped, "curriculum")}
                   AND lesson.status = 'PUBLISHED'
                 """,
-                (lesson_id,),
+                (lesson_id,) + scope_params(scoped, exam_type),
             )
             row = cur.fetchone()
 
@@ -218,11 +224,13 @@ def get_published_lesson(lesson_id: int) -> dict[str, Any] | None:
 def get_published_lesson_by_code(
     *,
     lesson_code: str,
+    exam_type: ExamType = "sqld",
 ) -> dict[str, Any] | None:
     with get_connection() as conn:
+        scoped = require_exam_schema(conn, exam_type)
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                """
+                f"""
                 SELECT
                     lesson.lesson_id,
                     lesson.lesson_code,
@@ -249,10 +257,10 @@ def get_published_lesson_by_code(
                 JOIN education.lesson_versions version
                   ON version.lesson_id = lesson.lesson_id
                  AND version.status = 'PUBLISHED'
-                WHERE lesson.lesson_code = %s
+                WHERE lesson.lesson_code = %s {scope_filter(scoped, "curriculum")}
                   AND curriculum.status = 'PUBLISHED'
                 """,
-                (lesson_code,),
+                (lesson_code,) + scope_params(scoped, exam_type),
             )
             row = cur.fetchone()
 
@@ -311,11 +319,12 @@ def serialize_progress(row: dict[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
-def get_lesson_progress(*, user_id: str, lesson_id: int) -> dict[str, Any] | None:
+def get_lesson_progress(*, user_id: str, lesson_id: int, exam_type: ExamType = "sqld") -> dict[str, Any] | None:
     with get_connection() as conn:
+        scoped = require_exam_schema(conn, exam_type)
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                """
+                f"""
                 SELECT
                     lesson_id,
                     last_opened_version_id,
@@ -329,8 +338,17 @@ def get_lesson_progress(*, user_id: str, lesson_id: int) -> dict[str, Any] | Non
                 FROM education.user_lesson_progress
                 WHERE user_id = %s::uuid
                   AND lesson_id = %s
+                  AND EXISTS (
+                      SELECT 1 FROM education.lessons lesson
+                      JOIN education.units unit ON unit.unit_id = lesson.unit_id
+                      JOIN education.curricula curriculum ON curriculum.curriculum_id = unit.curriculum_id
+                      WHERE lesson.lesson_id = education.user_lesson_progress.lesson_id
+                        {scope_filter(scoped, "curriculum")}
+                        AND lesson.status = 'PUBLISHED' AND unit.status = 'PUBLISHED'
+                        AND curriculum.status = 'PUBLISHED'
+                  )
                 """,
-                (user_id, lesson_id),
+                (user_id, lesson_id) + scope_params(scoped, exam_type),
             )
             row = cur.fetchone()
     return serialize_progress(row)
@@ -344,11 +362,13 @@ def save_lesson_progress(
     resume_anchor: str | None,
     resume_offset_px: int | None,
     completed: bool,
+    exam_type: ExamType = "sqld",
 ) -> dict[str, Any] | None:
     with get_connection() as conn:
+        scoped = require_exam_schema(conn, exam_type)
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                """
+                f"""
                 INSERT INTO education.user_lesson_progress (
                     user_id,
                     lesson_id,
@@ -377,12 +397,15 @@ def save_lesson_progress(
                     CASE WHEN %s THEN version.lesson_version_id ELSE NULL END,
                     CASE WHEN %s THEN now() ELSE NULL END
                 FROM education.lessons lesson
-                JOIN education.lesson_versions version
-                  ON version.lesson_id = lesson.lesson_id
+                JOIN education.lesson_versions version ON version.lesson_id = lesson.lesson_id
+                JOIN education.units unit ON unit.unit_id = lesson.unit_id
+                JOIN education.curricula curriculum ON curriculum.curriculum_id = unit.curriculum_id
                 WHERE lesson.lesson_id = %s
                   AND version.lesson_version_id = %s
                   AND lesson.status = 'PUBLISHED'
                   AND version.status = 'PUBLISHED'
+                  AND unit.status = 'PUBLISHED' AND curriculum.status = 'PUBLISHED'
+                  {scope_filter(scoped, "curriculum")}
                 ON CONFLICT (user_id, lesson_id) DO UPDATE
                 SET
                     last_opened_version_id = EXCLUDED.last_opened_version_id,
@@ -425,7 +448,7 @@ def save_lesson_progress(
                     completed,
                     lesson_id,
                     lesson_version_id,
-                ),
+                ) + scope_params(scoped, exam_type),
             )
             row = cur.fetchone()
     return serialize_progress(row)

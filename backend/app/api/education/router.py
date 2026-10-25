@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.api.auth.router import get_current_user
+from app.core.exam_scope import ExamType
 from app.db.education import (
     get_lesson_progress,
     get_published_curriculum,
@@ -30,29 +31,29 @@ class LessonProgressRequest(BaseModel):
 
 
 @router.get("/curricula")
-def list_curricula():
-    return {"curricula": list_published_curricula()}
+def list_curricula(exam_type: ExamType = "sqld"):
+    return {"curricula": list_published_curricula(exam_type)}
 
 
 @router.get("/curricula/{curriculum_code}")
-def get_curriculum(curriculum_code: str):
-    curriculum = get_published_curriculum(curriculum_code)
+def get_curriculum(curriculum_code: str, exam_type: ExamType = "sqld"):
+    curriculum = get_published_curriculum(curriculum_code, exam_type)
     if curriculum is None:
         raise HTTPException(status_code=404, detail="curriculum not found")
     return curriculum
 
 
 @router.get("/lessons/by-code/{lesson_code}")
-def get_lesson_by_code(lesson_code: str):
-    lesson = get_published_lesson_by_code(lesson_code=lesson_code)
+def get_lesson_by_code(lesson_code: str, exam_type: ExamType = "sqld"):
+    lesson = get_published_lesson_by_code(lesson_code=lesson_code, exam_type=exam_type)
     if lesson is None:
         raise HTTPException(status_code=404, detail="lesson not found")
     return lesson
 
 
 @router.get("/lessons/{lesson_id}")
-def get_lesson(lesson_id: int):
-    lesson = get_published_lesson(lesson_id)
+def get_lesson(lesson_id: int, exam_type: ExamType = "sqld"):
+    lesson = get_published_lesson(lesson_id, exam_type)
     if lesson is None:
         raise HTTPException(status_code=404, detail="lesson not found")
     return lesson
@@ -62,11 +63,15 @@ def get_lesson(lesson_id: int):
 def read_progress(
     lesson_id: int,
     current_user: dict = Depends(get_current_user),
+    exam_type: ExamType = "sqld",
 ):
+    if get_published_lesson(lesson_id, exam_type) is None:
+        raise HTTPException(status_code=404, detail="lesson not found")
     return {
         "progress": get_lesson_progress(
             user_id=current_user["user_id"],
             lesson_id=lesson_id,
+            exam_type=exam_type,
         )
     }
 
@@ -76,6 +81,7 @@ def write_progress(
     lesson_id: int,
     request: LessonProgressRequest,
     current_user: dict = Depends(get_current_user),
+    exam_type: ExamType = "sqld",
 ):
     progress = save_lesson_progress(
         user_id=current_user["user_id"],
@@ -84,6 +90,7 @@ def write_progress(
         resume_anchor=request.resume_anchor,
         resume_offset_px=request.resume_offset_px,
         completed=request.completed,
+        exam_type=exam_type,
     )
     if progress is None:
         raise HTTPException(
