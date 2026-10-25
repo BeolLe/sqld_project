@@ -1,10 +1,12 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ExamScheduleProvider } from './contexts/ExamScheduleContext';
 import { AIUsageProvider } from './contexts/AIUsageContext';
 import AuthModalContext from './contexts/AuthModalContext';
 import Header from './components/Header';
+import ADsPPreviewPage from './pages/ADsPPreviewPage';
+import { isExamPreviewHost, readPreviewExam } from './utils/examPreview';
 import AuthModal from './components/AuthModal';
 import ActivePopupRenderer from './components/ActivePopupRenderer';
 import type { ActivePopupCampaign } from './components/ActivePopupRenderer';
@@ -38,6 +40,8 @@ interface ActivePopupResponse {
   activePopup: ActivePopupCampaign | null;
 }
 
+const EXAM_PREVIEW_ENABLED = isExamPreviewHost(window.location.hostname);
+
 const PUBLIC_NOTICE_DISMISS_PREFIX = 'solsqld_notice_dismissed_';
 
 function getKstDateKey() {
@@ -45,6 +49,8 @@ function getKstDateKey() {
 }
 
 function AppShell() {
+  const { pathname } = useLocation();
+  const isADsPPreview = EXAM_PREVIEW_ENABLED && /^\/adsp(?:\/|$)/.test(pathname);
   const { user } = useAuth();
   const searchParams = new URLSearchParams(window.location.search);
   const hasPendingSocialSignup =
@@ -57,7 +63,7 @@ function AppShell() {
   const [showEventPopup, setShowEventPopup] = useState(false);
   const [activeCampaign, setActiveCampaign] = useState<ActivePopupCampaign | null>(null);
   useEffect(() => {
-    if (authModal.open) {
+    if (authModal.open || isADsPPreview) {
       setShowEventPopup(false);
       setActiveCampaign(null);
       return;
@@ -91,7 +97,7 @@ function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, [authModal.open, user]);
+  }, [authModal.open, user, isADsPPreview]);
 
   useEffect(() => {
     const currentSearchParams = new URLSearchParams(window.location.search);
@@ -169,7 +175,8 @@ function AppShell() {
               <Header onAuthClick={openAuth} />
               <main>
                 <Routes>
-                  <Route path="/" element={<MainPage />} />
+                  <Route path="/" element={EXAM_PREVIEW_ENABLED && readPreviewExam() === 'adsp' ? <Navigate to="/adsp" replace /> : <MainPage />} />
+                  {EXAM_PREVIEW_ENABLED && <Route path="/adsp/*" element={<ADsPPreviewPage />} />}
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/mypage" element={<MyPage />} />
                   <Route path="/feedback" element={<FeedbackPage />} />
@@ -210,7 +217,7 @@ function AppShell() {
         />
       )}
 
-      {showEventPopup && activeCampaign && (
+      {!isADsPPreview && showEventPopup && activeCampaign && (
         <ActivePopupRenderer campaign={activeCampaign} onClose={closeEventPopup} />
       )}
     </>
