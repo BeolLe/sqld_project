@@ -9,6 +9,7 @@ import { EXAM_7_PROBLEMS } from './exam7';
 import { EXAM_8_PROBLEMS } from './exam8';
 import { EXAM_9_PROBLEMS } from './exam9';
 import { EXAM_10_PROBLEMS } from './exam10';
+import { getAdspExamProblems } from '../adsp/exams';
 
 const EXAM_MAP: Record<string, Problem[]> = {
   '1': EXAM_1_PROBLEMS,
@@ -23,8 +24,9 @@ const EXAM_MAP: Record<string, Problem[]> = {
   '10': EXAM_10_PROBLEMS,
 };
 
+/** SQLD('1'~'10')와 ADsP('adsp-N') 모의고사 문항 */
 export function getExamProblems(examId: string): Problem[] {
-  return EXAM_MAP[examId] ?? [];
+  return EXAM_MAP[examId] ?? getAdspExamProblems(examId);
 }
 
 export interface ExamInfo {

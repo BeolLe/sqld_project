@@ -124,7 +124,8 @@ export const EXAM_CONFIG: Record<ExamType, ExamTypeConfig> = {
     name: 'ADsP',
     fullName: '데이터분석 준전문가',
     scheduleExamType: '데이터분석 준전문가',
-    contentReady: false,
+    // 백엔드가 exam_type 을 지원하면 true 로 바꾼다. 목업 모드(VITE_AI_MOCK=1)는 프론트 데이터(data/adsp)로 동작한다.
+    contentReady: import.meta.env.VITE_AI_MOCK === '1',
     hasSqlPractice: false,
     subjects: [
       { no: '1', label: '1과목', description: '데이터 이해', range: [1, 10], categories: ['데이터의 이해', '데이터의 가치와 미래', '데이터 사이언스와 전략 인사이트'] },
@@ -132,7 +133,7 @@ export const EXAM_CONFIG: Record<ExamType, ExamTypeConfig> = {
       { no: '3', label: '3과목', description: '데이터 분석', range: [21, 50] },
     ],
     examRule: '총 50문항 · 제한시간 90분 · 60점 이상 합격 · 과목별 40점 미만 과락',
-    examListDescription: '실제 ADsP 시험 형식(3과목 · 50문항 · 90분)의 모의고사로 실력을 점검하세요.',
+    examListDescription: '실제 ADsP 시험 형식(3과목 · 50문항 · 90분)의 모의고사로 실력을 점검하세요. (1~2회 기본 / 3~4회 중급 / 5회 고급)',
     hero: {
       badge: 'ADsP 합격을 위한 최적의 플랫폼',
       titleLine: '개념을 잡고',

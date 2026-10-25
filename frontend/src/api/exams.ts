@@ -1,6 +1,7 @@
 import type { Problem, ExamScheduleResponse } from '../types';
 import { apiRequest, apiFetch } from '../utils/api';
 import { getExamProblems } from '../data/exams';
+import { EXAM_CONFIG } from '../constants/examTypes';
 
 const IS_MOCK = import.meta.env.VITE_AI_MOCK === '1';
 
@@ -141,14 +142,21 @@ export function submitExam(
     const correctCount = problems.filter((p) => answers[p.id] === p.answer).length;
     const score = Math.round((correctCount / problems.length) * 100);
     const PASS_SCORE = 60;
+    // 서버와 같은 규칙: 총점 60점 이상이어도 한 과목이라도 40% 미만이면 불합격
+    const config = EXAM_CONFIG[examId.startsWith('adsp-') ? 'adsp' : 'sqld'];
+    const failedBySubjectCutoff = score >= PASS_SCORE && config.subjects.some(({ range: [from, to] }) => {
+      const subjectProblems = problems.slice(from - 1, to);
+      const correct = subjectProblems.filter((p) => answers[p.id] === p.answer).length;
+      return subjectProblems.length > 0 && correct / subjectProblems.length < 0.4;
+    });
     return Promise.resolve({
       attemptId: 1,
       score,
       answers,
       problems,
       correctCount,
-      passed: score >= PASS_SCORE,
-      failedBySubjectCutoff: false,
+      passed: score >= PASS_SCORE && !failedBySubjectCutoff,
+      failedBySubjectCutoff,
       scorePercent: score,
       awardedPoints: correctCount * 10,
       totalPoints: 320 + correctCount * 10,

@@ -4,6 +4,7 @@ import type { ExamType } from '../constants/examTypes';
 import { withExamType } from '../utils/examPath';
 import { ALL_PRACTICE_PROBLEMS } from '../data/practice';
 import { EXAM_1_PROBLEMS } from '../data/exams/exam1';
+import { ADSP_ENDLESS_PROBLEMS } from '../data/adsp/endless';
 
 const IS_MOCK = import.meta.env.VITE_AI_MOCK === '1';
 
@@ -33,7 +34,7 @@ export interface EndlessStatsResponse {
 }
 
 export function fetchEndlessProblems(examType: ExamType = 'sqld'): Promise<Problem[]> {
-  if (IS_MOCK) return Promise.resolve(MOCK_PROBLEMS);
+  if (IS_MOCK) return Promise.resolve(examType === 'adsp' ? ADSP_ENDLESS_PROBLEMS : MOCK_PROBLEMS);
   return apiFetch<Problem[]>(withExamType('/endless/problems', examType));
 }
 
@@ -67,7 +68,7 @@ export function submitEndlessAnswer(payload: {
   difficulty?: string;
 }): Promise<EndlessStatsResponse> {
   if (IS_MOCK) {
-    const problem = MOCK_PROBLEMS.find((p) => p.id === payload.problemId);
+    const problem = [...MOCK_PROBLEMS, ...ADSP_ENDLESS_PROBLEMS].find((p) => p.id === payload.problemId);
     const isCorrect = problem?.answer === payload.selectedAnswer;
 
     mockStats.totalAnswered += 1;

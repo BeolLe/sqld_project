@@ -125,6 +125,8 @@ export default function ExamTakingPage() {
   );
   const pageStartIndex = currentPage * PROBLEMS_PER_PAGE;
   const { config, examPath } = useExamType();
+  // ADsP 모의고사 id 는 'adsp-3' 형태다. 화면에는 회차 숫자만 보여준다.
+  const roundLabel = (id ?? '').replace(/^[a-z]+-/, '');
   // 이 페이지 첫 문항이 속한 과목 (ADsP 는 3과목이라 페이지마다 바뀐다)
   const currentSubject = config.subjects.find(
     (subject) => pageStartIndex + 1 >= subject.range[0] && pageStartIndex + 1 <= subject.range[1],
@@ -361,7 +363,7 @@ export default function ExamTakingPage() {
       <div className="sticky top-12 z-30 bg-white border-b border-slate-200 shadow-sm">
         <div className="max-w-6xl mx-auto px-2 md:px-4 h-12 md:h-14 flex items-center justify-between">
           <div className="text-xs md:text-sm font-semibold text-sqld-navy truncate">
-            {config.name} {id}회 &nbsp;
+            {config.name} {roundLabel}회 &nbsp;
             <span className="text-slate-400 font-normal">
               {answeredCount}/{problems.length}
             </span>
@@ -424,7 +426,7 @@ export default function ExamTakingPage() {
             {/* 헤더는 첫 페이지에만 */}
             {currentPage === 0 && (
               <div className="text-center mb-6 md:mb-8 pb-4 border-b-2 border-sqld-navy">
-                <h1 className="text-lg md:text-xl font-bold text-sqld-navy">{config.name} 모의고사 {id}회</h1>
+                <h1 className="text-lg md:text-xl font-bold text-sqld-navy">{config.name} 모의고사 {roundLabel}회</h1>
                 <p className="text-xs md:text-sm text-slate-500 mt-1">
                   총 {problems.length}문항 · 제한시간 90분 · 60점 이상 합격 · 과목별 40점 미만 과락
                 </p>

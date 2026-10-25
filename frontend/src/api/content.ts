@@ -3,6 +3,7 @@ import { apiFetch } from '../utils/api';
 import type { ExamType } from '../constants/examTypes';
 import { withExamType } from '../utils/examPath';
 import { EXAM_LIST, getExamProblems } from '../data/exams';
+import { ADSP_EXAM_LIST } from '../data/adsp/exams';
 import { ALL_PRACTICE_PROBLEMS, getPracticeProblemById } from '../data/practice';
 
 export interface ExamListItem {
@@ -19,7 +20,7 @@ const IS_MOCK = import.meta.env.VITE_AI_MOCK === '1';
 export function fetchExamList(examType: ExamType = 'sqld'): Promise<ExamListItem[]> {
   if (IS_MOCK) {
     return Promise.resolve(
-      EXAM_LIST.map((e) => ({
+      (examType === 'adsp' ? ADSP_EXAM_LIST : EXAM_LIST).map((e) => ({
         id: e.id,
         round: e.round,
         title: e.title,
