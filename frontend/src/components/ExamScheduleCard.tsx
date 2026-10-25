@@ -1,7 +1,9 @@
 import { Calendar, Loader2 } from 'lucide-react';
 import type { ExamSchedule } from '../types';
+import { useExamType } from '../hooks/useExamType';
 import { useExamSchedules } from '../contexts/ExamScheduleContext';
 import {
+  filterSchedulesByExam,
   getNextExamDate,
   getDday,
   formatDate,
@@ -72,7 +74,9 @@ function ScheduleStatus({ schedule }: { schedule: ExamSchedule }) {
 }
 
 export default function ExamScheduleCard() {
-  const { schedules, year, loading, error } = useExamSchedules();
+  const { schedules: allSchedules, year, loading, error } = useExamSchedules();
+  const { config } = useExamType();
+  const schedules = filterSchedulesByExam(allSchedules, config.scheduleExamType);
 
   const nextExam = getNextExamDate(schedules);
   const dday = nextExam?.examDate ? getDday(nextExam.examDate) : null;
@@ -87,10 +91,10 @@ export default function ExamScheduleCard() {
               <Calendar className="w-5 h-5 text-blue-400" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">{year}년 SQLD 시험 일정</h2>
+              <h2 className="text-lg font-bold text-white">{year}년 {config.name} 시험 일정</h2>
               {schedules.length > 0 && (
                 <p className="text-xs text-slate-400">
-                  SQL 개발자 (제{schedules[0].round}회 ~ 제{schedules[schedules.length - 1].round}회)
+                  {config.fullName} ({schedules[0].roundLabel} ~ {schedules[schedules.length - 1].roundLabel})
                 </p>
               )}
             </div>

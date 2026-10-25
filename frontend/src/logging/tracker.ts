@@ -1,4 +1,5 @@
 import type { LogEvent } from './types';
+import { splitExamPath } from '../utils/examPath';
 
 const SCHEMA_VERSION = '1.0';
 const PLATFORM = 'web';
@@ -112,8 +113,12 @@ class LogTracker {
       | 'device_id'
     >
   ) {
+    // 시험 구분(SQLD/ADsP)은 URL 첫 세그먼트에서 읽어 모든 이벤트에 붙인다.
+    // 공통 화면(/, /mypage 등)은 붙이지 않는다.
+    const examType = splitExamPath(window.location.pathname).examType;
     const full: LogEvent = {
       ...event,
+      page_params: examType ? { ...event.page_params, exam_type: examType } : event.page_params,
       event_id: newEventId(),
       schema_version: SCHEMA_VERSION,
       platform: PLATFORM,

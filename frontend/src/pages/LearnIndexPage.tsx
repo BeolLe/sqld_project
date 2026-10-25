@@ -8,7 +8,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TriangleAlert } from 'lucide-react';
-import { ALL_UNITS, CURRICULUM } from '../data/learn/curriculum';
+import { getCurriculum } from '../data/learn/curriculum';
+import { useExamType } from '../hooks/useExamType';
 import type { LearnUnit } from '../data/learn/types';
 import { useAuth } from '../contexts/AuthContext';
 import { PageviewLog, ClickLog } from '../logging';
@@ -66,6 +67,7 @@ function PreparingDialog({ title, onClose, onClickLog }: { title: string; unitDa
 }
 
 function UnitCard({ unit, unitIdx, onPreparing, onClick }: { unit: LearnUnit; unitIdx: number; onPreparing: () => void; onClick: (u: LearnUnit, idx: number) => void }) {
+  const { examPath } = useExamType();
   const ready = unit.blocks.length > 0;
 
   const body = (
@@ -102,13 +104,16 @@ function UnitCard({ unit, unitIdx, onPreparing, onClick }: { unit: LearnUnit; un
   }
 
   return (
-    <Link to={`/learn/${unit.id}`} onClick={() => onClick(unit, unitIdx)} className={CARD_CLASS}>
+    <Link to={examPath(`/learn/${unit.id}`)} onClick={() => onClick(unit, unitIdx)} className={CARD_CLASS}>
       {body}
     </Link>
   );
 }
 
 export default function LearnIndexPage() {
+  const { examType, examPath } = useExamType();
+  const { curriculum: CURRICULUM, units: ALL_UNITS } = getCurriculum(examType);
+  const learnUrl = examPath('/learn');
   const readyCount = ALL_UNITS.filter((unit) => unit.blocks.length > 0).length;
   const totalMinutes = ALL_UNITS.reduce((sum, unit) => sum + unit.estimatedMin, 0);
   const groupCount = CURRICULUM.reduce((sum, s) => sum + s.groups.length, 0);
@@ -119,8 +124,8 @@ export default function LearnIndexPage() {
   const navigate = useNavigate();
 
   // ─── 로깅 ──────────────────────────────────────────────────────────────
-  const pageview = useMemo(() => new PageviewLog({ page_id: 'learn_index', url: '/learn' }), []);
-  const click = useMemo(() => new ClickLog({ page_id: 'learn_index', url: '/learn' }), []);
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'learn_index', url: learnUrl }), [learnUrl]);
+  const click = useMemo(() => new ClickLog({ page_id: 'learn_index', url: learnUrl }), [learnUrl]);
   const pvSent = useRef(false);
 
   useEffect(() => {
@@ -131,7 +136,7 @@ export default function LearnIndexPage() {
     } else {
       pageview.send({ step: 'login_required' });
     }
-  }, [isInitializing, isLoggedIn, pageview, readyCount, groupCount, totalMinutes]);
+  }, [isInitializing, isLoggedIn, pageview, readyCount, groupCount, totalMinutes, ALL_UNITS.length]);
 
   // ─── 인증 상태 분기 ──────────────────────────────────────────────────────
 
@@ -150,12 +155,12 @@ export default function LearnIndexPage() {
           <p className="text-slate-500 mb-4">
             개념 학습은 회원 전용입니다.
             <br />
-            로그인하시면 30개 세부항목의 개념 노트와 빈칸 복습을 이용할 수 있습니다.
+            로그인하시면 {ALL_UNITS.length}개 세부항목의 개념 노트와 빈칸 복습을 이용할 수 있습니다.
           </p>
           <button
             onClick={() => {
-              click.send({ object_section_id: 'login_required', object_section_idx: 2, object_type: 'button', object_idx: 0, object_id: 'home', object_url: '/', page_params: { step: 'login_required' } });
-              navigate('/');
+              click.send({ object_section_id: 'login_required', object_section_idx: 2, object_type: 'button', object_idx: 0, object_id: 'home', object_url: examPath('/'), page_params: { step: 'login_required' } });
+              navigate(examPath('/'));
             }}
             className="text-primary-600 hover:underline"
           >
@@ -233,7 +238,7 @@ export default function LearnIndexPage() {
                         const ready = u.blocks.length > 0;
                         click.send({
                           object_section_id: 'unit_list', object_section_idx: 1, object_type: 'card', object_idx: idx, object_id: 'unit',
-                          object_url: ready ? `/learn/${u.id}` : '',
+                          object_url: ready ? examPath(`/learn/${u.id}`) : '',
                           data: { unit_id: u.id, unit_title: u.title, subject: subject.subject, group: group.name, estimated_minutes: u.estimatedMin, is_ready: ready },
                           page_params: { step: 'list' },
                         });

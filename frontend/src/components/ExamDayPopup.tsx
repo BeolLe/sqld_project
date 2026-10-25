@@ -16,7 +16,7 @@ export default function ExamDayPopup({ onClose }: ExamDayPopupProps) {
 
   function handleExamClick() {
     onClose(dismissChecked);
-    navigate('/exams');
+    navigate('/sqld/exams');
   }
 
   return (

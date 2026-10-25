@@ -1,4 +1,6 @@
-import type { LearnBlock, LearnSubject, LearnUnit } from './types';
+import type { LearnBlock, LearnSubject, LearnSubjectNo, LearnUnit } from './types';
+import type { ExamType } from '../../constants/examTypes';
+import { ADSP_SEED } from './adspCurriculum';
 import { dmModelBlocks } from './units/dmModel';
 import { dmEntityBlocks } from './units/dmEntity';
 import { dmNormBlocks } from './units/dmNorm';
@@ -36,7 +38,7 @@ import { adDclBlocks } from './units/adDcl';
  * 콘텐츠가 없는 항목도 목록에는 노출하고 '미학습'으로 표시한다.
  */
 
-interface UnitSeed {
+export interface UnitSeed {
   id: string;
   title: string;
   estimatedMin: number;
@@ -44,13 +46,13 @@ interface UnitSeed {
   blocks?: LearnBlock[];
 }
 
-interface GroupSeed {
+export interface GroupSeed {
   name: string;
   units: UnitSeed[];
 }
 
-interface SubjectSeed {
-  subject: 1 | 2;
+export interface SubjectSeed {
+  subject: LearnSubjectNo;
   title: string;
   exam: string;
   showFailWarning?: boolean;
@@ -270,33 +272,49 @@ const SEED: SubjectSeed[] = [
   },
 ];
 
-let order = 0;
-
-export const CURRICULUM: LearnSubject[] = SEED.map((subject) => ({
-  subject: subject.subject,
-  title: subject.title,
-  exam: subject.exam,
-  showFailWarning: subject.showFailWarning ?? false,
-  groups: subject.groups.map((group) => ({
-    name: group.name,
-    units: group.units.map<LearnUnit>((unit) => ({
-      id: unit.id,
-      subject: subject.subject,
-      group: group.name,
-      order: ++order,
-      title: unit.title,
-      estimatedMin: unit.estimatedMin,
-      priority1: unit.priority1 ?? false,
-      blocks: unit.blocks ?? [],
+function buildCurriculum(seed: SubjectSeed[]): LearnSubject[] {
+  let order = 0;
+  return seed.map((subject) => ({
+    subject: subject.subject,
+    title: subject.title,
+    exam: subject.exam,
+    showFailWarning: subject.showFailWarning ?? false,
+    groups: subject.groups.map((group) => ({
+      name: group.name,
+      units: group.units.map<LearnUnit>((unit) => ({
+        id: unit.id,
+        subject: subject.subject,
+        group: group.name,
+        order: ++order,
+        title: unit.title,
+        estimatedMin: unit.estimatedMin,
+        priority1: unit.priority1 ?? false,
+        blocks: unit.blocks ?? [],
+      })),
     })),
-  })),
-}));
+  }));
+}
+
+/** SQLD 커리큘럼 */
+export const CURRICULUM: LearnSubject[] = buildCurriculum(SEED);
+
+/** ADsP 커리큘럼. 본문은 추후 업로드하며, 그 전까지 모든 항목은 '준비 중'이다. */
+export const ADSP_CURRICULUM: LearnSubject[] = buildCurriculum(ADSP_SEED);
 
 /** 공식 출제범위 순서대로 평탄화한 전체 세부항목 */
 export const ALL_UNITS: LearnUnit[] = CURRICULUM.flatMap((s) => s.groups.flatMap((g) => g.units));
 
-export function findUnit(id: string): LearnUnit | undefined {
-  return ALL_UNITS.find((u) => u.id === id);
+export const ADSP_ALL_UNITS: LearnUnit[] = ADSP_CURRICULUM.flatMap((s) => s.groups.flatMap((g) => g.units));
+
+export function getCurriculum(examType: ExamType): { curriculum: LearnSubject[]; units: LearnUnit[] } {
+  return examType === 'adsp'
+    ? { curriculum: ADSP_CURRICULUM, units: ADSP_ALL_UNITS }
+    : { curriculum: CURRICULUM, units: ALL_UNITS };
+}
+
+/** 해당 시험의 세부항목만 찾는다. 다른 시험 항목 id 로는 열리지 않는다. */
+export function findUnit(id: string, examType: ExamType = 'sqld'): LearnUnit | undefined {
+  return getCurriculum(examType).units.find((u) => u.id === id);
 }
 
 export function countBlanks(unit: LearnUnit): number {

@@ -2,6 +2,7 @@ import type { ExamSchedule, ExamScheduleItem } from '../types';
 
 export function mapScheduleItem(item: ExamScheduleItem): ExamSchedule {
   return {
+    examType: item.examType,
     round: item.displayOrder,
     roundLabel: item.roundLabel,
     registrationStart: item.applicationStartAt,
@@ -9,6 +10,11 @@ export function mapScheduleItem(item: ExamScheduleItem): ExamSchedule {
     examDate: item.examStartAt,
     resultDate: item.passAnnouncementStartAt,
   };
+}
+
+/** schedule.exam_schedules.exam_type 값으로 거른다 (예: 'SQL 개발자'). */
+export function filterSchedulesByExam(schedules: ExamSchedule[], scheduleExamType: string): ExamSchedule[] {
+  return schedules.filter((s) => s.examType === scheduleExamType);
 }
 
 export function getNextExamDate(schedules: ExamSchedule[]): ExamSchedule | null {

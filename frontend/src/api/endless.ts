@@ -1,5 +1,7 @@
 import { apiFetch } from '../utils/api';
 import type { Problem } from '../types';
+import type { ExamType } from '../constants/examTypes';
+import { withExamType } from '../utils/examPath';
 import { ALL_PRACTICE_PROBLEMS } from '../data/practice';
 import { EXAM_1_PROBLEMS } from '../data/exams/exam1';
 
@@ -30,12 +32,12 @@ export interface EndlessStatsResponse {
   byDifficulty: Record<string, { answered: number; correct: number; rate: number }>;
 }
 
-export function fetchEndlessProblems(): Promise<Problem[]> {
+export function fetchEndlessProblems(examType: ExamType = 'sqld'): Promise<Problem[]> {
   if (IS_MOCK) return Promise.resolve(MOCK_PROBLEMS);
-  return apiFetch<Problem[]>('/endless/problems');
+  return apiFetch<Problem[]>(withExamType('/endless/problems', examType));
 }
 
-export function fetchEndlessStats(): Promise<EndlessStatsResponse> {
+export function fetchEndlessStats(examType: ExamType = 'sqld'): Promise<EndlessStatsResponse> {
   if (IS_MOCK) {
     return Promise.resolve({
       ...mockStats,
@@ -44,10 +46,10 @@ export function fetchEndlessStats(): Promise<EndlessStatsResponse> {
         : 0,
     });
   }
-  return apiFetch<EndlessStatsResponse>('/endless/stats');
+  return apiFetch<EndlessStatsResponse>(withExamType('/endless/stats', examType));
 }
 
-export function resetEndlessStats(): Promise<EndlessStatsResponse> {
+export function resetEndlessStats(examType: ExamType = 'sqld'): Promise<EndlessStatsResponse> {
   if (IS_MOCK) {
     mockStats.totalAnswered = 0;
     mockStats.totalCorrect = 0;
@@ -55,7 +57,7 @@ export function resetEndlessStats(): Promise<EndlessStatsResponse> {
     mockStats.byDifficulty = {};
     return Promise.resolve({ ...mockStats, correctRate: 0 });
   }
-  return apiFetch<EndlessStatsResponse>('/endless/stats', { method: 'DELETE' });
+  return apiFetch<EndlessStatsResponse>(withExamType('/endless/stats', examType), { method: 'DELETE' });
 }
 
 export function submitEndlessAnswer(payload: {

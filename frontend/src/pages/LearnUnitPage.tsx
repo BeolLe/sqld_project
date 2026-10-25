@@ -8,7 +8,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Download } from 'lucide-react';
-import { countBlanks, findUnit } from '../data/learn/curriculum';
+import { countBlanks, findUnit, getCurriculum } from '../data/learn/curriculum';
+import { useExamType } from '../hooks/useExamType';
 import { recordBlankResult } from '../utils/learnProgress';
 import BlockRenderer from '../components/learn/BlockRenderer';
 import RemoteLessonView from '../components/learn/RemoteLessonView';
@@ -25,10 +26,11 @@ import { PageviewLog, ClickLog } from '../logging';
 const REMOTE_LESSON_ENABLED = false;
 
 function NotFound({ onClickLog }: { onClickLog?: () => void }) {
+  const { examPath } = useExamType();
   return (
     <div className="mx-auto max-w-3xl px-5 py-20 text-center">
       <h1 className="mb-3 text-xl font-bold text-slate-900">존재하지 않는 학습 항목입니다.</h1>
-      <Link to="/learn" onClick={onClickLog} className="text-primary-600 hover:underline">
+      <Link to={examPath('/learn')} onClick={onClickLog} className="text-primary-600 hover:underline">
         교육 목차로 돌아가기
       </Link>
     </div>
@@ -37,7 +39,9 @@ function NotFound({ onClickLog }: { onClickLog?: () => void }) {
 
 export default function LearnUnitPage() {
   const { unitId } = useParams<{ unitId: string }>();
-  const unit = unitId ? findUnit(unitId) : undefined;
+  const { examType, examPath } = useExamType();
+  const unitTotal = getCurriculum(examType).units.length;
+  const unit = unitId ? findUnit(unitId, examType) : undefined;
   const ready = unit ? unit.blocks.length > 0 : false;
   const { user, isLoggedIn, isInitializing } = useAuth();
   const navigate = useNavigate();
@@ -67,7 +71,7 @@ export default function LearnUnitPage() {
   );
 
   // ─── 로깅 ──────────────────────────────────────────────────────────────
-  const unitUrl = `/learn/${unitId}`;
+  const unitUrl = examPath(`/learn/${unitId}`);
   const pageview = useMemo(() => new PageviewLog({ page_id: 'learn_unit', url: unitUrl }), [unitUrl]);
   const click = useMemo(() => new ClickLog({ page_id: 'learn_unit', url: unitUrl, pageParams: { unit_id: unitId } }), [unitUrl, unitId]);
   const pvSent = useRef(false);
@@ -145,12 +149,12 @@ export default function LearnUnitPage() {
           <p className="text-slate-500 mb-4">
             개념 학습은 회원 전용입니다.
             <br />
-            로그인하시면 30개 세부항목의 개념 노트와 빈칸 복습을 이용할 수 있습니다.
+            로그인하시면 {unitTotal}개 세부항목의 개념 노트와 빈칸 복습을 이용할 수 있습니다.
           </p>
           <button
             onClick={() => {
-              click.send({ object_section_id: 'login_required', object_section_idx: 6, object_type: 'button', object_idx: 0, object_id: 'home', object_url: '/', data: { unit_id: unitId }, page_params: { step: 'login_required', unit_id: unitId } });
-              navigate('/');
+              click.send({ object_section_id: 'login_required', object_section_idx: 6, object_type: 'button', object_idx: 0, object_id: 'home', object_url: examPath('/'), data: { unit_id: unitId }, page_params: { step: 'login_required', unit_id: unitId } });
+              navigate(examPath('/'));
             }}
             className="text-primary-600 hover:underline"
           >
@@ -161,7 +165,7 @@ export default function LearnUnitPage() {
     );
   }
 
-  if (!unit) return <NotFound onClickLog={() => click.send({ object_section_id: 'notice', object_section_idx: 5, object_type: 'link', object_idx: 0, object_id: 'unit_list', object_url: '/learn', data: { unit_id: unitId, reason: 'invalid_unit' }, page_params: { step: 'not_found', unit_id: unitId } })} />;
+  if (!unit) return <NotFound onClickLog={() => click.send({ object_section_id: 'notice', object_section_idx: 5, object_type: 'link', object_idx: 0, object_id: 'unit_list', object_url: examPath('/learn'), data: { unit_id: unitId, reason: 'invalid_unit' }, page_params: { step: 'not_found', unit_id: unitId } })} />;
 
   return (
     <div className="min-h-screen bg-white">
@@ -169,8 +173,8 @@ export default function LearnUnitPage() {
         <div className="grid items-start gap-11 py-8 pb-20 lg:grid-cols-[15rem_minmax(0,1fr)]">
           <nav className="top-20 hidden text-[0.8125rem] lg:sticky lg:block print:hidden">
             <Link
-              to="/learn"
-              onClick={() => click.send({ object_section_id: 'unit_nav', object_section_idx: 1, object_type: 'link', object_idx: 0, object_id: 'unit_list', object_url: '/learn', data: { unit_id: unitId }, page_params: { step: quizMode ? 'quiz' : 'note', unit_id: unitId } })}
+              to={examPath('/learn')}
+              onClick={() => click.send({ object_section_id: 'unit_nav', object_section_idx: 1, object_type: 'link', object_idx: 0, object_id: 'unit_list', object_url: examPath('/learn'), data: { unit_id: unitId }, page_params: { step: quizMode ? 'quiz' : 'note', unit_id: unitId } })}
               className="mb-4 inline-flex items-center gap-1 text-slate-500 hover:text-primary-600"
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
@@ -217,7 +221,7 @@ export default function LearnUnitPage() {
                   </span>
                   <span>
                     세부항목{' '}
-                    <b className="font-semibold text-slate-700">{unit.order} / 30</b>
+                    <b className="font-semibold text-slate-700">{unit.order} / {unitTotal}</b>
                   </span>
                   {ready && (
                     <span>
@@ -252,8 +256,8 @@ export default function LearnUnitPage() {
                   빠른 시일 내에 업데이트할 수 있도록 하겠습니다.
                 </p>
                 <Link
-                  to="/learn"
-                  onClick={() => click.send({ object_section_id: 'notice', object_section_idx: 5, object_type: 'link', object_idx: 0, object_id: 'unit_list', object_url: '/learn', data: { unit_id: unitId, reason: 'lesson_not_found' }, page_params: { step: 'not_found', unit_id: unitId } })}
+                  to={examPath('/learn')}
+                  onClick={() => click.send({ object_section_id: 'notice', object_section_idx: 5, object_type: 'link', object_idx: 0, object_id: 'unit_list', object_url: examPath('/learn'), data: { unit_id: unitId, reason: 'lesson_not_found' }, page_params: { step: 'not_found', unit_id: unitId } })}
                   className="mt-3 inline-block text-[0.9rem] font-semibold text-amber-900 underline"
                 >
                   목차로 돌아가기

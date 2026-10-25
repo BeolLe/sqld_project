@@ -3,6 +3,11 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Database, User, LogOut, Settings, Shield, Menu, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ClickLog } from '../logging';
+import { useExamType } from '../hooks/useExamType';
+import { EXAM_CONFIG, EXAM_TYPES } from '../constants/examTypes';
+import type { ExamType } from '../constants/examTypes';
+import { splitExamPath } from '../utils/examPath';
+import { getPageId } from '../utils/pageId';
 
 interface HeaderProps {
   onAuthClick: (mode: 'login' | 'signup') => void;
@@ -14,20 +19,8 @@ export default function Header({ onAuthClick }: HeaderProps) {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const pageId = useMemo(() => {
-    const path = location.pathname;
-    if (path === '/') return 'main';
-    if (path.startsWith('/exams')) return path.includes('/result') ? 'exam_result' : path.includes('/taking') ? 'exam_taking' : 'exam_list';
-    if (path.startsWith('/sql-practice/')) return 'sql_solving';
-    if (path === '/sql-practice') return 'sql_list';
-    if (path === '/learn') return 'learn_index';
-    if (path.startsWith('/learn/')) return 'learn_unit';
-    if (path === '/endless') return 'endless';
-    if (path === '/dashboard') return 'dashboard';
-    if (path === '/feedback') return 'feedback';
-    if (path === '/mypage') return 'mypage';
-    return 'unknown';
-  }, [location.pathname]);
+  const pageId = useMemo(() => getPageId(location.pathname), [location.pathname]);
+  const { examType, config, isExamScoped, examPath } = useExamType();
 
   const click = useMemo(() => new ClickLog({ page_id: pageId, url: location.pathname }), [pageId, location.pathname]);
 
@@ -41,10 +34,52 @@ export default function Header({ onAuthClick }: HeaderProps) {
     setMobileMenuOpen(false);
   }
 
+  /**
+   * 시험 전환: 보던 메뉴는 유지한다 (/sqld/learn → /adsp/learn).
+   * 특정 회차·항목 화면이면 그 목록으로, 대상 시험에 없는 메뉴면 시험 홈으로 간다.
+   */
+  function switchExam(target: ExamType) {
+    const { rest } = splitExamPath(location.pathname);
+    let nextRest = '/';
+    if (isExamScoped) {
+      const section = rest.split('/')[1] ?? '';
+      if (section === 'sql-practice') nextRest = EXAM_CONFIG[target].hasSqlPractice ? rest : '/';
+      else if (section === 'exams' || section === 'learn') nextRest = `/${section}`;
+      else if (section === 'endless' || section === 'dashboard') nextRest = rest;
+    }
+    const to = `/${target}${nextRest === '/' ? '' : nextRest}`;
+    click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'tab', object_idx: 12, object_id: 'exam_switch', object_url: to, data: { header_variant: 'common', from_exam_type: examType, to_exam_type: target } });
+    closeMobile();
+    navigate(to);
+  }
+
+  const examSwitcher = (
+    <div className="flex items-center rounded-lg bg-slate-800 border border-slate-700 p-0.5" role="tablist" aria-label="시험 선택">
+      {EXAM_TYPES.map((type) => {
+        const active = isExamScoped && type === examType;
+        return (
+          <button
+            key={type}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => switchExam(type)}
+            className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${
+              active ? EXAM_CONFIG[type].accent.switcherActive : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            {EXAM_CONFIG[type].name}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <header className="sticky top-0 z-40 bg-sqld-navy border-b border-slate-700 shadow-lg print:hidden">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-        {/* 로고 */}
+        {/* 로고 + 시험 전환기 */}
+        <div className="flex items-center gap-4">
         <Link
           to="/"
           onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 0, object_id: 'home', object_url: '/', data: { header_variant: 'common' } }); closeMobile(); }}
@@ -55,25 +90,29 @@ export default function Header({ onAuthClick }: HeaderProps) {
             Sol<span className="text-primary-500">SQLD</span>
           </span>
         </Link>
+        <div className="hidden sm:block">{examSwitcher}</div>
+        </div>
 
         {/* 데스크탑 네비게이션 */}
         <nav className="hidden md:flex items-center gap-6 text-sm text-slate-300">
-          <Link to="/exams" onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 1, object_id: 'exam_list', object_url: '/exams', data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
+          <Link to={examPath('/exams')} onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 1, object_id: 'exam_list', object_url: examPath('/exams'), data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
             모의고사
           </Link>
-          <Link to="/sql-practice" onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 2, object_id: 'sql_list', object_url: '/sql-practice', data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
-            SQL 실습
-          </Link>
-          <Link to="/learn" onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 3, object_id: 'learn_index', object_url: '/learn', data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
+          {config.hasSqlPractice && (
+            <Link to={examPath('/sql-practice')} onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 2, object_id: 'sql_list', object_url: examPath('/sql-practice'), data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
+              SQL 실습
+            </Link>
+          )}
+          <Link to={examPath('/learn')} onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 3, object_id: 'learn_index', object_url: examPath('/learn'), data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
             개념 학습
           </Link>
           {isLoggedIn && (
-            <Link to="/endless" onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 4, object_id: 'endless', object_url: '/endless', data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
+            <Link to={examPath('/endless')} onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 4, object_id: 'endless', object_url: examPath('/endless'), data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
               무한풀이
             </Link>
           )}
           {isLoggedIn && (
-            <Link to="/dashboard" onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 5, object_id: 'dashboard', object_url: '/dashboard', data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
+            <Link to={examPath('/dashboard')} onClick={() => click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 5, object_id: 'dashboard', object_url: examPath('/dashboard'), data: { header_variant: 'common' } })} className="hover:text-white transition-colors">
               학습현황
             </Link>
           )}
@@ -149,22 +188,25 @@ export default function Header({ onAuthClick }: HeaderProps) {
       {mobileMenuOpen && (
         <div className="md:hidden bg-sqld-navy border-t border-slate-700">
           <nav className="flex flex-col px-4 py-3 space-y-1">
+            <div className="sm:hidden py-2">{examSwitcher}</div>
             <Link
-              to="/exams"
+              to={examPath('/exams')}
               onClick={closeMobile}
               className="py-2.5 text-sm text-slate-300 hover:text-white transition-colors"
             >
               모의고사
             </Link>
+            {config.hasSqlPractice && (
+              <Link
+                to={examPath('/sql-practice')}
+                onClick={closeMobile}
+                className="py-2.5 text-sm text-slate-300 hover:text-white transition-colors"
+              >
+                SQL 실습
+              </Link>
+            )}
             <Link
-              to="/sql-practice"
-              onClick={closeMobile}
-              className="py-2.5 text-sm text-slate-300 hover:text-white transition-colors"
-            >
-              SQL 실습
-            </Link>
-            <Link
-              to="/learn"
+              to={examPath('/learn')}
               onClick={closeMobile}
               className="py-2.5 text-sm text-slate-300 hover:text-white transition-colors"
             >
@@ -172,7 +214,7 @@ export default function Header({ onAuthClick }: HeaderProps) {
             </Link>
             {isLoggedIn && (
               <Link
-                to="/endless"
+                to={examPath('/endless')}
                 onClick={closeMobile}
                 className="py-2.5 text-sm text-slate-300 hover:text-white transition-colors"
               >
@@ -181,7 +223,7 @@ export default function Header({ onAuthClick }: HeaderProps) {
             )}
             {isLoggedIn && (
               <Link
-                to="/dashboard"
+                to={examPath('/dashboard')}
                 onClick={closeMobile}
                 className="py-2.5 text-sm text-slate-300 hover:text-white transition-colors"
               >

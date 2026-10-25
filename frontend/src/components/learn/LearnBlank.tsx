@@ -2,6 +2,7 @@ import { useMemo, useState, type KeyboardEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import type { Blank } from '../../data/learn/types';
 import { ClickLog } from '../../logging';
+import { useExamType } from '../../hooks/useExamType';
 
 interface Props {
   blank: Blank;
@@ -22,9 +23,10 @@ export default function LearnBlank({ blank, blockId, onGrade }: Props) {
   const [result, setResult] = useState<Result>('idle');
 
   const { unitId } = useParams<{ unitId: string }>();
+  const { examPath } = useExamType();
   const click = useMemo(
-    () => new ClickLog({ page_id: 'learn_unit', url: `/learn/${unitId ?? ''}` }),
-    [unitId]
+    () => new ClickLog({ page_id: 'learn_unit', url: examPath(`/learn/${unitId ?? ''}`) }),
+    [examPath, unitId]
   );
 
   const grade = () => {

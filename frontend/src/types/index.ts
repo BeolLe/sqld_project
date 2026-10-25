@@ -255,6 +255,8 @@ export interface ExamScheduleResponse {
 }
 
 export interface ExamSchedule {
+  /** schedule.exam_schedules.exam_type (예: 'SQL 개발자') */
+  examType: string;
   round: number;
   roundLabel: string;
   registrationStart: string | null;

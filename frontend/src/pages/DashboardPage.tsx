@@ -18,9 +18,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { apiFetch } from '../utils/api';
 import { Trophy, Target, Clock, BookOpen, ChevronRight, Calendar } from 'lucide-react';
 import type { DashboardSummary } from '../types';
-import { getNextExamDate, getDday, formatDateFull } from '../data/examSchedule';
+import { filterSchedulesByExam, getNextExamDate, getDday, formatDateFull } from '../data/examSchedule';
 import { useExamSchedules } from '../contexts/ExamScheduleContext';
 import { PageviewLog, ClickLog } from '../logging';
+import { useExamType } from '../hooks/useExamType';
+import { withExamType } from '../utils/examPath';
 import { getLearnSubjectStats } from '../utils/learnProgress';
 
 // ─── 학습 시간 포맷 ─────────────────────────────────────────────────────────
@@ -252,14 +254,22 @@ export default function DashboardPage() {
   const navigate = useNavigate();
 
   const [data, setData] = useState<DashboardSummary | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const { schedules: examSchedules } = useExamSchedules();
+  const { schedules: allExamSchedules } = useExamSchedules();
+  const { examType, config, examPath } = useExamType();
+  // 콘텐츠가 없는 시험은 조회하지 않으므로 처음부터 로딩이 아니다. (시험이 바뀌면 화면이 새로 마운트된다)
+  const [loading, setLoading] = useState(config.contentReady);
+  const dashboardUrl = examPath('/dashboard');
+  const examSchedules = useMemo(
+    () => filterSchedulesByExam(allExamSchedules, config.scheduleExamType),
+    [allExamSchedules, config.scheduleExamType],
+  );
   const [subjectTab, setSubjectTab] = useState<'all' | 'exam' | 'endless' | 'learn'>('all');
-  const learnSubjectStats = useMemo(() => getLearnSubjectStats(), []);
+  // 개념학습 로컬 기록은 SQLD 항목 기준으로 집계된다. ADsP 본문이 올라오면 시험별로 나눈다.
+  const learnSubjectStats = useMemo(() => (examType === 'sqld' ? getLearnSubjectStats() : []), [examType]);
 
-  const pageview = useMemo(() => new PageviewLog({ page_id: 'dashboard', url: '/dashboard' }), []);
-  const click = useMemo(() => new ClickLog({ page_id: 'dashboard', url: '/dashboard' }), []);
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'dashboard', url: dashboardUrl }), [dashboardUrl]);
+  const click = useMemo(() => new ClickLog({ page_id: 'dashboard', url: dashboardUrl }), [dashboardUrl]);
   const pvSent = useRef(false);
 
   useEffect(() => {
@@ -281,11 +291,14 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isLoggedIn || isInitializing) return;
 
+    // 콘텐츠가 없는 시험은 집계할 기록도 없다. 빈 상태로 보여준다.
+    if (!config.contentReady) return;
+
     let cancelled = false;
     setLoading(true);
     setError('');
 
-    apiFetch<DashboardSummary>('/dashboard/summary')
+    apiFetch<DashboardSummary>(withExamType('/dashboard/summary', examType))
       .then((result) => {
         if (!cancelled) setData(result);
       })
@@ -299,7 +312,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [isLoggedIn, isInitializing]);
+  }, [isLoggedIn, isInitializing, examType, config.contentReady]);
 
   // ─── 인증 상태 분기 ──────────────────────────────────────────────────────
 
@@ -320,10 +333,10 @@ export default function DashboardPage() {
             onClick={() => {
               click.send({
                 object_section_id: 'login_required', object_section_idx: 1,
-                object_type: 'button', object_idx: 0, object_id: 'home', object_url: '/',
+                object_type: 'button', object_idx: 0, object_id: 'home', object_url: examPath('/'),
                 page_params: { step: 'login_required' },
               });
-              navigate('/');
+              navigate(examPath('/'));
             }}
             className="text-primary-600 hover:underline"
           >
@@ -393,10 +406,10 @@ export default function DashboardPage() {
           : '학습 기록이 쌓이면 전체 과목별 분석을 볼 수 있습니다.';
   const subjectEmptyCta =
     subjectTab === 'endless'
-      ? { label: '무한풀이 시작', to: '/endless' }
+      ? { label: '무한풀이 시작', to: examPath('/endless') }
       : subjectTab === 'learn'
-        ? { label: '개념 학습 목차', to: '/learn' }
-        : { label: '모의고사 목록', to: '/exams' };
+        ? { label: '개념 학습 목차', to: examPath('/learn') }
+        : { label: '모의고사 목록', to: examPath('/exams') };
 
   const hasAnyData =
     stats.totalMockExamAttemptCount > 0 ||
@@ -413,7 +426,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-sqld-navy">
             안녕하세요, <span className="text-primary-600">{user?.nickname}</span>님!
           </h1>
-          <p className="text-slate-500 mt-1">오늘도 SQL 실력을 키워보세요.</p>
+          <p className="text-slate-500 mt-1">{config.dashboardGreeting}</p>
           {(() => {
             const next = getNextExamDate(examSchedules);
             if (!next?.examDate) return null;
@@ -482,29 +495,31 @@ export default function DashboardPage() {
             <p className="text-slate-500 mb-4">아직 학습 기록이 없습니다. 모의고사나 무한풀이를 시작해보세요.</p>
             <div className="flex justify-center gap-4">
               <Link
-                to="/exams"
-                onClick={() => click.send({ object_section_id: 'empty_state', object_section_idx: 3, object_type: 'link', object_idx: 0, object_id: 'exam', object_url: '/exams' })}
+                to={examPath('/exams')}
+                onClick={() => click.send({ object_section_id: 'empty_state', object_section_idx: 3, object_type: 'link', object_idx: 0, object_id: 'exam', object_url: examPath('/exams') })}
                 className="inline-flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm px-5 py-2.5 rounded-lg transition-colors"
               >
                 모의고사 풀기
                 <ChevronRight className="w-4 h-4" />
               </Link>
               <Link
-                to="/endless"
-                onClick={() => click.send({ object_section_id: 'empty_state', object_section_idx: 3, object_type: 'link', object_idx: 1, object_id: 'endless', object_url: '/endless' })}
+                to={examPath('/endless')}
+                onClick={() => click.send({ object_section_id: 'empty_state', object_section_idx: 3, object_type: 'link', object_idx: 1, object_id: 'endless', object_url: examPath('/endless') })}
                 className="inline-flex items-center gap-1.5 border border-slate-300 hover:border-slate-400 text-slate-700 text-sm px-5 py-2.5 rounded-lg transition-colors"
               >
                 무한풀이 시작
                 <ChevronRight className="w-4 h-4" />
               </Link>
+              {config.hasSqlPractice && (
               <Link
-                to="/sql-practice"
-                onClick={() => click.send({ object_section_id: 'empty_state', object_section_idx: 3, object_type: 'link', object_idx: 2, object_id: 'sql_practice', object_url: '/sql-practice' })}
+                to={examPath('/sql-practice')}
+                onClick={() => click.send({ object_section_id: 'empty_state', object_section_idx: 3, object_type: 'link', object_idx: 2, object_id: 'sql_practice', object_url: examPath('/sql-practice') })}
                 className="inline-flex items-center gap-1.5 border border-slate-300 hover:border-slate-400 text-slate-700 text-sm px-5 py-2.5 rounded-lg transition-colors"
               >
                 SQL 실습하기
                 <ChevronRight className="w-4 h-4" />
               </Link>
+              )}
             </div>
           </div>
         )}
@@ -609,8 +624,8 @@ export default function DashboardPage() {
                 <EmptyState
                   message="아직 모의고사 응시 기록이 없습니다."
                   ctaLabel="모의고사 목록"
-                  ctaTo="/exams"
-                  onClick={() => click.send({ object_section_id: 'exam_score_trend', object_section_idx: 5, object_type: 'link', object_idx: 0, object_id: 'exam', object_url: '/exams' })}
+                  ctaTo={examPath('/exams')}
+                  onClick={() => click.send({ object_section_id: 'exam_score_trend', object_section_idx: 5, object_type: 'link', object_idx: 0, object_id: 'exam', object_url: examPath('/exams') })}
                 />
               )}
             </div>
@@ -623,7 +638,7 @@ export default function DashboardPage() {
         </div>
 
         {/* 최근 활동 */}
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className={`grid gap-6 ${config.hasSqlPractice ? 'md:grid-cols-2' : ''}`}>
           {/* 최근 모의고사 */}
           <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
             <h2 className="text-base font-bold text-sqld-navy mb-4">최근 모의고사</h2>
@@ -632,10 +647,10 @@ export default function DashboardPage() {
                 {recentExams.slice(0, 5).map((exam, idx) => (
                   <li key={`${exam.examId}-${exam.attemptNo}-${idx}`}>
                     <Link
-                      to={`/exams/${exam.examId}/result?attemptId=${exam.attemptId}`}
+                      to={examPath(`/exams/${exam.examId}/result?attemptId=${exam.attemptId}`)}
                       onClick={() => click.send({
                         object_section_id: 'recent_exams', object_section_idx: 7, object_type: 'card', object_idx: idx,
-                        object_id: 'exam_attempt', object_url: `/exams/${exam.examId}/result?attemptId=${exam.attemptId}`,
+                        object_id: 'exam_attempt', object_url: examPath(`/exams/${exam.examId}/result?attemptId=${exam.attemptId}`),
                         data: { exam_id: exam.examId, attempt_id: exam.attemptId, score_percent: exam.scorePercent, passed: exam.passed },
                       })}
                       className="flex items-center justify-between text-sm hover:bg-slate-50 -mx-2 px-2 py-1.5 rounded-lg transition-colors"
@@ -666,56 +681,58 @@ export default function DashboardPage() {
               <EmptyState
                 message="아직 모의고사 기록이 없습니다."
                 ctaLabel="모의고사 풀러가기"
-                ctaTo="/exams"
-                onClick={() => click.send({ object_section_id: 'recent_exams', object_section_idx: 7, object_type: 'link', object_idx: 0, object_id: 'exam', object_url: '/exams' })}
+                ctaTo={examPath('/exams')}
+                onClick={() => click.send({ object_section_id: 'recent_exams', object_section_idx: 7, object_type: 'link', object_idx: 0, object_id: 'exam', object_url: examPath('/exams') })}
               />
             )}
           </div>
 
-          {/* 최근 SQL 실습 */}
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
-            <h2 className="text-base font-bold text-sqld-navy mb-4">최근 SQL 실습</h2>
-            {recentSql.length > 0 ? (
-              <ul className="space-y-3">
-                {recentSql.slice(0, 5).map((item, idx) => (
-                  <li key={`${item.practiceId}-${item.attemptId}-${idx}`}>
-                    <Link
-                      to={`/sql-practice/${item.practiceId}?attemptId=${item.attemptId}`}
-                      onClick={() => click.send({
-                        object_section_id: 'recent_sql_practices', object_section_idx: 8, object_type: 'card', object_idx: idx,
-                        object_id: 'sql_attempt', object_url: `/sql-practice/${item.practiceId}?attemptId=${item.attemptId}`,
-                        data: { practice_id: item.practiceId, attempt_id: item.attemptId, is_correct: item.isCorrect },
-                      })}
-                      className="flex items-center justify-between text-sm hover:bg-slate-50 -mx-2 px-2 py-1.5 rounded-lg transition-colors"
-                    >
-                      <div>
-                        <p className="font-medium text-slate-700">{item.title}</p>
-                        <p className="text-xs text-slate-400">
-                          {new Date(item.submittedAt).toLocaleDateString('ko-KR')}
-                        </p>
-                      </div>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                          item.isCorrect
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-red-100 text-red-600'
-                        }`}
+          {/* 최근 SQL 실습 (SQLD 전용) */}
+          {config.hasSqlPractice && (
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
+              <h2 className="text-base font-bold text-sqld-navy mb-4">최근 SQL 실습</h2>
+              {recentSql.length > 0 ? (
+                <ul className="space-y-3">
+                  {recentSql.slice(0, 5).map((item, idx) => (
+                    <li key={`${item.practiceId}-${item.attemptId}-${idx}`}>
+                      <Link
+                        to={examPath(`/sql-practice/${item.practiceId}?attemptId=${item.attemptId}`)}
+                        onClick={() => click.send({
+                          object_section_id: 'recent_sql_practices', object_section_idx: 8, object_type: 'card', object_idx: idx,
+                          object_id: 'sql_attempt', object_url: examPath(`/sql-practice/${item.practiceId}?attemptId=${item.attemptId}`),
+                          data: { practice_id: item.practiceId, attempt_id: item.attemptId, is_correct: item.isCorrect },
+                        })}
+                        className="flex items-center justify-between text-sm hover:bg-slate-50 -mx-2 px-2 py-1.5 rounded-lg transition-colors"
                       >
-                        {item.isCorrect ? '정답' : '오답'}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState
-                message="아직 SQL 실습 기록이 없습니다."
-                ctaLabel="SQL 실습하러 가기"
-                ctaTo="/sql-practice"
-                onClick={() => click.send({ object_section_id: 'recent_sql_practices', object_section_idx: 8, object_type: 'link', object_idx: 0, object_id: 'sql_practice', object_url: '/sql-practice' })}
-              />
-            )}
-          </div>
+                        <div>
+                          <p className="font-medium text-slate-700">{item.title}</p>
+                          <p className="text-xs text-slate-400">
+                            {new Date(item.submittedAt).toLocaleDateString('ko-KR')}
+                          </p>
+                        </div>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                            item.isCorrect
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-red-100 text-red-600'
+                          }`}
+                        >
+                          {item.isCorrect ? '정답' : '오답'}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyState
+                  message="아직 SQL 실습 기록이 없습니다."
+                  ctaLabel="SQL 실습하러 가기"
+                  ctaTo={examPath('/sql-practice')}
+                  onClick={() => click.send({ object_section_id: 'recent_sql_practices', object_section_idx: 8, object_type: 'link', object_idx: 0, object_id: 'sql_practice', object_url: examPath('/sql-practice') })}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
