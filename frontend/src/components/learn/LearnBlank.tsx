@@ -1,5 +1,5 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import type { Blank } from '../../data/learn/types';
 import { ClickLog } from '../../logging';
 
@@ -22,9 +22,10 @@ export default function LearnBlank({ blank, blockId, onGrade }: Props) {
   const [result, setResult] = useState<Result>('idle');
 
   const { unitId } = useParams<{ unitId: string }>();
+  const { pathname } = useLocation();
   const click = useMemo(
-    () => new ClickLog({ page_id: 'learn_unit', url: `/learn/${unitId ?? ''}` }),
-    [unitId]
+    () => new ClickLog({ page_id: 'learn_unit', url: pathname }),
+    [pathname]
   );
 
   const grade = () => {

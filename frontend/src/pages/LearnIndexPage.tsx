@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TriangleAlert } from 'lucide-react';
-import { ALL_UNITS, CURRICULUM } from '../data/learn/curriculum';
+import { getLearnCatalog, type LearnExamType } from '../data/learn/catalog';
 import type { LearnUnit } from '../data/learn/types';
 import { useAuth } from '../contexts/AuthContext';
 import { PageviewLog, ClickLog } from '../logging';
@@ -65,7 +65,7 @@ function PreparingDialog({ title, onClose, onClickLog }: { title: string; unitDa
   );
 }
 
-function UnitCard({ unit, unitIdx, onPreparing, onClick }: { unit: LearnUnit; unitIdx: number; onPreparing: () => void; onClick: (u: LearnUnit, idx: number) => void }) {
+function UnitCard({ unit, unitIdx, basePath, onPreparing, onClick }: { basePath: string; unit: LearnUnit; unitIdx: number; onPreparing: () => void; onClick: (u: LearnUnit, idx: number) => void }) {
   const ready = unit.blocks.length > 0;
 
   const body = (
@@ -102,13 +102,16 @@ function UnitCard({ unit, unitIdx, onPreparing, onClick }: { unit: LearnUnit; un
   }
 
   return (
-    <Link to={`/learn/${unit.id}`} onClick={() => onClick(unit, unitIdx)} className={CARD_CLASS}>
+    <Link to={`${basePath}/${unit.id}`} onClick={() => onClick(unit, unitIdx)} className={CARD_CLASS}>
       {body}
     </Link>
   );
 }
 
-export default function LearnIndexPage() {
+export default function LearnIndexPage({ examType = 'sqld' }: { examType?: LearnExamType }) {
+  const { units: ALL_UNITS, subjects: CURRICULUM } = getLearnCatalog(examType);
+  const basePath = examType === 'adsp' ? '/adsp/learn' : '/learn';
+  const homePath = examType === 'adsp' ? '/adsp' : '/';
   const readyCount = ALL_UNITS.filter((unit) => unit.blocks.length > 0).length;
   const totalMinutes = ALL_UNITS.reduce((sum, unit) => sum + unit.estimatedMin, 0);
   const groupCount = CURRICULUM.reduce((sum, s) => sum + s.groups.length, 0);
@@ -119,8 +122,8 @@ export default function LearnIndexPage() {
   const navigate = useNavigate();
 
   // ─── 로깅 ──────────────────────────────────────────────────────────────
-  const pageview = useMemo(() => new PageviewLog({ page_id: 'learn_index', url: '/learn' }), []);
-  const click = useMemo(() => new ClickLog({ page_id: 'learn_index', url: '/learn' }), []);
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'learn_index', url: basePath }), [basePath]);
+  const click = useMemo(() => new ClickLog({ page_id: 'learn_index', url: basePath }), [basePath]);
   const pvSent = useRef(false);
 
   useEffect(() => {
@@ -131,7 +134,7 @@ export default function LearnIndexPage() {
     } else {
       pageview.send({ step: 'login_required' });
     }
-  }, [isInitializing, isLoggedIn, pageview, readyCount, groupCount, totalMinutes]);
+  }, [isInitializing, isLoggedIn, pageview, readyCount, groupCount, totalMinutes, ALL_UNITS.length]);
 
   // ─── 인증 상태 분기 ──────────────────────────────────────────────────────
 
@@ -150,12 +153,12 @@ export default function LearnIndexPage() {
           <p className="text-slate-500 mb-4">
             개념 학습은 회원 전용입니다.
             <br />
-            로그인하시면 30개 세부항목의 개념 노트와 빈칸 복습을 이용할 수 있습니다.
+            로그인하시면 {ALL_UNITS.length}개 세부항목의 개념 노트와 빈칸 복습을 이용할 수 있습니다.
           </p>
           <button
             onClick={() => {
-              click.send({ object_section_id: 'login_required', object_section_idx: 2, object_type: 'button', object_idx: 0, object_id: 'home', object_url: '/', page_params: { step: 'login_required' } });
-              navigate('/');
+              click.send({ object_section_id: 'login_required', object_section_idx: 2, object_type: 'button', object_idx: 0, object_id: 'home', object_url: homePath, page_params: { step: 'login_required' } });
+              navigate(homePath);
             }}
             className="text-primary-600 hover:underline"
           >
@@ -174,7 +177,7 @@ export default function LearnIndexPage() {
             개념 학습
           </h1>
           <p className="mb-6 max-w-[44rem] text-slate-500">
-            한국데이터산업진흥원 공식 출제범위의 세부항목을 그대로 따라 구성했습니다.
+            {examType === 'adsp' ? 'ADsP 1과목 첫 두 장의 8개 주제를 학습합니다.' : '한국데이터산업진흥원 공식 출제범위의 세부항목을 그대로 따라 구성했습니다.'}
             <br />각 항목을 짧은 개념 노트로 읽고, 다 읽으면 같은 내용을 빈칸으로 채우며 확인합니다.
           </p>
           <dl className="flex flex-wrap gap-9">
@@ -228,12 +231,13 @@ export default function LearnIndexPage() {
                       key={unit.id}
                       unit={unit}
                       unitIdx={unit.order - 1}
+                      basePath={basePath}
                       onPreparing={() => { setPreparingTitle(unit.title); setPreparingUnit(unit); }}
                       onClick={(u, idx) => {
                         const ready = u.blocks.length > 0;
                         click.send({
                           object_section_id: 'unit_list', object_section_idx: 1, object_type: 'card', object_idx: idx, object_id: 'unit',
-                          object_url: ready ? `/learn/${u.id}` : '',
+                          object_url: ready ? `${basePath}/${u.id}` : '',
                           data: { unit_id: u.id, unit_title: u.title, subject: subject.subject, group: group.name, estimated_minutes: u.estimatedMin, is_ready: ready },
                           page_params: { step: 'list' },
                         });

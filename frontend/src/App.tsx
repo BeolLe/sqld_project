@@ -176,6 +176,8 @@ function AppShell() {
               <main>
                 <Routes>
                   <Route path="/" element={EXAM_PREVIEW_ENABLED && readPreviewExam() === 'adsp' ? <Navigate to="/adsp" replace /> : <MainPage />} />
+                  {EXAM_PREVIEW_ENABLED && <Route path="/adsp/learn" element={<LearnIndexPage key="adsp" examType="adsp" />} />}
+                  {EXAM_PREVIEW_ENABLED && <Route path="/adsp/learn/:unitId" element={<LearnUnitPage key={pathname} examType="adsp" />} />}
                   {EXAM_PREVIEW_ENABLED && <Route path="/adsp/*" element={<ADsPPreviewPage />} />}
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/mypage" element={<MyPage />} />
@@ -192,8 +194,8 @@ function AppShell() {
                   <Route path="/exams/:id" element={<ExamListPage />} />
                   <Route path="/exams/:id/result" element={<ExamResultPage />} />
                   <Route path="/endless" element={<EndlessPracticePage />} />
-                  <Route path="/learn" element={<LearnIndexPage />} />
-                  <Route path="/learn/:unitId" element={<LearnUnitPage />} />
+                  <Route path="/learn" element={<LearnIndexPage key="sqld" />} />
+                  <Route path="/learn/:unitId" element={<LearnUnitPage key={pathname} />} />
                   <Route
                     path="/sql-practice"
                     element={

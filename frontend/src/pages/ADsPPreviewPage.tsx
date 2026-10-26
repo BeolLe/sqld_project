@@ -25,9 +25,9 @@ export default function ADsPPreviewPage() {
           데이터분석 준전문가 · 3과목 · 50문항 · 90분
         </p>
         <div className="mt-8 rounded-2xl border border-slate-700 bg-slate-800/60 p-6">
-          <h2 className="font-bold text-lg">{section ? `${section.title} 준비 중` : 'ADsP 학습 콘텐츠 준비 중'}</h2>
+          <h2 className="font-bold text-lg">{section ? `${section.title} 준비 중` : 'ADsP 개념 학습 시작하기'}</h2>
           <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-            현재는 시험 전환과 메뉴를 확인하는 미리보기입니다. ADsP 문제 풀이와 학습 기록은 아직 연결되지 않았습니다.
+            개념 학습에서 1과목 첫 두 장의 8개 주제를 읽고 빈칸으로 복습할 수 있습니다. ADsP 문제 풀이와 서버 학습 기록은 준비 중입니다.
           </p>
         </div>
         <nav aria-label="ADsP 학습 메뉴" className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -36,7 +36,7 @@ export default function ADsPPreviewPage() {
               className={`rounded-2xl border p-5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 ${section?.path === path ? 'border-emerald-500 bg-emerald-500/10' : 'border-slate-700 bg-slate-800/60 hover:border-emerald-500'}`}>
               <Icon className="w-6 h-6 text-emerald-400 mb-4" />
               <span className="flex items-center justify-between font-semibold">{title}<ChevronRight className="w-4 h-4" /></span>
-              <span className="mt-2 block text-xs text-slate-400">준비 중</span>
+              <span className="mt-2 block text-xs text-slate-400">{path === '/adsp/learn' ? '8개 주제 · 학습 가능' : '준비 중'}</span>
             </Link>
           ))}
         </nav>

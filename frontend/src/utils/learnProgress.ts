@@ -3,46 +3,47 @@
  * 백엔드 DB 연동 전까지의 임시 저장소이며, 기기·브라우저 간 동기화되지 않는다.
  * 같은 빈칸을 다시 풀면 최신 결과로 덮어쓴다(누적 횟수가 아니라 최근 숙련도 스냅샷).
  */
-import { ALL_UNITS } from '../data/learn/curriculum';
+import { getLearnCatalog, type LearnExamType } from '../data/learn/catalog';
 import type { SubjectStat } from '../types';
 
-const STORAGE_KEY = 'solsqld_learn_blank_results_v1';
+const storageKey = (examType: LearnExamType) => examType === 'adsp' ? 'soladsp_learn_blank_results_v1' : 'solsqld_learn_blank_results_v1';
 
 type BlankResultMap = Record<string, boolean>; // key: `${unitId}:${blankId}` -> 최근 정답 여부
 
-function readMap(): BlankResultMap {
+function readMap(examType: LearnExamType): BlankResultMap {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey(examType));
     return raw ? (JSON.parse(raw) as BlankResultMap) : {};
   } catch {
     return {};
   }
 }
 
-function writeMap(map: BlankResultMap): void {
+function writeMap(map: BlankResultMap, examType: LearnExamType): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+    window.localStorage.setItem(storageKey(examType), JSON.stringify(map));
   } catch {
     // 시크릿 모드 등 localStorage 사용 불가 시 조용히 무시한다.
   }
 }
 
 /** 빈칸 하나를 채점한 직후 호출한다. blankId는 단원 내에서 고유하다. */
-export function recordBlankResult(unitId: string, blankId: string, correct: boolean): void {
-  const map = readMap();
+export function recordBlankResult(unitId: string, blankId: string, correct: boolean, examType: LearnExamType = 'sqld'): void {
+  const map = readMap(examType);
   map[`${unitId}:${blankId}`] = correct;
-  writeMap(map);
+  writeMap(map, examType);
 }
 
 /**
  * 주요항목(그룹)별 정답률을 계산한다.
  * 아직 한 문제도 채점하지 않은 그룹은 결과에서 제외한다 — "0%"가 아니라 "데이터 없음"으로 다룬다.
  */
-export function getLearnSubjectStats(): SubjectStat[] {
+export function getLearnSubjectStats(examType: LearnExamType = 'sqld'): SubjectStat[] {
+  const ALL_UNITS = getLearnCatalog(examType).units;
   const groupByUnitId = new Map(ALL_UNITS.map((u) => [u.id, u.group] as const));
   const totals = new Map<string, { solved: number; correct: number }>();
 
-  for (const [key, isCorrect] of Object.entries(readMap())) {
+  for (const [key, isCorrect] of Object.entries(readMap(examType))) {
     const unitId = key.split(':')[0];
     const group = groupByUnitId.get(unitId);
     if (!group) continue; // 삭제되었거나 이름이 바뀐 단원의 유령 데이터 방어
