@@ -1,0 +1,94 @@
+name: Build isolated production SQL fix
+
+on:
+  push:
+    branches: [hotfix/sql-runtime-prod-20261029]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pin the existing production images
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull ghcr.io/beolle/sqld-backend:sha-fab54d0
+          docker pull ghcr.io/beolle/sqld-frontend:sha-a91261a
+          test "$(docker image inspect ghcr.io/beolle/sqld-backend:sha-fab54d0 --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = fab54d0570cee09e59bcdc5c33b61721ce431765
+          test "$(docker image inspect ghcr.io/beolle/sqld-frontend:sha-a91261a --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = a91261a5945d669519814c95d624a3e5c855387d
+          printf 'PROD_BACKEND_BASE=%s\n' "$(docker image inspect ghcr.io/beolle/sqld-backend:sha-fab54d0 --format '{{index .RepoDigests 0}}')" >> "$GITHUB_ENV"
+          printf 'PROD_FRONTEND_BASE=%s\n' "$(docker image inspect ghcr.io/beolle/sqld-frontend:sha-a91261a --format '{{index .RepoDigests 0}}')" >> "$GITHUB_ENV"
+          printf 'PROD_FIX_TAG=prod-sqlfix-%s-%s-%s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+
+      - name: Build backend on the pinned production runtime
+        run: |
+          docker build -f ops/sql-hotfix/backend.Dockerfile \
+            --build-arg "BASE_IMAGE=$PROD_BACKEND_BASE" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            -t "ghcr.io/beolle/sqld-backend:$PROD_FIX_TAG" .
+
+      - name: Run backend regression tests without network or production secrets
+        shell: bash
+        run: |
+          docker run --rm --network none -i \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/backend/tests,dst=/hotfix-tests,readonly" \
+            --entrypoint /app/.venv/bin/python \
+            "ghcr.io/beolle/sqld-backend:$PROD_FIX_TAG" -B - <<'PY'
+          import logging, sys, unittest
+          logging.disable(logging.CRITICAL)
+          def guard(event, args):
+              if event in {'socket.connect', 'socket.getaddrinfo', 'socket.sendto'}:
+                  raise AssertionError('network prohibited: ' + event)
+          sys.addaudithook(guard)
+          suite = unittest.defaultTestLoader.discover('/hotfix-tests')
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          sys.exit(not result.wasSuccessful())
+          PY
+
+      - name: Build frontend from production source with the SQL error message fix
+        run: |
+          docker build -f ops/sql-hotfix/frontend.Dockerfile \
+            --build-arg "BASE_IMAGE=$PROD_FRONTEND_BASE" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            -t "ghcr.io/beolle/sqld-frontend:$PROD_FIX_TAG" .
+
+      - name: Publish only the isolated production tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$PROD_FIX_TAG" in prod-sqlfix-*) ;; *) exit 1 ;; esac
+          docker push "ghcr.io/beolle/sqld-backend:$PROD_FIX_TAG"
+          docker push "ghcr.io/beolle/sqld-frontend:$PROD_FIX_TAG"
+          printf 'PROD_BACKEND_RESULT=%s\n' "$(docker image inspect "ghcr.io/beolle/sqld-backend:$PROD_FIX_TAG" --format '{{index .RepoDigests 0}}')" >> "$GITHUB_ENV"
+          printf 'PROD_FRONTEND_RESULT=%s\n' "$(docker image inspect "ghcr.io/beolle/sqld-frontend:$PROD_FIX_TAG" --format '{{index .RepoDigests 0}}')" >> "$GITHUB_ENV"
+
+      - name: Record immutable deployment references
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          record = {key: os.environ[key] for key in (
+              'GITHUB_SHA', 'PROD_FIX_TAG', 'PROD_BACKEND_BASE', 'PROD_FRONTEND_BASE',
+              'PROD_BACKEND_RESULT', 'PROD_FRONTEND_RESULT')}
+          Path('production-sqlfix.json').write_text(json.dumps(record, indent=2) + '\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('Production-only SQL fix; existing tags and test deployment unchanged.\n\n')
+              for key, value in record.items():
+                  summary.write(f'- {key}: `{value}`\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-sqlfix
+          path: production-sqlfix.json

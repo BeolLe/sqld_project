@@ -1,6 +1,7 @@
 import logging
+import re
 import time
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -102,9 +103,12 @@ def result_fetch_limit(action: str, expected_result: dict | None) -> int:
 def commit_namespace_mutation(conn, workspace, statement_type: str, target_object: str | None) -> None:
     try:
         enforce_namespace_limits(conn, workspace)
-    except WorkspaceValidationError:
-        conn.rollback()
-        if statement_type == "CREATE" and target_object:
+    except Exception as exc:
+        try:
+            conn.rollback()
+        except Exception:
+            logger.exception("failed to roll back namespace mutation")
+        if isinstance(exc, WorkspaceValidationError) and statement_type == "CREATE" and target_object:
             try:
                 with conn.cursor() as cleanup_cur:
                     cleanup_cur.execute(
@@ -112,11 +116,11 @@ def commit_namespace_mutation(conn, workspace, statement_type: str, target_objec
                     )
                 conn.commit()
             except Exception:
-                conn.rollback()
                 logger.exception("failed to remove over-limit workspace table")
-        raise
-    except Exception:
-        conn.rollback()
+                try:
+                    conn.rollback()
+                except Exception:
+                    logger.exception("failed to roll back over-limit table cleanup")
         raise
     conn.commit()
 
@@ -165,9 +169,51 @@ def extract_user_id(request: Request) -> str | None:
 
 
 def extract_oracle_error_code(message: str) -> str | None:
-    if ":" not in message:
-        return None
-    return message.split(":", 1)[0].strip()
+    match = re.search(r"\b(?:ORA|DPY|DPI)-\d+\b", message)
+    return match.group(0) if match else None
+
+
+def classify_sql_failure(exc: Exception, failure_stage: str) -> tuple[str | None, str]:
+    error = exc.args[0] if exc.args else None
+    code = getattr(error, "full_code", None) or extract_oracle_error_code(str(exc))
+    if code in {"DPY-4024", "DPI-1067", "ORA-01013", "ORA-12170", "ORA-04021"}:
+        return code, "timeout"
+    # Only known learner SQL errors can count as an incorrect submission.
+    if isinstance(exc, WorkspaceValidationError) and failure_stage in {
+        "oracle_execute", "rows_fetch", "namespace_mutation"
+    }:
+        return code, "sql_error"
+    if failure_stage in {"oracle_execute", "rows_fetch"} and (
+        (code or "").startswith("ORA-009")
+        or code in {"ORA-00001", "ORA-01400", "ORA-01407", "ORA-01438", "ORA-01476",
+                    "ORA-01722", "ORA-02290", "ORA-02291", "ORA-02292", "ORA-12899"}
+    ):
+        return code, "sql_error"
+    return code, "infrastructure_error"
+
+
+def sql_stage_durations(timings: dict[str, int]) -> dict[str, int]:
+    durations = {}
+    previous = 0
+    for name, elapsed in timings.items():
+        durations[name] = elapsed - previous
+        previous = elapsed
+    return durations
+
+
+@contextmanager
+def sql_execution_cursor(conn):
+    cur = conn.cursor()
+    try:
+        yield cur
+    except BaseException:
+        try:
+            cur.close()
+        except Exception:
+            logger.exception("failed to close cursor after SQL execution failure")
+        raise
+    else:
+        cur.close()
 
 
 def notify_slow_sql_execution(
@@ -182,6 +228,8 @@ def notify_slow_sql_execution(
     success: bool,
     timings: dict[str, int],
     error_message: str | None = None,
+    failure_stage: str | None = None,
+    error_type: str | None = None,
 ) -> None:
     if elapsed_ms < settings.SQL_EXECUTION_SLOW_ALERT_THRESHOLD_MS:
         return
@@ -207,6 +255,10 @@ def notify_slow_sql_execution(
     ]
     if error_message:
         detail_lines.append(f"- error: `{error_message[:500]}`")
+    if failure_stage:
+        detail_lines.append(f"- failure_stage: `{failure_stage}`")
+    if error_type:
+        detail_lines.append(f"- error_type: `{error_type}`")
 
     send_slack_message(
         text=f"[SolSQLD] 느린 SQL 실행 감지 ({elapsed_ms}ms)",
@@ -688,17 +740,22 @@ def execute_sql(
     )
     timing_marks["scopeResolvedMs"] = round((time.perf_counter() - started_at) * 1000)
 
+    conn = None
+    failure_stage = "workspace_lock"
+    handled_failure = False
     with ExitStack() as stack:
-        if has_persistent_scope:
-            stack.enter_context(namespace_advisory_lock(scope_key))
-        timing_marks["workspaceLockAcquiredMs"] = round(
-            (time.perf_counter() - started_at) * 1000
-        )
-        conn = stack.enter_context(get_oracle_connection())
-        timing_marks["oracleConnectionAcquiredMs"] = round(
-            (time.perf_counter() - started_at) * 1000
-        )
         try:
+            if has_persistent_scope:
+                stack.enter_context(namespace_advisory_lock(scope_key))
+            timing_marks["workspaceLockAcquiredMs"] = round(
+                (time.perf_counter() - started_at) * 1000
+            )
+            failure_stage = "oracle_connection"
+            conn = stack.enter_context(get_oracle_connection())
+            timing_marks["oracleConnectionAcquiredMs"] = round(
+                (time.perf_counter() - started_at) * 1000
+            )
+            failure_stage = "workspace_prepare"
             if has_persistent_scope:
                 sync_namespace_lifecycle(
                     conn=conn,
@@ -714,6 +771,7 @@ def execute_sql(
                 (time.perf_counter() - started_at) * 1000
             )
 
+            failure_stage = "query_rewrite"
             executed_query = rewrite_query_for_namespace(
                 query=query,
                 workspace=workspace,
@@ -739,97 +797,30 @@ def execute_sql(
                     detail="cannot RENAME reserved base tables",
                 )
 
-            with conn.cursor() as cur:
-                try:
-                    cur.execute(executed_query)
-                    timing_marks["oracleExecutedMs"] = round(
-                        (time.perf_counter() - started_at) * 1000
+            failure_stage = "oracle_execute"
+            with sql_execution_cursor(conn) as cur:
+                cur.execute(executed_query)
+                timing_marks["oracleExecutedMs"] = round(
+                    (time.perf_counter() - started_at) * 1000
+                )
+                if is_read_only_statement(statement_type):
+                    failure_stage = "rows_fetch"
+                    rows = cur.fetchmany(result_fetch_limit(action, expected_result))
+                else:
+                    failure_stage = "namespace_mutation"
+                    commit_namespace_mutation(
+                        conn,
+                        workspace,
+                        statement_type,
+                        target_object,
                     )
-                    if is_read_only_statement(statement_type):
-                        rows = cur.fetchmany(result_fetch_limit(action, expected_result))
-                    else:
-                        commit_namespace_mutation(
-                            conn,
-                            workspace,
-                            statement_type,
-                            target_object,
-                        )
-                        rows = []
-                    timing_marks["rowsFetchedMs"] = round(
-                        (time.perf_counter() - started_at) * 1000
-                    )
-                except Exception as exc:
-                    try:
-                        conn.rollback()
-                    except Exception:
-                        logger.exception("failed to roll back Oracle SQL execution")
-                    elapsed_ms = round((time.perf_counter() - started_at) * 1000)
-                    logger.warning(
-                        "sql_execute failed request_id=%s practice_id=%s action=%s scope_key=%s timings=%s error=%s",
-                        request_id,
-                        req.practice_id,
-                        action,
-                        scope_key,
-                        timing_marks,
-                        str(exc),
-                    )
-                    background_tasks.add_task(
-                        notify_slow_sql_execution,
-                        elapsed_ms=elapsed_ms,
-                        request_id=request_id,
-                        practice_id=req.practice_id,
-                        action=action,
-                        statement_type=statement_type,
-                        scope_key=scope_key,
-                        user_id=user_id,
-                        success=False,
-                        timings=timing_marks,
-                        error_message=str(exc),
-                    )
-                    if action == "submit":
-                        send_amplitude_event(
-                            event_type="backend_sql_submit_failed",
-                            user_id=user_id,
-                            event_properties={
-                                "practice_id": req.practice_id,
-                                "failure_stage": "execution",
-                                "statement_type": statement_type,
-                                "oracle_error_code": extract_oracle_error_code(str(exc)),
-                                "execution_time_ms": elapsed_ms,
-                            },
-                            insert_id=request_id,
-                        )
-                    if sql_request_id is not None:
-                        insert_sql_response(
-                            sql_request_id=sql_request_id,
-                            success=False,
-                            execution_time_ms=elapsed_ms,
-                            row_count=0,
-                            oracle_error_code=extract_oracle_error_code(str(exc)),
-                            oracle_error_message=str(exc),
-                            metadata={"action": action, "statementType": statement_type},
-                        )
-                        update_sql_request_status(request_id, "failed")
-                    insert_learning_event(
-                        event_type="sql_submitted" if action == "submit" else "sql_executed",
-                        content_type="practice",
-                        content_id=req.practice_id,
-                        user_id=user_id,
-                        session_id=session_id,
-                        request_id=request_id,
-                        duration_ms=elapsed_ms,
-                        is_correct=False if action == "submit" else None,
-                        metadata={"success": False, "error": str(exc)},
-                    )
-                    background_tasks.add_task(cleanup_stale_namespaces)
-                    return {
-                        "columns": [],
-                        "rows": [],
-                        "executionTimeMs": elapsed_ms,
-                        "error": str(exc),
-                        "isCorrect": False if action == "submit" else None,
-                    }
+                    rows = []
+                timing_marks["rowsFetchedMs"] = round(
+                    (time.perf_counter() - started_at) * 1000
+                )
 
+                # Later grading/storage failures must retain their existing error behavior.
+                failure_stage = None
                 if has_persistent_scope and scope_key:
                     touch_namespace(scope_key)
 
@@ -853,6 +844,8 @@ def execute_sql(
                             "columns": columns,
                             "statementType": statement_type,
                             "rowsTruncated": rows_truncated,
+                            "timings": dict(timing_marks),
+                            "stageDurationsMs": sql_stage_durations(timing_marks),
                         },
                     )
                     update_sql_request_status(request_id, "succeeded")
@@ -1039,7 +1032,118 @@ def execute_sql(
 
                 background_tasks.add_task(cleanup_stale_namespaces)
                 return response
+        except Exception as exc:
+            if failure_stage is None or isinstance(exc, HTTPException):
+                raise
+            handled_failure = True
+            timing_marks["failureMs"] = round((time.perf_counter() - started_at) * 1000)
+            error_code, error_type = classify_sql_failure(exc, failure_stage)
+            incorrect_answer = False if action == "submit" and error_type == "sql_error" else None
+            if conn is not None:
+                try:
+                    conn.rollback()
+                except Exception:
+                    logger.exception("failed to roll back Oracle SQL execution")
+            timing_marks["rollbackCompletedMs"] = round((time.perf_counter() - started_at) * 1000)
+            elapsed_ms = round((time.perf_counter() - started_at) * 1000)
+            error_metadata = {
+                "action": action,
+                "statementType": statement_type,
+                "failureStage": failure_stage,
+                "errorType": error_type,
+                "timings": dict(timing_marks),
+                "stageDurationsMs": sql_stage_durations(timing_marks),
+            }
+            logger.warning(
+                "sql_execute failed request_id=%s practice_id=%s action=%s scope_key=%s failure_stage=%s error_type=%s timings=%s error=%s",
+                request_id,
+                req.practice_id,
+                action,
+                scope_key,
+                failure_stage,
+                error_type,
+                timing_marks,
+                str(exc),
+            )
+            background_tasks.add_task(
+                notify_slow_sql_execution,
+                elapsed_ms=elapsed_ms,
+                request_id=request_id,
+                practice_id=req.practice_id,
+                action=action,
+                statement_type=statement_type,
+                scope_key=scope_key,
+                user_id=user_id,
+                success=False,
+                timings=timing_marks,
+                error_message=str(exc),
+                failure_stage=failure_stage,
+                error_type=error_type,
+            )
+            if action == "submit":
+                send_amplitude_event(
+                    event_type="backend_sql_submit_failed",
+                    user_id=user_id,
+                    event_properties={
+                        "practice_id": req.practice_id,
+                        "failure_stage": failure_stage,
+                        "statement_type": statement_type,
+                        "oracle_error_code": error_code,
+                        "execution_time_ms": elapsed_ms,
+                    },
+                    insert_id=request_id,
+                )
+            if sql_request_id is not None:
+                insert_sql_response(
+                    sql_request_id=sql_request_id,
+                    success=False,
+                    execution_time_ms=elapsed_ms,
+                    row_count=0,
+                    oracle_error_code=error_code,
+                    oracle_error_message=str(exc),
+                    metadata=error_metadata,
+                )
+                update_sql_request_status(request_id, "failed")
+            insert_learning_event(
+                event_type="sql_submitted" if action == "submit" else "sql_executed",
+                content_type="practice",
+                content_id=req.practice_id,
+                user_id=user_id,
+                session_id=session_id,
+                request_id=request_id,
+                duration_ms=elapsed_ms,
+                is_correct=incorrect_answer,
+                metadata={**error_metadata, "success": False, "error": str(exc)},
+            )
+            if error_type == "sql_error":
+                background_tasks.add_task(cleanup_stale_namespaces)
+            return {
+                "columns": [],
+                "rows": [],
+                "executionTimeMs": elapsed_ms,
+                "error": (
+                    str(exc) if error_type == "sql_error" else
+                    "SQL 실행 환경의 응답이 지연되어 처리하지 못했습니다." if error_type == "timeout" else
+                    "SQL 실행 환경에 문제가 발생해 처리하지 못했습니다."
+                ),
+                "errorCode": error_code,
+                "errorType": error_type,
+                "failureStage": failure_stage,
+                "isCorrect": incorrect_answer,
+            }
+
         finally:
-            if workspace is not None:
-                if not has_persistent_scope:
+            try:
+                if conn is not None and workspace is not None and not has_persistent_scope:
                     cleanup_namespace_tables(conn, workspace)
+            except Exception:
+                if not handled_failure:
+                    raise
+                logger.exception("failed to clean up workspace after SQL failure")
+            finally:
+                if handled_failure:
+                    # Drain every exit callback without replacing the recorded SQL failure.
+                    try:
+                        stack.close()
+                    except Exception:
+                        logger.exception("failed to release resources after SQL failure")

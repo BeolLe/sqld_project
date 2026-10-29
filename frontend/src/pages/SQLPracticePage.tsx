@@ -291,7 +291,7 @@ export default function SQLPracticePage() {
 
       if (nextResult.isCorrect == null) {
         setSubmitResult(null);
-        setExecuteError('채점 기준 결과셋이 아직 준비되지 않았습니다.');
+        setExecuteError(nextResult.error || '채점 기준 결과셋이 아직 준비되지 않았습니다.');
         return;
       }
 

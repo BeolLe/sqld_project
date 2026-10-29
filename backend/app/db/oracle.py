@@ -1,6 +1,9 @@
+import logging
+
 import oracledb
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
 oracle_pool: oracledb.ConnectionPool | None = None
 
 
@@ -42,7 +45,31 @@ def close_oracle_pool():
 def get_oracle_connection():
     pool = init_oracle_pool()
     connection = pool.acquire()
-    connection.call_timeout = settings.ORACLE_CALL_TIMEOUT_MS
+    try:
+        connection.call_timeout = settings.ORACLE_CALL_TIMEOUT_MS
+        # Reapply on every checkout: pooled sessions retain their previous settings.
+        cur = connection.cursor()
+        try:
+            for statement_type in ("QUERY", "DDL", "DML"):
+                cur.execute(f"ALTER SESSION DISABLE PARALLEL {statement_type}")
+        except Exception:
+            try:
+                cur.close()
+            except Exception:
+                logger.exception("failed to close cursor after Oracle session setup failure")
+            raise
+        cur.close()
+    except Exception:
+        # A partially configured session must not reach application SQL.
+        try:
+            pool.drop(connection)
+        except Exception:
+            logger.exception("failed to discard Oracle connection after session setup failure")
+            try:
+                connection.close()
+            except Exception:
+                logger.exception("failed to close Oracle connection after discard failure")
+        raise
     return connection
 
 
