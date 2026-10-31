@@ -134,7 +134,7 @@ const ROWS: AdspQuestion[] = [
     ['H0: μ = 1000, H1: μ ≠ 1000', 'H0: μ = 1000, H1: μ > 1000', 'H0: μ > 1000, H1: μ = 1000', 'H0: μ < 1000, H1: μ = 1000'], '2',
     '입증하고 싶은 주장을 대립가설로 둔다. 길다는 주장이므로 우측 단측 검정 H1: μ > 1000 이다.'],
   ['통계분석', 'medium', '상관분석 결과 해석',
-    '다음 R 출력에 대한 해석으로 옳은 것은?\n\n```r\n\tPearson\'s product-moment correlation\n\ndata:  x and y\nt = 8.24, df = 48, p-value = 9.6e-11\nalternative hypothesis: true correlation is not equal to 0\n95 percent confidence interval:\n 0.6248 0.8638\nsample estimates:\n      cor\n0.7652\n```',
+    '다음 R 출력에 대한 해석으로 옳은 것은?\n\n```r\n\tPearson\'s product-moment correlation\n\ndata:  x and y\nt = 8.24, df = 48, p-value = 9.6e-11\nalternative hypothesis: true correlation is not equal to 0\n95 percent confidence interval:\n 0.6186 0.8603\nsample estimates:\n      cor\n0.7652\n```',
     ['상관계수는 0.7652로 강한 양의 선형 관계가 있다', '유의수준 0.05에서 상관관계가 유의하지 않다', '표본 크기는 48이다', '상관계수의 95% 신뢰구간이 0을 포함한다'], '1',
     '상관계수 0.7652, p-value가 매우 작아 유의하며 신뢰구간도 0을 포함하지 않는다. 자유도 48 = n - 2이므로 n = 50이다.'],
   ['통계분석', 'hard', '회귀계수의 신뢰구간',
