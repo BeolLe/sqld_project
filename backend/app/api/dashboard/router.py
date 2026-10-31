@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from threading import Lock
 from time import monotonic
 
 from fastapi import APIRouter, Depends
+from app.core.exam_scope import ExamType
+from app.db.exam_scope import require_exam_schema, scope_filter, scope_params
 
 from app.api.auth.router import get_current_user
 from app.core.config import settings
@@ -11,7 +14,7 @@ from app.db.postgres import get_connection
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 _cache_lock = Lock()
-_summary_cache: dict[str, tuple[float, dict]] = {}
+_summary_cache: dict[tuple[str, str, bool], tuple[float, dict]] = {}
 
 
 def has_endless_answers_table(cur) -> bool:
@@ -19,10 +22,10 @@ def has_endless_answers_table(cur) -> bool:
     return cur.fetchone()[0] is not None
 
 
-def fetch_subject_stats_by_mode(cur, user_id: str, include_endless: bool) -> dict[str, list[dict]]:
+def fetch_subject_stats_by_mode(cur, user_id: str, include_endless: bool, exam_type: ExamType = "sqld", *, scoped: bool = True) -> dict[str, list[dict]]:
     if include_endless:
         cur.execute(
-            """
+            f"""
             WITH exam_answered AS (
                 SELECT
                     COALESCE(NULLIF(q.question_payload->>'category', ''), '미분류') AS category,
@@ -35,13 +38,14 @@ def fetch_subject_stats_by_mode(cur, user_id: str, include_endless: bool) -> dic
                 JOIN exam.answer_keys ak
                   ON ak.question_id = q.id
                 WHERE aa.user_id = %s::uuid
+                  {"AND EXISTS (SELECT 1 FROM exam.exams e WHERE e.id = aa.exam_id AND e.exam_type = %s)" if scoped else ""}
             ),
             endless_answered AS (
                 SELECT
                     COALESCE(NULLIF(category, ''), '미분류') AS category,
                     is_correct
                 FROM logs.endless_answers
-                WHERE user_id = %s::uuid
+                WHERE user_id = %s::uuid {scope_filter(scoped)} {"AND statistics_cleared_at IS NULL" if scoped else ""}
             ),
             combined AS (
                 SELECT 'exam'::text AS source_type, category, is_correct
@@ -82,11 +86,11 @@ def fetch_subject_stats_by_mode(cur, user_id: str, include_endless: bool) -> dic
                 solved_count DESC,
                 category ASC
             """,
-            (user_id, user_id),
+            (user_id,) + scope_params(scoped, exam_type) + (user_id,) + scope_params(scoped, exam_type),
         )
     else:
         cur.execute(
-            """
+            f"""
             WITH exam_answered AS (
                 SELECT
                     COALESCE(NULLIF(q.question_payload->>'category', ''), '미분류') AS category,
@@ -99,6 +103,7 @@ def fetch_subject_stats_by_mode(cur, user_id: str, include_endless: bool) -> dic
                 JOIN exam.answer_keys ak
                   ON ak.question_id = q.id
                 WHERE aa.user_id = %s::uuid
+                  {"AND EXISTS (SELECT 1 FROM exam.exams e WHERE e.id = aa.exam_id AND e.exam_type = %s)" if scoped else ""}
             )
             SELECT
                 'all'::text AS stat_type,
@@ -133,7 +138,7 @@ def fetch_subject_stats_by_mode(cur, user_id: str, include_endless: bool) -> dic
                 solved_count DESC,
                 category ASC
             """,
-            (user_id,),
+            (user_id,) + scope_params(scoped, exam_type),
         )
     rows = cur.fetchall()
 
@@ -159,16 +164,71 @@ def fetch_subject_stats_by_mode(cur, user_id: str, include_endless: bool) -> dic
     return stats_by_mode
 
 
+
+def scoped_counters(cur, user_id: str, exam_type: ExamType, include_endless: bool, *, scoped: bool = True):
+    """Keep historical SQLD counters (including deleted old logs) exactly intact.
+
+    The migration predates any ADsP writes. Shared lifetime counters continue to
+    receive both exams; ADsP contributions are recoverable from immutable new
+    submission snapshots and retained endless rows. SQLD = lifetime - ADsP.
+    """
+    if not scoped:
+        cur.execute("SELECT total_points, total_mock_exam_attempt_count, total_learning_seconds, total_solved_question_count "
+                    "FROM dashboard.user_stats WHERE user_id = %s::uuid", (user_id,))
+        totals = cur.fetchone() or (0, 0, 0, 0)
+        return dict(zip(("totalPoints", "totalMockExamAttemptCount", "totalLearningSeconds", "totalSolvedQuestionCount"),
+                        (int(value or 0) for value in totals)))
+    # One SQL statement gives totals and contributions the same MVCC snapshot.
+    endless_sql = "SELECT COUNT(*) FROM logs.endless_answers WHERE user_id = %(user_id)s::uuid AND exam_type = 'adsp'" if include_endless else "SELECT 0"
+    cur.execute(
+        f"""
+        WITH adsp AS (
+            SELECT COUNT(*) AS attempts,
+                   COALESCE(SUM((r.grading_snapshot->>'elapsedLearningSeconds')::bigint), 0) AS seconds,
+                   COALESCE(SUM(r.total_question_count), 0) AS solved,
+                   COUNT(*) FILTER (WHERE (r.grading_snapshot ? 'elapsedLearningSeconds') IS NOT TRUE) AS incomplete
+            FROM exam.exam_attempts a
+            JOIN exam.exams e ON e.id = a.exam_id
+            JOIN exam.exam_attempt_results r ON r.attempt_id = a.id
+            WHERE a.user_id = %(user_id)s::uuid AND e.exam_type = 'adsp' AND a.status = 'submitted'
+        )
+        SELECT COALESCE(s.total_points, 0), COALESCE(s.total_mock_exam_attempt_count, 0),
+               COALESCE(s.total_learning_seconds, 0), COALESCE(s.total_solved_question_count, 0),
+               adsp.attempts, adsp.seconds, adsp.solved + ({endless_sql}), adsp.incomplete
+        FROM adsp LEFT JOIN dashboard.user_stats s ON s.user_id = %(user_id)s::uuid
+        """, {"user_id": user_id},
+    )
+    row = cur.fetchone()
+    if row[7]:
+        raise ValueError('ADsP results are missing contribution snapshots; reconcile before serving')
+    totals, adsp = row[:4], row[4:7]
+    counters = adsp if exam_type == 'adsp' else [int(totals[i + 1] or 0) - int(adsp[i] or 0) for i in range(3)]
+    if any(n < 0 for n in counters):
+        raise ValueError('exam counters exceed shared lifetime totals; reconcile before serving')
+    return {"totalPoints": int(totals[0] or 0), "totalMockExamAttemptCount": int(counters[0]),
+            "totalLearningSeconds": int(counters[1]), "totalSolvedQuestionCount": int(counters[2])}
+
+
 @router.get("/summary")
-def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
+def get_dashboard_summary(current_user: dict = Depends(get_current_user), exam_type: ExamType = "sqld"):
     user_id = current_user["user_id"]
+    with get_connection() as conn:
+        scoped = require_exam_schema(conn, exam_type)
+    cache_key = (user_id, exam_type, scoped)
     now = monotonic()
     ttl = settings.DASHBOARD_SUMMARY_CACHE_TTL_SECONDS
 
     with _cache_lock:
-        cached = _summary_cache.get(user_id)
-        if cached and now - cached[0] < ttl:
-            return cached[1]
+        cached = _summary_cache.get(cache_key)
+        response = deepcopy(cached[1]) if cached and now - cached[0] < ttl else None
+    if response is not None:
+        # Neither connection-pool waits nor SQL may hold the process-wide cache lock.
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT total_points FROM dashboard.user_stats WHERE user_id = %s::uuid", (user_id,))
+                balance = cur.fetchone()
+        response["stats"]["totalPoints"] = int(balance[0] or 0) if balance else 0
+        return response
 
     stats = {
         "totalPoints": 0,
@@ -188,33 +248,15 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
     with get_connection() as conn:
         with conn.cursor() as cur:
             include_endless = has_endless_answers_table(cur)
-            cur.execute(
-                """
-                SELECT
-                    COALESCE(total_points, 0),
-                    COALESCE(total_mock_exam_attempt_count, 0),
-                    COALESCE(total_learning_seconds, 0),
-                    COALESCE(total_solved_question_count, 0)
-                FROM dashboard.user_stats
-                WHERE user_id = %s::uuid
-                """,
-                (user_id,),
-            )
-            row = cur.fetchone()
-            if row:
-                stats = {
-                    "totalPoints": int(row[0] or 0),
-                    "totalMockExamAttemptCount": int(row[1] or 0),
-                    "totalLearningSeconds": int(row[2] or 0),
-                    "totalSolvedQuestionCount": int(row[3] or 0),
-                }
+            stats = scoped_counters(cur, user_id, exam_type, include_endless, scoped=scoped)
 
-            subject_stats = fetch_subject_stats_by_mode(cur, user_id, include_endless)
+            code_prefix = "e.exam_type || '_mock_'" if scoped else "'sqld_mock_'"
+            subject_stats = fetch_subject_stats_by_mode(cur, user_id, include_endless, exam_type, scoped=scoped)
 
             cur.execute(
-                """
+                f"""
                 SELECT
-                    replace(e.exam_code, 'sqld_mock_', '') AS exam_url_id,
+                    replace(e.exam_code, {code_prefix}, '') AS exam_url_id,
                     e.title,
                     ea.id AS attempt_id,
                     ea.attempt_no,
@@ -226,12 +268,12 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                   ON e.id = ea.exam_id
                 LEFT JOIN exam.exam_attempt_results ear
                   ON ear.attempt_id = ea.id
-                WHERE ea.user_id = %s::uuid
+                WHERE ea.user_id = %s::uuid {scope_filter(scoped, "e")}
                   AND ea.submitted_at IS NOT NULL
                 ORDER BY ea.submitted_at DESC, ea.id DESC
                 LIMIT 5
                 """,
-                (user_id,),
+                (user_id,) + scope_params(scoped, exam_type),
             )
             recent_exam_results = [
                 {
@@ -248,7 +290,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
             ]
 
             cur.execute(
-                """
+                f"""
                 SELECT
                     spa.id AS attempt_id,
                     sp.practice_code,
@@ -258,7 +300,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                 FROM practice.sql_practice_attempts spa
                 JOIN practice.sql_practices sp
                   ON sp.id = spa.practice_id
-                WHERE spa.user_id = %s::uuid
+                WHERE spa.user_id = %s::uuid AND %s = 'sqld'
                   AND spa.submitted_at IS NOT NULL
                   AND spa.submitted_sql IS NOT NULL
                   AND btrim(spa.submitted_sql) <> ''
@@ -266,7 +308,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                          spa.id DESC
                 LIMIT 5
                 """,
-                (user_id,),
+                (user_id, exam_type),
             )
             recent_sql_attempts = [
                 {
@@ -282,12 +324,12 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
 
             if include_endless:
                 cur.execute(
-                    """
+                    f"""
                     WITH learning_events AS (
                         SELECT
                             timezone('Asia/Seoul', COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at))::date AS learning_date
                         FROM practice.sql_practice_attempts spa
-                        WHERE spa.user_id = %s::uuid
+                        WHERE spa.user_id = %s::uuid AND %s = 'sqld'
                           AND COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at) IS NOT NULL
 
                         UNION ALL
@@ -296,6 +338,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                             timezone('Asia/Seoul', COALESCE(ea.submitted_at, ea.last_saved_at, ea.started_at, ea.created_at))::date AS learning_date
                         FROM exam.exam_attempts ea
                         WHERE ea.user_id = %s::uuid
+                          {"AND EXISTS (SELECT 1 FROM exam.exams e WHERE e.id = ea.exam_id AND e.exam_type = %s)" if scoped else ""}
                           AND COALESCE(ea.submitted_at, ea.last_saved_at, ea.started_at, ea.created_at) IS NOT NULL
 
                         UNION ALL
@@ -303,7 +346,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                         SELECT
                             timezone('Asia/Seoul', lea.answered_at)::date AS learning_date
                         FROM logs.endless_answers lea
-                        WHERE lea.user_id = %s::uuid
+                        WHERE lea.user_id = %s::uuid {scope_filter(scoped, "lea")} {"AND lea.statistics_cleared_at IS NULL" if scoped else ""}
                           AND lea.answered_at IS NOT NULL
                     )
                     SELECT
@@ -314,16 +357,16 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                     GROUP BY learning_date
                     ORDER BY learning_date ASC
                     """,
-                    (user_id, user_id, user_id),
+                    (user_id, exam_type, user_id) + scope_params(scoped, exam_type) + (user_id,) + scope_params(scoped, exam_type),
                 )
             else:
                 cur.execute(
-                    """
+                    f"""
                     WITH learning_events AS (
                         SELECT
                             timezone('Asia/Seoul', COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at))::date AS learning_date
                         FROM practice.sql_practice_attempts spa
-                        WHERE spa.user_id = %s::uuid
+                        WHERE spa.user_id = %s::uuid AND %s = 'sqld'
                           AND COALESCE(spa.submitted_at, spa.completed_at, spa.last_saved_at, spa.created_at) IS NOT NULL
 
                         UNION ALL
@@ -332,6 +375,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                             timezone('Asia/Seoul', COALESCE(ea.submitted_at, ea.last_saved_at, ea.started_at, ea.created_at))::date AS learning_date
                         FROM exam.exam_attempts ea
                         WHERE ea.user_id = %s::uuid
+                          {"AND EXISTS (SELECT 1 FROM exam.exams e WHERE e.id = ea.exam_id AND e.exam_type = %s)" if scoped else ""}
                           AND COALESCE(ea.submitted_at, ea.last_saved_at, ea.started_at, ea.created_at) IS NOT NULL
                     )
                     SELECT
@@ -342,7 +386,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
                     GROUP BY learning_date
                     ORDER BY learning_date ASC
                     """,
-                    (user_id, user_id),
+                    (user_id, exam_type, user_id) + scope_params(scoped, exam_type),
                 )
             learning_calendar = [
                 {
@@ -353,6 +397,7 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
             ]
 
     response = {
+        "examType": exam_type,
         "stats": stats,
         "subjectStats": subject_stats,
         "recentExamResults": recent_exam_results,
@@ -361,6 +406,6 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
     }
 
     with _cache_lock:
-        _summary_cache[user_id] = (now, response)
+        _summary_cache[cache_key] = (now, deepcopy(response))
 
     return response

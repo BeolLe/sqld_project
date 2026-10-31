@@ -2,7 +2,7 @@
  * 개념 학습 — 세부항목 상세 페이지.
  *
  * TODO(백엔드 DB 연동 필요): 현재 콘텐츠는 `data/learn/units/*.ts` 하드코딩이다.
- * 학습 진도·빈칸 채점 결과도 화면 로컬 state 에만 남고 서버에 저장되지 않는다.
+ * 빈칸 채점 결과는 시험별 브라우저 저장소에 남고 서버에 저장되지 않는다.
  * DB 연동 시 `REMOTE_LESSON_ENABLED` 를 켜서 `useRemoteLesson` 경로로 전환한다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -56,14 +56,15 @@ export default function LearnUnitPage() {
       else next.delete(blankId);
       return next;
     });
-    if (unitId) recordBlankResult(unitId, blankId, correct);
-  }, [unitId]);
+    if (unitId) recordBlankResult(unitId, blankId, correct, examType);
+  }, [unitId, examType]);
 
   const totalBlanks = useMemo(() => (unit ? countBlanks(unit) : 0), [unit]);
 
   // 로컬 콘텐츠(빈칸 복습 포함)가 없는 항목만 백엔드 개념교육 레슨을 조회한다.
   const remote = useRemoteLesson(
     REMOTE_LESSON_ENABLED && !ready && unit ? unit.id : undefined,
+    examType,
   );
   const remoteSections = useMemo(
     () => (remote.lesson ? splitLessonSections(remote.lesson.bodyMarkdown) : []),
@@ -352,7 +353,7 @@ export default function LearnUnitPage() {
             )}
 
             <p className="mt-6 hidden border-t border-slate-200 pt-3 text-[0.7rem] text-slate-400 print:block">
-              SolSQLD · 개념 학습 노트 — {unit.subject}과목 {unit.group} · {unit.title}
+              SolSQLD · {examType === 'adsp' ? 'ADsP ' : ''}개념 학습 노트 — {unit.subject}과목 {unit.group} · {unit.title}
             </p>
           </article>
         </div>

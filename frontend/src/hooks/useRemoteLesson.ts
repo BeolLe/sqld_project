@@ -6,6 +6,7 @@ import {
   type LessonProgress,
   type RemoteLesson,
 } from '../api/education';
+import type { ExamType } from '../constants/examTypes';
 import { useAuth } from '../contexts/AuthContext';
 
 export type RemoteLessonStatus = 'loading' | 'not-found' | 'error' | 'ready';
@@ -23,7 +24,7 @@ interface UseRemoteLessonReturn {
  * 로그인 상태에서만 진도(첫 열람 → IN_PROGRESS)를 기록한다 — 비로그인 사용자의
  * 진도는 DB에 저장하지 않는다는 education 스키마 정책을 그대로 따른다.
  */
-export function useRemoteLesson(lessonCode: string | undefined): UseRemoteLessonReturn {
+export function useRemoteLesson(lessonCode: string | undefined, examType: ExamType = 'sqld'): UseRemoteLessonReturn {
   const { isLoggedIn } = useAuth();
   const [asyncStatus, setStatus] = useState<RemoteLessonStatus>('loading');
   const [lesson, setLesson] = useState<RemoteLesson | null>(null);
@@ -38,7 +39,7 @@ export function useRemoteLesson(lessonCode: string | undefined): UseRemoteLesson
     setLesson(null);
     setProgress(null);
 
-    fetchLessonByCode(lessonCode)
+    fetchLessonByCode(lessonCode, examType)
       .then(async (fetched) => {
         if (cancelled) return;
         setLesson(fetched);
@@ -47,14 +48,14 @@ export function useRemoteLesson(lessonCode: string | undefined): UseRemoteLesson
         if (!isLoggedIn) return;
 
         try {
-          const existing = await fetchLessonProgress(fetched.lessonId);
+          const existing = await fetchLessonProgress(fetched.lessonId, examType);
           if (cancelled) return;
           setProgress(existing);
 
           if (existing?.status !== 'COMPLETED') {
             const updated = await saveLessonProgress(fetched.lessonId, {
               lessonVersionId: fetched.lessonVersionId,
-            });
+            }, examType);
             if (!cancelled && updated) setProgress(updated);
           }
         } catch {
@@ -70,7 +71,7 @@ export function useRemoteLesson(lessonCode: string | undefined): UseRemoteLesson
     return () => {
       cancelled = true;
     };
-  }, [lessonCode, isLoggedIn]);
+  }, [lessonCode, isLoggedIn, examType]);
 
   const status: RemoteLessonStatus = lessonCode ? asyncStatus : 'not-found';
 
@@ -80,12 +81,12 @@ export function useRemoteLesson(lessonCode: string | undefined): UseRemoteLesson
     saveLessonProgress(lesson.lessonId, {
       lessonVersionId: lesson.lessonVersionId,
       completed: true,
-    })
+    }, examType)
       .then((updated) => {
         if (updated) setProgress(updated);
       })
       .finally(() => setCompleting(false));
-  }, [lesson, isLoggedIn, completing]);
+  }, [lesson, isLoggedIn, completing, examType]);
 
   return { status, lesson, progress, markComplete, completing };
 }

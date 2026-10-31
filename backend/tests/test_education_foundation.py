@@ -163,7 +163,7 @@ class EducationProgressTests(unittest.TestCase):
         query, params = cursor.execute.call_args.args
         self.assertIn("now() + interval '1 day'", query)
         self.assertEqual(params[2:4], ("block-12", 840))
-        self.assertEqual(params[-2:], (10, 100))
+        self.assertEqual(params[-3:], (10, 100, "sqld"))
         self.assertEqual(progress["resumeAnchor"], "block-12")
 
 
@@ -202,7 +202,7 @@ class EducationLessonLookupTests(unittest.TestCase):
             )
 
         _, params = cursor.execute.call_args.args
-        self.assertEqual(params, ("dm-model",))
+        self.assertEqual(params, ("dm-model", "sqld"))
         self.assertIsNotNone(lesson)
         self.assertEqual(lesson["lessonCode"], "dm-model")
         self.assertEqual(

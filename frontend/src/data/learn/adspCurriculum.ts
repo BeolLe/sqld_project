@@ -1,13 +1,33 @@
-import type { SubjectSeed } from './curriculum';
+import type { LearnUnit } from './types';
+import type { UnitSeed, SubjectSeed } from './curriculum';
+import { adsp1Unit } from './units/adsp1';
+import { adsp2Unit } from './units/adsp2';
+import { adsp3Unit } from './units/adsp3';
+import { adsp4Unit } from './units/adsp4';
+import { adsp5Unit } from './units/adsp5';
+import { adsp6Unit } from './units/adsp6';
+import { adsp7Unit } from './units/adsp7';
+import { adsp8Unit } from './units/adsp8';
+
+/** 본문이 있는 단원을 목차 항목으로 연결한다. 제목은 공식 표기(목차)를 따른다. */
+function withBody(unit: LearnUnit, title: string): UnitSeed {
+  return {
+    id: unit.id,
+    title,
+    estimatedMin: unit.estimatedMin,
+    priority1: unit.priority1,
+    blocks: unit.blocks,
+  };
+}
 
 /**
  * ADsP(데이터분석 준전문가) 공식 출제범위 (https://www.dataq.or.kr).
  * 세부항목명은 공식 표기를 그대로 쓴다.
  *
- * 본문(blocks)은 추후 업로드한다. 항목을 채울 때는 SQLD 와 같이
- * `units/*.ts` 에 블록을 만들고 해당 seed 에 `blocks` 를 연결하면 '학습 가능'으로 바뀐다.
+ * 본문(blocks)이 있는 항목(`adsp-1-1`~`adsp-1-8`)만 '학습 가능'이고 나머지는 '준비 중'이다.
+ * 항목을 채울 때는 SQLD 와 같이 `units/*.ts` 에 블록을 만들고 해당 seed 에 연결한다.
  *
- * id 는 SQLD 항목(dm-, sb-, sa-, ad-)과 겹치지 않게 접두어를 나눈다.
+ * id 는 SQLD 항목(dm-, sb-, sa-, ad-)과 겹치지 않게 `adsp-` 또는 별도 접두어를 쓴다.
  * 학습 진도가 id 기준으로 브라우저에 저장되기 때문이다.
  */
 export const ADSP_SEED: SubjectSeed[] = [
@@ -20,19 +40,19 @@ export const ADSP_SEED: SubjectSeed[] = [
       {
         name: '데이터의 이해',
         units: [
-          { id: 'du-data', title: '데이터와 정보', estimatedMin: 8 },
-          { id: 'du-db', title: '데이터베이스의 정의와 특징', estimatedMin: 7 },
-          { id: 'du-dbuse', title: '데이터베이스 활용', estimatedMin: 6 },
+          withBody(adsp1Unit, '데이터와 정보'),
+          withBody(adsp2Unit, '데이터베이스의 정의와 특징'),
+          withBody(adsp3Unit, '데이터베이스 활용'),
         ],
       },
       {
         name: '데이터의 가치와 미래',
         units: [
-          { id: 'dv-bigdata', title: '빅데이터의 이해', estimatedMin: 8 },
-          { id: 'dv-value', title: '빅데이터의 가치와 영향', estimatedMin: 6 },
-          { id: 'dv-bm', title: '비즈니스 모델', estimatedMin: 6 },
-          { id: 'dv-risk', title: '위기 요인과 통제 방안', estimatedMin: 7 },
-          { id: 'dv-future', title: '미래의 빅데이터', estimatedMin: 5 },
+          withBody(adsp4Unit, '빅데이터의 이해'),
+          withBody(adsp5Unit, '빅데이터의 가치와 영향'),
+          withBody(adsp6Unit, '비즈니스 모델'),
+          withBody(adsp7Unit, '위기 요인과 통제 방안'),
+          withBody(adsp8Unit, '미래의 빅데이터'),
         ],
       },
       {

@@ -7,7 +7,9 @@ from fastapi import APIRouter, HTTPException
 from psycopg.rows import dict_row
 
 from app.core.config import settings
+from app.core.exam_scope import ExamType, exam_code, public_exam_id
 from app.db.postgres import get_connection
+from app.db.exam_scope import require_exam_schema, scope_filter, scope_params, read_schema_capabilities, adsp_enabled
 
 router = APIRouter(prefix="/api/content", tags=["content"])
 _content_cache_lock = Lock()
@@ -126,8 +128,10 @@ def build_practice_problem_payload(row: dict) -> dict:
 
 
 @router.get("/exams")
-def list_exams():
-    cache_key = "exams"
+def list_exams(exam_type: ExamType = "sqld"):
+    with get_connection() as conn:
+        scoped = require_exam_schema(conn, exam_type)
+    cache_key = f"exams:{exam_type}:{scoped}"
     now = monotonic()
     ttl = settings.CONTENT_LIST_CACHE_TTL_SECONDS
 
@@ -137,9 +141,10 @@ def list_exams():
             return cached[1]
 
     with get_connection() as conn:
+        scoped = require_exam_schema(conn, exam_type)
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                """
+                f"""
                 SELECT
                     e.exam_code,
                     e.title,
@@ -150,16 +155,18 @@ def list_exams():
                 FROM exam.exams e
                 LEFT JOIN exam.exam_questions q
                   ON q.exam_id = e.id
-                WHERE e.exam_code LIKE 'sqld_mock_%'
+                WHERE {"e.exam_type = %s AND left(e.exam_code, length(e.exam_type || '_mock_')) = e.exam_type || '_mock_'" if scoped else "left(e.exam_code, length('sqld_mock_')) = 'sqld_mock_'"}
                 GROUP BY e.id, e.exam_code, e.title, e.total_question_count, e.duration_seconds
                 ORDER BY round
-                """
+                """,
+                scope_params(scoped, exam_type),
             )
             rows = cur.fetchall()
 
     exams = [
         {
-            "id": row["exam_code"].replace("sqld_mock_", ""),
+            "id": public_exam_id(row["exam_code"], exam_type),
+            "examType": exam_type,
             "round": row["round"],
             "title": row["title"],
             "problemCount": row["total_question_count"],
@@ -176,13 +183,14 @@ def list_exams():
 
 
 @router.get("/exams/{exam_id}")
-def get_exam(exam_id: str):
-    exam_code = f"sqld_mock_{exam_id}"
+def get_exam(exam_id: str, exam_type: ExamType = "sqld"):
+    resolved_code = exam_code(exam_id, exam_type)
 
     with get_connection() as conn:
+        scoped = require_exam_schema(conn, exam_type)
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                """
+                f"""
                 SELECT
                     q.question_no,
                     q.title,
@@ -200,10 +208,10 @@ def get_exam(exam_id: str):
                   ON e.id = q.exam_id
                 JOIN exam.answer_keys ak
                   ON ak.question_id = q.id
-                WHERE e.exam_code = %s
+                WHERE e.exam_code = %s {scope_filter(scoped, "e")}
                 ORDER BY q.question_no
                 """,
-                (exam_code,),
+                (resolved_code,) + scope_params(scoped, exam_type),
             )
             rows = cur.fetchall()
 
@@ -290,3 +298,11 @@ def get_sql_practice(practice_id: str):
         raise HTTPException(status_code=404, detail="practice not found")
 
     return build_practice_problem_payload(row)
+
+
+@router.get("/exam-capabilities")
+def exam_capabilities():
+    with get_connection() as conn:
+        schema = read_schema_capabilities(conn)
+    return {"schemaState": schema.state, "sqld": {"available": schema.state != "partial"},
+            "adsp": {"available": schema.scoped and adsp_enabled()}}
