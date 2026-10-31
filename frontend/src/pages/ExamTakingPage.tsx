@@ -71,9 +71,13 @@ export default function ExamTakingPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, updatePoints } = useAuth();
+  const { examType, config, examPath } = useExamType();
 
   const [problems, setProblems] = useState<Problem[]>([]);
   const [attemptId, setAttemptId] = useState<number | null>(null);
+  // 서버가 내려준 응시 UUID. 답안·메모·세션 저장과 제출에 함께 보낸다.
+  const [attemptUuid, setAttemptUuid] = useState<string | undefined>(undefined);
+  const scope = useMemo(() => ({ examType, attemptUuid }), [examType, attemptUuid]);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [memoContent, setMemoContent] = useState('');
@@ -85,11 +89,18 @@ export default function ExamTakingPage() {
 
     let mounted = true;
 
-    Promise.all([fetchExamProblems(id), fetchExamSession(id)])
+    // 같은 회차 번호의 다른 시험으로 바뀌어도 이전 응시 정보가 남지 않게 비운다.
+    setProblems([]);
+    setAttemptId(null);
+    setAttemptUuid(undefined);
+    setError('');
+
+    Promise.all([fetchExamProblems(id, examType), fetchExamSession(id, examType)])
       .then(([problemData, session]) => {
         if (!mounted) return;
         setProblems(problemData);
         setAttemptId(session.attemptId);
+        setAttemptUuid(session.attemptUuid);
         setAnswers(session.answers);
         setMemoContent(session.memoContent);
         setRemainingSeconds(session.remainingSeconds);
@@ -107,7 +118,7 @@ export default function ExamTakingPage() {
     return () => {
       mounted = false;
     };
-  }, [id, user]);
+  }, [id, user, examType]);
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [started] = useState(() => {
@@ -124,9 +135,8 @@ export default function ExamTakingPage() {
     [problems, currentPage]
   );
   const pageStartIndex = currentPage * PROBLEMS_PER_PAGE;
-  const { config, examPath } = useExamType();
-  // ADsP 모의고사 id 는 'adsp-3' 형태다. 화면에는 회차 숫자만 보여준다.
-  const roundLabel = (id ?? '').replace(/^[a-z]+-/, '');
+  // 모의고사 id 는 시험 종류와 관계없이 회차 숫자 그대로다.
+  const roundLabel = id ?? '';
   // 이 페이지 첫 문항이 속한 과목 (ADsP 는 3과목이라 페이지마다 바뀐다)
   const currentSubject = config.subjects.find(
     (subject) => pageStartIndex + 1 >= subject.range[0] && pageStartIndex + 1 <= subject.range[1],
@@ -137,24 +147,24 @@ export default function ExamTakingPage() {
       setCurrentPage(Math.max(0, Math.min(page, totalPages - 1)));
       syncStateRef.current.currentPageNo = Math.max(1, Math.min(page + 1, totalPages));
       if (id && user) {
-        void syncExamSession(id, {
+        void syncExamSession(id, scope, {
           currentPageNo: Math.max(1, Math.min(page + 1, totalPages)),
           remainingSeconds: syncStateRef.current.remainingSeconds,
         });
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
-    [id, totalPages, user]
+    [id, scope, totalPages, user]
   );
 
   const persistSnapshot = useCallback(() => {
     if (!id || !user || !attemptId) return;
 
-    void persistExamSessionSnapshot(id, {
+    void persistExamSessionSnapshot(id, scope, {
       currentPageNo: syncStateRef.current.currentPageNo,
       remainingSeconds: syncStateRef.current.remainingSeconds,
     });
-  }, [attemptId, id, user]);
+  }, [attemptId, id, scope, user]);
 
   const handleSelect = useCallback(
     (problemId: string, val: string) => {
@@ -163,7 +173,7 @@ export default function ExamTakingPage() {
         return next;
       });
       if (id && user) {
-        void saveExamAnswer(id, {
+        void saveExamAnswer(id, scope, {
           problemId,
           selectedAnswer: val,
           currentPageNo: currentPage + 1,
@@ -171,13 +181,13 @@ export default function ExamTakingPage() {
         });
       }
     },
-    [currentPage, id, user, user?.id]
+    [currentPage, id, scope, user]
   );
 
   const handleSubmit = useCallback(() => {
     if (!id || !user) return;
 
-    void submitExam(id, {
+    void submitExam(id, scope, {
       currentPageNo: currentPage + 1,
       remainingSeconds: syncStateRef.current.remainingSeconds,
     }).then((result) => {
@@ -199,30 +209,30 @@ export default function ExamTakingPage() {
     }).catch((caughtError) => {
       setError(caughtError instanceof Error ? caughtError.message : '시험 제출 중 오류가 발생했습니다.');
     });
-  }, [attemptId, currentPage, examPath, id, navigate, updatePoints, user]);
+  }, [attemptId, currentPage, examPath, id, navigate, scope, updatePoints, user]);
 
   const handleMemoSave = useCallback(
     async (content: string) => {
       setMemoContent(content);
       if (id && user) {
-        await saveExamMemo(id, content);
+        await saveExamMemo(id, scope, content);
       }
     },
-    [id, user]
+    [id, scope, user]
   );
 
   useEffect(() => {
     if (!id || !user || !attemptId) return;
 
     const intervalId = window.setInterval(() => {
-      void syncExamSession(id, {
+      void syncExamSession(id, scope, {
         currentPageNo: syncStateRef.current.currentPageNo,
         remainingSeconds: syncStateRef.current.remainingSeconds,
       });
     }, 5000);
 
     return () => window.clearInterval(intervalId);
-  }, [attemptId, id, user]);
+  }, [attemptId, id, scope, user]);
 
   useEffect(() => {
     if (!attemptId) return;

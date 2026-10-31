@@ -22,6 +22,7 @@ import { filterSchedulesByExam, getNextExamDate, getDday, formatDateFull } from 
 import { useExamSchedules } from '../contexts/ExamScheduleContext';
 import { PageviewLog, ClickLog } from '../logging';
 import { useExamType } from '../hooks/useExamType';
+import { useContentReady } from '../hooks/useExamCapabilities';
 import { withExamType } from '../utils/examPath';
 import { getLearnSubjectStats } from '../utils/learnProgress';
 
@@ -257,8 +258,10 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const { schedules: allExamSchedules } = useExamSchedules();
   const { examType, config, examPath } = useExamType();
-  // 콘텐츠가 없는 시험은 조회하지 않으므로 처음부터 로딩이 아니다. (시험이 바뀌면 화면이 새로 마운트된다)
-  const [loading, setLoading] = useState(config.contentReady);
+  const { ready: contentReady, checking: checkingReady } = useContentReady();
+  // 콘텐츠가 공개되지 않은 시험은 조회하지 않으므로 로딩이 아니다. (시험이 바뀌면 화면이 새로 마운트된다)
+  const [fetching, setFetching] = useState(true);
+  const loading = checkingReady || (contentReady && fetching);
   const dashboardUrl = examPath('/dashboard');
   const examSchedules = useMemo(
     () => filterSchedulesByExam(allExamSchedules, config.scheduleExamType),
@@ -292,27 +295,28 @@ export default function DashboardPage() {
     if (!isLoggedIn || isInitializing) return;
 
     // 콘텐츠가 없는 시험은 집계할 기록도 없다. 빈 상태로 보여준다.
-    if (!config.contentReady) return;
+    if (checkingReady || !contentReady) return;
 
     let cancelled = false;
-    setLoading(true);
+    setFetching(true);
     setError('');
 
     apiFetch<DashboardSummary>(withExamType('/dashboard/summary', examType))
       .then((result) => {
         if (!cancelled) setData(result);
       })
-      .catch(() => {
-        if (!cancelled) setError('학습현황 API가 아직 준비되지 않았습니다.');
+      .catch((err: unknown) => {
+        // ADsP 준비 상태 503 은 서버가 내려준 안내 문구를 그대로 보여준다.
+        if (!cancelled) setError(examType === 'adsp' && err instanceof Error ? err.message : '학습현황 API가 아직 준비되지 않았습니다.');
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setFetching(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [isLoggedIn, isInitializing, examType, config.contentReady]);
+  }, [isLoggedIn, isInitializing, examType, contentReady, checkingReady]);
 
   // ─── 인증 상태 분기 ──────────────────────────────────────────────────────
 

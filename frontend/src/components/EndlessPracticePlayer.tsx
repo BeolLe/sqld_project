@@ -2,9 +2,10 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { RotateCcw, ChevronRight, CheckCircle, XCircle, Shuffle, ChevronLeft, Flag, Sparkles } from 'lucide-react';
 import type { Problem, AIExplainRequest } from '../types';
 import DescriptionRenderer from './DescriptionRenderer';
-import { fetchEndlessStats, resetEndlessStats, submitEndlessAnswer } from '../api/endless';
+import { createRequestId, fetchEndlessStats, resetEndlessStats, shouldSendRequestId, submitEndlessAnswer } from '../api/endless';
 import { useExamType } from '../hooks/useExamType';
 import { useAuth } from '../contexts/AuthContext';
+import { useExamCapabilities } from '../hooks/useExamCapabilities';
 import ReportErrorModal from './ReportErrorModal';
 import AIStreamPanel from './AIStreamPanel';
 import { useAIStream } from '../hooks/useAIStream';
@@ -131,6 +132,9 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
   const [showReportModal, setShowReportModal] = useState(false);
 
   const { examType, examPath } = useExamType();
+  const { schemaState } = useExamCapabilities();
+  // 같은 답안의 재시도에는 같은 requestId 를 쓴다. 저장이 성공하면 비운다.
+  const pendingRequestRef = useRef<{ key: string; id: string } | null>(null);
   const endlessUrl = examPath('/endless');
   const pageview = useMemo(() => new PageviewLog({ page_id: 'endless', url: endlessUrl }), [endlessUrl]);
   const click = useMemo(() => new ClickLog({ page_id: 'endless', url: endlessUrl, pageParams: { step: 'playing' } }), [endlessUrl]);
@@ -182,12 +186,21 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
       setIsSubmitting(true);
 
       try {
+        let requestId: string | undefined;
+        if (shouldSendRequestId(examType, schemaState)) {
+          const key = `${examType}:${problem.id}:${option}`;
+          if (pendingRequestRef.current?.key !== key) pendingRequestRef.current = { key, id: createRequestId() };
+          requestId = pendingRequestRef.current.id;
+        }
         const stats = await submitEndlessAnswer({
+          examType,
+          requestId,
           problemId: problem.id,
           selectedAnswer: option,
           category: problem.category,
           difficulty: problem.difficulty,
         });
+        pendingRequestRef.current = null;
         setSelectedAnswer(option);
         setAnswerId(stats.answerId ?? null);
         setTotalAnswered(stats.totalAnswered ?? 0);
@@ -201,7 +214,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
         setIsSubmitting(false);
       }
     },
-    [isAnswered, isSubmitting, problem, updatePoints],
+    [isAnswered, isSubmitting, problem, updatePoints, examType, schemaState],
   );
 
   const handleNext = useCallback(() => {

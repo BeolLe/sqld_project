@@ -1,22 +1,27 @@
 -- ADsP 모의고사·무한풀이 콘텐츠 시드
 -- 생성: frontend/scripts/generate-adsp-seed.mjs (직접 수정하지 말고 스크립트를 다시 실행)
 --
--- 모의고사: exam.exams.exam_code = adsp_mock_N, 프론트 id = adsp-N
+-- 모의고사: exam.exams.exam_code = adsp_mock_N, 프론트·API 공개 id = N (exam_type=adsp 로 SQLD 와 구분)
+--   exam_type = adsp, grading_policy = weighted, pass_threshold_percent = 60 (총점 합격 기준)
+--   문항 배점은 question_payload.points = 2 (가중 채점, 50문항 100점), 과목 과락은 exam.subjects 40%
 --   5회 × 50문항 (1과목 1~10 · 2과목 11~20 · 3과목 21~50), 과목별 과락 기준 40%
--- 무한풀이: endless.problems.source_problem_id = adsp_endless_N, 78문항, 카테고리 8개
+-- 무한풀이: endless.problems.source_problem_id = adsp_endless_N, 78문항, 카테고리 8개 (problem_categories.exam_type = adsp)
 --
 -- 같은 키가 이미 있으면 건너뛰므로 여러 번 실행해도 중복되지 않는다.
 -- 실행 전 확인: 실제 DDL 에서 NOT NULL 컬럼(question_version, topic_category_id 등)과
 --   correct_answer 타입(모의고사는 text, 무한풀이는 정수로 가정)을 확인한다.
 --
--- 백엔드 반영 필요: content/router.py 는 exam_code 를 sqld_mock_ 으로 고정하고 있다.
---   exam_type=adsp 요청이면 adsp_mock_ 접두어를 쓰고, id 는 adsp-N 으로 내려주도록 바꿔야 한다.
+-- 실행 순서와 조건 (docs/EXAM_SCOPE_ROLLOUT.md):
+--   1) 시험 범위 마이그레이션(exam_type, grading_policy, pass_threshold_percent 등)이 먼저 적용되어 있어야 한다.
+--      이 시드는 해당 컬럼을 직접 쓰므로 구 스키마(legacy) DB 에서는 실행하지 않는다.
+--   2) 백엔드는 이미 exam_type=adsp 를 지원한다. 공개는 ENABLE_ADSP=true 와 /api/content/exam-capabilities 로 제어한다.
+--   3) 구/신 백엔드 혼재 중에는 ADsP 콘텐츠를 넣지 않는다.
 
 BEGIN;
 
 -- ===== ADsP 모의고사 1회 (adsp_mock_1) =====
-INSERT INTO exam.exams (exam_code, title, total_question_count, total_page_count, duration_seconds, is_active)
-SELECT 'adsp_mock_1', 'ADsP 모의고사 1회', 50, 10, 5400, TRUE
+INSERT INTO exam.exams (exam_code, title, total_question_count, total_page_count, duration_seconds, is_active, exam_type, grading_policy, pass_threshold_percent)
+SELECT 'adsp_mock_1', 'ADsP 모의고사 1회', 50, 10, 5400, TRUE, 'adsp', 'weighted', 60
 WHERE NOT EXISTS (SELECT 1 FROM exam.exams WHERE exam_code = 'adsp_mock_1');
 
 INSERT INTO exam.subjects (exam_id, name, pass_threshold_percent, display_order)
@@ -404,8 +409,8 @@ SELECT x.id, '3', '향상도가 1이면 두 품목은 독립, 1보다 크면 양
 WHERE e.exam_code = 'adsp_mock_1' AND x.question_no = 50 AND NOT EXISTS (SELECT 1 FROM exam.answer_keys k WHERE k.question_id = x.id);
 
 -- ===== ADsP 모의고사 2회 (adsp_mock_2) =====
-INSERT INTO exam.exams (exam_code, title, total_question_count, total_page_count, duration_seconds, is_active)
-SELECT 'adsp_mock_2', 'ADsP 모의고사 2회', 50, 10, 5400, TRUE
+INSERT INTO exam.exams (exam_code, title, total_question_count, total_page_count, duration_seconds, is_active, exam_type, grading_policy, pass_threshold_percent)
+SELECT 'adsp_mock_2', 'ADsP 모의고사 2회', 50, 10, 5400, TRUE, 'adsp', 'weighted', 60
 WHERE NOT EXISTS (SELECT 1 FROM exam.exams WHERE exam_code = 'adsp_mock_2');
 
 INSERT INTO exam.subjects (exam_id, name, pass_threshold_percent, display_order)
@@ -782,8 +787,8 @@ SELECT x.id, '3', '이익도표는 등급별 반응률과 향상도를 보여주
 WHERE e.exam_code = 'adsp_mock_2' AND x.question_no = 50 AND NOT EXISTS (SELECT 1 FROM exam.answer_keys k WHERE k.question_id = x.id);
 
 -- ===== ADsP 모의고사 3회 (adsp_mock_3) =====
-INSERT INTO exam.exams (exam_code, title, total_question_count, total_page_count, duration_seconds, is_active)
-SELECT 'adsp_mock_3', 'ADsP 모의고사 3회', 50, 10, 5400, TRUE
+INSERT INTO exam.exams (exam_code, title, total_question_count, total_page_count, duration_seconds, is_active, exam_type, grading_policy, pass_threshold_percent)
+SELECT 'adsp_mock_3', 'ADsP 모의고사 3회', 50, 10, 5400, TRUE, 'adsp', 'weighted', 60
 WHERE NOT EXISTS (SELECT 1 FROM exam.exams WHERE exam_code = 'adsp_mock_3');
 
 INSERT INTO exam.subjects (exam_id, name, pass_threshold_percent, display_order)
@@ -1186,8 +1191,8 @@ SELECT x.id, '3', '신뢰도 = 30/40 = 0.75, P(B) = 0.5이므로 향상도 = 0.7
 WHERE e.exam_code = 'adsp_mock_3' AND x.question_no = 50 AND NOT EXISTS (SELECT 1 FROM exam.answer_keys k WHERE k.question_id = x.id);
 
 -- ===== ADsP 모의고사 4회 (adsp_mock_4) =====
-INSERT INTO exam.exams (exam_code, title, total_question_count, total_page_count, duration_seconds, is_active)
-SELECT 'adsp_mock_4', 'ADsP 모의고사 4회', 50, 10, 5400, TRUE
+INSERT INTO exam.exams (exam_code, title, total_question_count, total_page_count, duration_seconds, is_active, exam_type, grading_policy, pass_threshold_percent)
+SELECT 'adsp_mock_4', 'ADsP 모의고사 4회', 50, 10, 5400, TRUE, 'adsp', 'weighted', 60
 WHERE NOT EXISTS (SELECT 1 FROM exam.exams WHERE exam_code = 'adsp_mock_4');
 
 INSERT INTO exam.subjects (exam_id, name, pass_threshold_percent, display_order)
@@ -1445,7 +1450,7 @@ data:  x and y
 t = 8.24, df = 48, p-value = 9.6e-11
 alternative hypothesis: true correlation is not equal to 0
 95 percent confidence interval:
- 0.6248 0.8638
+ 0.6186 0.8603
 sample estimates:
       cor
 0.7652
@@ -1591,8 +1596,8 @@ SELECT x.id, '3', '향상도가 1보다 작으면 A 구매가 B 구매 확률을
 WHERE e.exam_code = 'adsp_mock_4' AND x.question_no = 50 AND NOT EXISTS (SELECT 1 FROM exam.answer_keys k WHERE k.question_id = x.id);
 
 -- ===== ADsP 모의고사 5회 (adsp_mock_5) =====
-INSERT INTO exam.exams (exam_code, title, total_question_count, total_page_count, duration_seconds, is_active)
-SELECT 'adsp_mock_5', 'ADsP 모의고사 5회', 50, 10, 5400, TRUE
+INSERT INTO exam.exams (exam_code, title, total_question_count, total_page_count, duration_seconds, is_active, exam_type, grading_policy, pass_threshold_percent)
+SELECT 'adsp_mock_5', 'ADsP 모의고사 5회', 50, 10, 5400, TRUE, 'adsp', 'weighted', 60
 WHERE NOT EXISTS (SELECT 1 FROM exam.exams WHERE exam_code = 'adsp_mock_5');
 
 INSERT INTO exam.subjects (exam_id, name, pass_threshold_percent, display_order)
@@ -1992,22 +1997,22 @@ SELECT x.id, '3', '최소 지지도가 낮으면 빈발 항목집합이 많아�
 WHERE e.exam_code = 'adsp_mock_5' AND x.question_no = 50 AND NOT EXISTS (SELECT 1 FROM exam.answer_keys k WHERE k.question_id = x.id);
 
 -- ===== 무한풀이 카테고리 =====
-INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active)
-SELECT 'adsp_data_understanding', '데이터의 이해', 101, TRUE WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_data_understanding');
-INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active)
-SELECT 'adsp_data_value_future', '데이터의 가치와 미래', 102, TRUE WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_data_value_future');
-INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active)
-SELECT 'adsp_data_science_insight', '데이터 사이언스와 전략 인사이트', 103, TRUE WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_data_science_insight');
-INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active)
-SELECT 'adsp_analysis_planning', '데이터 분석 기획의 이해', 104, TRUE WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_analysis_planning');
-INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active)
-SELECT 'adsp_master_plan', '분석 마스터 플랜', 105, TRUE WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_master_plan');
-INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active)
-SELECT 'adsp_r_data_mart', 'R기초와 데이터 마트', 106, TRUE WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_r_data_mart');
-INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active)
-SELECT 'adsp_statistics', '통계분석', 107, TRUE WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_statistics');
-INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active)
-SELECT 'adsp_data_mining', '정형 데이터 마이닝', 108, TRUE WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_data_mining');
+INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active, exam_type)
+SELECT 'adsp_data_understanding', '데이터의 이해', 101, TRUE, 'adsp' WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_data_understanding');
+INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active, exam_type)
+SELECT 'adsp_data_value_future', '데이터의 가치와 미래', 102, TRUE, 'adsp' WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_data_value_future');
+INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active, exam_type)
+SELECT 'adsp_data_science_insight', '데이터 사이언스와 전략 인사이트', 103, TRUE, 'adsp' WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_data_science_insight');
+INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active, exam_type)
+SELECT 'adsp_analysis_planning', '데이터 분석 기획의 이해', 104, TRUE, 'adsp' WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_analysis_planning');
+INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active, exam_type)
+SELECT 'adsp_master_plan', '분석 마스터 플랜', 105, TRUE, 'adsp' WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_master_plan');
+INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active, exam_type)
+SELECT 'adsp_r_data_mart', 'R기초와 데이터 마트', 106, TRUE, 'adsp' WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_r_data_mart');
+INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active, exam_type)
+SELECT 'adsp_statistics', '통계분석', 107, TRUE, 'adsp' WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_statistics');
+INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active, exam_type)
+SELECT 'adsp_data_mining', '정형 데이터 마이닝', 108, TRUE, 'adsp' WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = 'adsp_data_mining');
 
 -- ===== 무한풀이 문항 =====
 INSERT INTO endless.problems (source_problem_id, title, description, difficulty, category_id, explanation, correct_rate, points, is_active)

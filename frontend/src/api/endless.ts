@@ -1,5 +1,6 @@
 import { apiFetch } from '../utils/api';
 import type { Problem } from '../types';
+import type { ExamSchemaState } from './content';
 import type { ExamType } from '../constants/examTypes';
 import { withExamType } from '../utils/examPath';
 import { ALL_PRACTICE_PROBLEMS } from '../data/practice';
@@ -61,11 +62,33 @@ export function resetEndlessStats(examType: ExamType = 'sqld'): Promise<EndlessS
   return apiFetch<EndlessStatsResponse>(withExamType('/endless/stats', examType), { method: 'DELETE' });
 }
 
+/** 같은 답안을 다시 보낼 때 쓰는 재전송 식별자. 보안 컨텍스트가 아니면 난수로 UUID v4 를 만든다. */
+export function createRequestId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
+ * requestId 를 보내도 되는지.
+ * 구 스키마(legacy) DB 에 requestId 를 보내면 서버가 503 으로 거절하므로 SQLD 운영이 깨진다.
+ * ADsP 는 서버가 requestId 를 필수로 요구하고, SQLD 는 스키마가 'ready' 일 때만 보낸다.
+ */
+export function shouldSendRequestId(examType: ExamType, schemaState: ExamSchemaState | null): boolean {
+  return examType === 'adsp' || schemaState === 'ready';
+}
+
 export function submitEndlessAnswer(payload: {
+  examType: ExamType;
   problemId: string;
   selectedAnswer: string;
   category?: string;
   difficulty?: string;
+  /** 같은 답안의 재시도에는 같은 값. shouldSendRequestId 가 false 인 환경에서는 보내지 않는다. */
+  requestId?: string;
 }): Promise<EndlessStatsResponse> {
   if (IS_MOCK) {
     const problem = [...MOCK_PROBLEMS, ...ADSP_ENDLESS_PROBLEMS].find((p) => p.id === payload.problemId);
@@ -96,9 +119,10 @@ export function submitEndlessAnswer(payload: {
       totalPoints: 320 + mockStats.totalCorrect * 10,
     });
   }
-  return apiFetch<EndlessStatsResponse>('/endless/answer', {
+  return apiFetch<EndlessStatsResponse>(withExamType('/endless/answer', payload.examType), {
     method: 'POST',
     body: JSON.stringify({
+      requestId: payload.requestId,
       problem_id: payload.problemId,
       selected_answer: payload.selectedAnswer,
       category: payload.category,

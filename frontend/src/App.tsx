@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ExamScheduleProvider } from './contexts/ExamScheduleContext';
+import { ExamCapabilitiesProvider } from './contexts/ExamCapabilitiesContext';
 import { AIUsageProvider } from './contexts/AIUsageContext';
 import AuthModalContext from './contexts/AuthModalContext';
 import Header from './components/Header';
@@ -249,7 +250,9 @@ export default function App() {
       <AuthProvider>
         <AIUsageProvider>
           <ExamScheduleProvider>
-            <AppShell />
+            <ExamCapabilitiesProvider>
+              <AppShell />
+            </ExamCapabilitiesProvider>
           </ExamScheduleProvider>
         </AIUsageProvider>
       </AuthProvider>

@@ -7,6 +7,7 @@ import { PageviewLog, ClickLog } from '../logging';
 import type { Difficulty } from '../types';
 import { fetchExamList, type ExamListItem } from '../api/content';
 import { useExamType } from '../hooks/useExamType';
+import { useContentReady } from '../hooks/useExamCapabilities';
 import ContentPreparing from '../components/ContentPreparing';
 
 const DIFFICULTY_LABEL: Record<Difficulty, string> = {
@@ -28,6 +29,7 @@ export default function ExamListPage() {
   const [exams, setExams] = useState<ExamListItem[]>([]);
   const [error, setError] = useState('');
   const { examType, config, examPath } = useExamType();
+  const { ready: contentReady, checking: checkingReady } = useContentReady();
   const listUrl = examPath('/exams');
 
   const pageview = useMemo(() => new PageviewLog({ page_id: 'exam_list', url: listUrl }), [listUrl]);
@@ -37,7 +39,9 @@ export default function ExamListPage() {
   useEffect(() => {
     let mounted = true;
 
-    if (!config.contentReady) {
+    if (checkingReady) return;
+
+    if (!contentReady) {
       if (!pvSent.current) {
         pvSent.current = true;
         pageview.send({ step: 'preparing', data: { exam_count: 0 } });
@@ -66,7 +70,7 @@ export default function ExamListPage() {
     return () => {
       mounted = false;
     };
-  }, [pageview, examType, config.contentReady]);
+  }, [pageview, examType, contentReady, checkingReady]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -74,7 +78,7 @@ export default function ExamListPage() {
         <h1 className="text-2xl font-bold text-sqld-navy mb-1">모의고사</h1>
         <p className="text-slate-500 text-sm mb-8">{config.examListDescription}</p>
 
-        {!config.contentReady && <ContentPreparing feature="모의고사" cta={{ label: '개념 학습 둘러보기', path: '/learn' }} />}
+        {!checkingReady && !contentReady && <ContentPreparing feature="모의고사" cta={{ label: '개념 학습 둘러보기', path: '/learn' }} />}
 
         <div className="grid gap-4">
           {exams.map((exam) => (

@@ -115,7 +115,7 @@ export default function ExamResultPage() {
   const [error, setError] = useState('');
   const [reportTarget, setReportTarget] = useState<Problem | null>(null);
 
-  const { examPath } = useExamType();
+  const { examType, examPath } = useExamType();
   const resultUrl = examPath(`/exams/${id}/result`);
   const pageview = useMemo(() => new PageviewLog({ page_id: 'exam_result', url: resultUrl }), [resultUrl]);
   const click = useMemo(() => new ClickLog({ page_id: 'exam_result', url: resultUrl, pageParams: { exam_id: id } }), [resultUrl, id]);
@@ -134,7 +134,7 @@ export default function ExamResultPage() {
     setLoading(true);
     setError('');
 
-    fetchExamResult(id, requestedAttemptId)
+    fetchExamResult(id, examType, requestedAttemptId)
       .then((nextResult) => {
         if (mounted) setResult(nextResult);
       })
@@ -149,7 +149,7 @@ export default function ExamResultPage() {
     return () => {
       mounted = false;
     };
-  }, [id, navigationState, requestedAttemptId]);
+  }, [id, examType, navigationState, requestedAttemptId]);
 
   if (loading) {
     return (

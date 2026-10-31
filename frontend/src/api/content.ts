@@ -33,11 +33,28 @@ export function fetchExamList(examType: ExamType = 'sqld'): Promise<ExamListItem
   return apiFetch<ExamListItem[]>(withExamType('/content/exams', examType));
 }
 
-export function fetchExamProblems(examId: string): Promise<Problem[]> {
+export function fetchExamProblems(examId: string, examType: ExamType): Promise<Problem[]> {
   if (IS_MOCK) {
-    return Promise.resolve(getExamProblems(examId));
+    return Promise.resolve(getExamProblems(examId, examType));
   }
-  return apiFetch<Problem[]>(`/content/exams/${examId}`);
+  return apiFetch<Problem[]>(withExamType(`/content/exams/${examId}`, examType));
+}
+
+/** `GET /api/content/exam-capabilities` 응답. 시험별 공개 여부와 DB 스키마 준비 상태. */
+export type ExamSchemaState = 'legacy' | 'ready' | 'partial';
+
+export interface ExamCapabilities {
+  schemaState: ExamSchemaState;
+  sqld: { available: boolean };
+  adsp: { available: boolean };
+}
+
+export function fetchExamCapabilities(): Promise<ExamCapabilities> {
+  // 목업 모드는 프론트 데이터(data/adsp)로 동작하므로 ADsP 도 사용 가능이다.
+  if (IS_MOCK) {
+    return Promise.resolve({ schemaState: 'ready', sqld: { available: true }, adsp: { available: true } });
+  }
+  return apiFetch<ExamCapabilities>('/content/exam-capabilities');
 }
 
 export interface SQLPracticeListItem {

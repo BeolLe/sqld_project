@@ -4,7 +4,9 @@
  *   node scripts/generate-adsp-seed.mjs            → ../docs/adsp_content_seed.sql
  *
  * 문항을 고치면 이 스크립트를 다시 돌려 프론트 데이터와 DB 시드를 맞춘다.
- * 대상 테이블 컬럼은 analytics dbt 소스 모델(brz/exam_*, brz/endless_*) 기준이다.
+ * 대상 테이블 컬럼은 analytics dbt 소스 모델(brz/exam_*, brz/endless_*) 기준이고,
+ * 시험 구분 컬럼(exam_type, grading_policy, pass_threshold_percent)은 docs/EXAM_SCOPE_ROLLOUT.md 의 마이그레이션 이후 스키마를 전제한다.
+ * 이 스크립트는 SQL 파일만 만든다. DB 에는 실행하지 않는다.
  */
 import { createRequire } from 'node:module';
 import { writeFileSync } from 'node:fs';
@@ -34,6 +36,8 @@ const { ADSP_EXAM_LIST, getAdspExamProblems, ADSP_ENDLESS_PROBLEMS, EXAM_CONFIG 
 const q = (value) => `'${String(value).replace(/'/g, "''")}'`;
 const json = (value) => `${q(JSON.stringify(value))}::jsonb`;
 const PROBLEMS_PER_PAGE = 5;
+// 가중 채점(grading_policy=weighted)은 question_payload.points 를 그대로 합산한다. 50문항 × 2점 = 100점.
+const EXAM_POINTS_PER_QUESTION = 2;
 
 const CATEGORY_CODES = {
   '데이터의 이해': 'adsp_data_understanding',
@@ -53,16 +57,21 @@ const out = (s = '') => lines.push(s);
 out('-- ADsP 모의고사·무한풀이 콘텐츠 시드');
 out('-- 생성: frontend/scripts/generate-adsp-seed.mjs (직접 수정하지 말고 스크립트를 다시 실행)');
 out('--');
-out('-- 모의고사: exam.exams.exam_code = adsp_mock_N, 프론트 id = adsp-N');
+out('-- 모의고사: exam.exams.exam_code = adsp_mock_N, 프론트·API 공개 id = N (exam_type=adsp 로 SQLD 와 구분)');
+out('--   exam_type = adsp, grading_policy = weighted, pass_threshold_percent = 60 (총점 합격 기준)');
+out('--   문항 배점은 question_payload.points = 2 (가중 채점, 50문항 100점), 과목 과락은 exam.subjects 40%');
 out(`--   ${ADSP_EXAM_LIST.length}회 × 50문항 (1과목 1~10 · 2과목 11~20 · 3과목 21~50), 과목별 과락 기준 40%`);
-out(`-- 무한풀이: endless.problems.source_problem_id = adsp_endless_N, ${ADSP_ENDLESS_PROBLEMS.length}문항, 카테고리 8개`);
+out(`-- 무한풀이: endless.problems.source_problem_id = adsp_endless_N, ${ADSP_ENDLESS_PROBLEMS.length}문항, 카테고리 8개 (problem_categories.exam_type = adsp)`);
 out('--');
 out('-- 같은 키가 이미 있으면 건너뛰므로 여러 번 실행해도 중복되지 않는다.');
 out('-- 실행 전 확인: 실제 DDL 에서 NOT NULL 컬럼(question_version, topic_category_id 등)과');
 out('--   correct_answer 타입(모의고사는 text, 무한풀이는 정수로 가정)을 확인한다.');
 out('--');
-out('-- 백엔드 반영 필요: content/router.py 는 exam_code 를 sqld_mock_ 으로 고정하고 있다.');
-out('--   exam_type=adsp 요청이면 adsp_mock_ 접두어를 쓰고, id 는 adsp-N 으로 내려주도록 바꿔야 한다.');
+out('-- 실행 순서와 조건 (docs/EXAM_SCOPE_ROLLOUT.md):');
+out('--   1) 시험 범위 마이그레이션(exam_type, grading_policy, pass_threshold_percent 등)이 먼저 적용되어 있어야 한다.');
+out('--      이 시드는 해당 컬럼을 직접 쓰므로 구 스키마(legacy) DB 에서는 실행하지 않는다.');
+out('--   2) 백엔드는 이미 exam_type=adsp 를 지원한다. 공개는 ENABLE_ADSP=true 와 /api/content/exam-capabilities 로 제어한다.');
+out('--   3) 구/신 백엔드 혼재 중에는 ADsP 콘텐츠를 넣지 않는다.');
 out('');
 out('BEGIN;');
 out('');
@@ -71,9 +80,10 @@ out('');
 for (const exam of ADSP_EXAM_LIST) {
   const code = `adsp_mock_${exam.round}`;
   const problems = getAdspExamProblems(exam.id);
+  if (problems.length !== 50) throw new Error(`${code}: 50문항이어야 한다 (${problems.length})`);
   out(`-- ===== ${exam.title} (${code}) =====`);
-  out(`INSERT INTO exam.exams (exam_code, title, total_question_count, total_page_count, duration_seconds, is_active)`);
-  out(`SELECT ${q(code)}, ${q(exam.title)}, ${problems.length}, ${Math.ceil(problems.length / PROBLEMS_PER_PAGE)}, ${exam.timeLimit * 60}, TRUE`);
+  out(`INSERT INTO exam.exams (exam_code, title, total_question_count, total_page_count, duration_seconds, is_active, exam_type, grading_policy, pass_threshold_percent)`);
+  out(`SELECT ${q(code)}, ${q(exam.title)}, ${problems.length}, ${Math.ceil(problems.length / PROBLEMS_PER_PAGE)}, ${exam.timeLimit * 60}, TRUE, 'adsp', 'weighted', 60`);
   out(`WHERE NOT EXISTS (SELECT 1 FROM exam.exams WHERE exam_code = ${q(code)});`);
   out('');
   subjects.forEach((subject, index) => {
@@ -85,7 +95,7 @@ for (const exam of ADSP_EXAM_LIST) {
   problems.forEach((problem, index) => {
     const no = index + 1;
     const subjectOrder = subjects.findIndex((s) => no >= s.range[0] && no <= s.range[1]) + 1;
-    const payload = { source_id: problem.id, category: problem.category, points: 2, round: exam.round, avg_difficulty: exam.avgDifficulty };
+    const payload = { source_id: problem.id, category: problem.category, points: EXAM_POINTS_PER_QUESTION, round: exam.round, avg_difficulty: exam.avgDifficulty };
     out(`INSERT INTO exam.exam_questions (exam_id, question_no, page_no, subject_id, question_type, question_text, question_payload, choice_payload, difficulty, question_version, is_active, title, seed_correct_rate)`);
     out(`SELECT e.id, ${no}, ${Math.ceil(no / PROBLEMS_PER_PAGE)}, s.id, 'multiple_choice', ${q(problem.description)}, ${json(payload)}, ${json(problem.options)}, ${q(problem.difficulty)}, 1, TRUE, ${q(problem.title)}, ${problem.correctRate}`);
     out(`FROM exam.exams e JOIN exam.subjects s ON s.exam_id = e.id AND s.display_order = ${subjectOrder}`);
@@ -100,8 +110,8 @@ for (const exam of ADSP_EXAM_LIST) {
 // ── 무한풀이 ──
 out('-- ===== 무한풀이 카테고리 =====');
 Object.entries(CATEGORY_CODES).forEach(([name, code], index) => {
-  out(`INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active)`);
-  out(`SELECT ${q(code)}, ${q(name)}, ${100 + index + 1}, TRUE WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = ${q(code)});`);
+  out(`INSERT INTO endless.problem_categories (category_code, category_name, display_order, is_active, exam_type)`);
+  out(`SELECT ${q(code)}, ${q(name)}, ${100 + index + 1}, TRUE, 'adsp' WHERE NOT EXISTS (SELECT 1 FROM endless.problem_categories WHERE category_code = ${q(code)});`);
 });
 out('');
 out('-- ===== 무한풀이 문항 =====');

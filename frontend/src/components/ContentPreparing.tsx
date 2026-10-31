@@ -10,7 +10,7 @@ interface ContentPreparingProps {
 }
 
 /**
- * 시험 콘텐츠가 아직 올라오지 않았을 때(EXAM_CONFIG[...].contentReady === false)의 빈 화면.
+ * 시험 콘텐츠가 아직 올라오지 않았을 때(GET /api/content/exam-capabilities 에서 해당 시험이 사용 불가일 때)의 빈 화면.
  */
 export default function ContentPreparing({ feature, cta }: ContentPreparingProps) {
   const { config, examPath } = useExamType();

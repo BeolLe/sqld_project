@@ -40,14 +40,8 @@ export interface ExamTypeConfig {
   name: string;
   /** 예: 'SQL 개발자' */
   fullName: string;
-  /** schedule.exam_schedules.exam_type 값 */
+  /** schedule.exam_schedules.exam_type 값 (SQLD 는 기존 표시명, ADsP 는 'adsp') */
   scheduleExamType: string;
-  /**
-   * 백엔드 콘텐츠 API가 이 시험을 구분해서 내려주는지 여부.
-   * false 면 모의고사·무한풀이·학습현황 API를 호출하지 않고 '준비 중' 화면을 보여준다.
-   * (exam_type 파라미터를 모르는 백엔드는 SQLD 데이터를 돌려주기 때문)
-   */
-  contentReady: boolean;
   /** SQL 실습 메뉴 노출 여부. ADsP는 코드 실습이 없다. */
   hasSqlPractice: boolean;
   subjects: ExamSubjectConfig[];
@@ -82,7 +76,6 @@ export const EXAM_CONFIG: Record<ExamType, ExamTypeConfig> = {
     name: 'SQLD',
     fullName: 'SQL 개발자',
     scheduleExamType: 'SQL 개발자',
-    contentReady: true,
     hasSqlPractice: true,
     subjects: [
       { no: '1', label: '1과목', description: '데이터 모델링의 이해', range: [1, 10], categories: ['데이터모델링', '정규화'] },
@@ -123,9 +116,7 @@ export const EXAM_CONFIG: Record<ExamType, ExamTypeConfig> = {
     type: 'adsp',
     name: 'ADsP',
     fullName: '데이터분석 준전문가',
-    scheduleExamType: '데이터분석 준전문가',
-    // 백엔드가 exam_type 을 지원하면 true 로 바꾼다. 목업 모드(VITE_AI_MOCK=1)는 프론트 데이터(data/adsp)로 동작한다.
-    contentReady: import.meta.env.VITE_AI_MOCK === '1',
+    scheduleExamType: 'adsp',
     hasSqlPractice: false,
     subjects: [
       { no: '1', label: '1과목', description: '데이터 이해', range: [1, 10], categories: ['데이터의 이해', '데이터의 가치와 미래', '데이터 사이언스와 전략 인사이트'] },

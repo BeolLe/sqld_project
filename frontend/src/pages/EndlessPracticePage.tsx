@@ -9,6 +9,7 @@ import type { Problem } from '../types';
 import EndlessPracticePlayer from '../components/EndlessPracticePlayer';
 import ContentPreparing from '../components/ContentPreparing';
 import { useExamType } from '../hooks/useExamType';
+import { useContentReady } from '../hooks/useExamCapabilities';
 import { getCategoriesForSubject as getSubjectCategories } from '../constants/examTypes';
 
 type Step = 'mode-select' | 'subject-select' | 'category-select' | 'playing';
@@ -19,6 +20,7 @@ export default function EndlessPracticePage() {
   const { openAuthModal } = useAuthModal();
   const navigate = useNavigate();
   const { examType, config, examPath } = useExamType();
+  const { ready: contentReady, checking: checkingReady } = useContentReady();
   const endlessUrl = examPath('/endless');
 
   // 과목 번호 → 표시명. 과목 구성은 시험마다 다르다 (SQLD 2과목, ADsP 3과목).
@@ -29,8 +31,9 @@ export default function EndlessPracticePage() {
   const getCategoriesForSubject = (subject: string, categories: string[]) => getSubjectCategories(config, subject, categories);
 
   const [allProblems, setAllProblems] = useState<Problem[]>([]);
-  // 콘텐츠가 없는 시험은 조회하지 않으므로 처음부터 로딩이 아니다.
-  const [loading, setLoading] = useState(config.contentReady);
+  // 콘텐츠가 공개되지 않은 시험은 조회하지 않는다. 그때의 로딩 표시는 아래 isLoading 이 정한다.
+  const [fetching, setFetching] = useState(true);
+  const loading = checkingReady || (contentReady && fetching);
   const [error, setError] = useState<string | null>(null);
 
   const [step, setStep] = useState<Step>('mode-select');
@@ -39,10 +42,10 @@ export default function EndlessPracticePage() {
 
   useEffect(() => {
     if (!isLoggedIn || isInitializing) return;
-    if (!config.contentReady) return;
+    if (checkingReady || !contentReady) return;
 
     let cancelled = false;
-    setLoading(true);
+    setFetching(true);
     setError(null);
 
     fetchEndlessProblems(examType)
@@ -53,11 +56,11 @@ export default function EndlessPracticePage() {
         if (!cancelled) setError(err.message);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setFetching(false);
       });
 
     return () => { cancelled = true; };
-  }, [isLoggedIn, isInitializing, examType, config.contentReady]);
+  }, [isLoggedIn, isInitializing, examType, contentReady, checkingReady]);
 
   const allCategories = useMemo(
     () => [...new Set(allProblems.map((p) => p.category))].sort(),
@@ -140,7 +143,8 @@ export default function EndlessPracticePage() {
       pageview.send({ step: 'load_error' });
       return;
     }
-    if (!config.contentReady) {
+    if (checkingReady) return;
+    if (!contentReady) {
       if (lastPvStep.current !== 'preparing') {
         lastPvStep.current = 'preparing';
         pageview.send({ step: 'preparing' });
@@ -165,7 +169,7 @@ export default function EndlessPracticePage() {
       pageview.send({ step: 'category_select', data: { subject: selectedSubject } });
     }
     // playing pageview is handled by EndlessPracticePlayer
-  }, [isInitializing, isLoggedIn, error, loading, step, selectedSubject, pageview, config.contentReady]);
+  }, [isInitializing, isLoggedIn, error, loading, step, selectedSubject, pageview, contentReady, checkingReady]);
 
   // ─── 비로그인 시 인증 모달 (E-4 fix: 조기 반환 전으로 이동) ─────────────
   useEffect(() => {
@@ -195,7 +199,7 @@ export default function EndlessPracticePage() {
     );
   }
 
-  if (!config.contentReady) {
+  if (!checkingReady && !contentReady) {
     return (
       <div className="min-h-screen bg-slate-50">
         <div className="max-w-3xl mx-auto px-4 py-6">
