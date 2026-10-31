@@ -17,7 +17,7 @@ export default function EventPopup({ phaseCode, onClose }: EventPopupProps) {
 
   function handleExamClick() {
     onClose(dismissChecked, phaseCode === 'phase1');
-    navigate('/exams');
+    navigate('/sqld/exams');
   }
 
   return (

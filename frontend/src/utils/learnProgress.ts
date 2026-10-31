@@ -3,14 +3,15 @@
  * 백엔드 DB 연동 전까지의 임시 저장소이며, 기기·브라우저 간 동기화되지 않는다.
  * 같은 빈칸을 다시 풀면 최신 결과로 덮어쓴다(누적 횟수가 아니라 최근 숙련도 스냅샷).
  */
-import { getLearnCatalog, type LearnExamType } from '../data/learn/catalog';
+import { getCurriculum } from '../data/learn/curriculum';
+import type { ExamType } from '../constants/examTypes';
 import type { SubjectStat } from '../types';
 
-const storageKey = (examType: LearnExamType) => examType === 'adsp' ? 'soladsp_learn_blank_results_v1' : 'solsqld_learn_blank_results_v1';
+const storageKey = (examType: ExamType) => examType === 'adsp' ? 'soladsp_learn_blank_results_v1' : 'solsqld_learn_blank_results_v1';
 
 type BlankResultMap = Record<string, boolean>; // key: `${unitId}:${blankId}` -> 최근 정답 여부
 
-function readMap(examType: LearnExamType): BlankResultMap {
+function readMap(examType: ExamType): BlankResultMap {
   try {
     const raw = window.localStorage.getItem(storageKey(examType));
     return raw ? (JSON.parse(raw) as BlankResultMap) : {};
@@ -19,7 +20,7 @@ function readMap(examType: LearnExamType): BlankResultMap {
   }
 }
 
-function writeMap(map: BlankResultMap, examType: LearnExamType): void {
+function writeMap(map: BlankResultMap, examType: ExamType): void {
   try {
     window.localStorage.setItem(storageKey(examType), JSON.stringify(map));
   } catch {
@@ -28,7 +29,7 @@ function writeMap(map: BlankResultMap, examType: LearnExamType): void {
 }
 
 /** 빈칸 하나를 채점한 직후 호출한다. blankId는 단원 내에서 고유하다. */
-export function recordBlankResult(unitId: string, blankId: string, correct: boolean, examType: LearnExamType = 'sqld'): void {
+export function recordBlankResult(unitId: string, blankId: string, correct: boolean, examType: ExamType = 'sqld'): void {
   const map = readMap(examType);
   map[`${unitId}:${blankId}`] = correct;
   writeMap(map, examType);
@@ -38,8 +39,8 @@ export function recordBlankResult(unitId: string, blankId: string, correct: bool
  * 주요항목(그룹)별 정답률을 계산한다.
  * 아직 한 문제도 채점하지 않은 그룹은 결과에서 제외한다 — "0%"가 아니라 "데이터 없음"으로 다룬다.
  */
-export function getLearnSubjectStats(examType: LearnExamType = 'sqld'): SubjectStat[] {
-  const ALL_UNITS = getLearnCatalog(examType).units;
+export function getLearnSubjectStats(examType: ExamType = 'sqld'): SubjectStat[] {
+  const ALL_UNITS = getCurriculum(examType).units;
   const groupByUnitId = new Map(ALL_UNITS.map((u) => [u.id, u.group] as const));
   const totals = new Map<string, { solved: number; correct: number }>();
 

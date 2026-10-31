@@ -8,6 +8,7 @@ import { useAIStream } from '../hooks/useAIStream';
 import { useAIUsage } from '../contexts/AIUsageContext';
 import { logEvent } from '../utils/eventLogger';
 import { PageviewLog, ClickLog } from '../logging';
+import { useExamType } from '../hooks/useExamType';
 import { fetchExamResult } from '../api/exams';
 
 interface ResultState {
@@ -114,7 +115,8 @@ export default function ExamResultPage() {
   const [error, setError] = useState('');
   const [reportTarget, setReportTarget] = useState<Problem | null>(null);
 
-  const resultUrl = `/exams/${id}/result`;
+  const { examType, examPath } = useExamType();
+  const resultUrl = examPath(`/exams/${id}/result`);
   const pageview = useMemo(() => new PageviewLog({ page_id: 'exam_result', url: resultUrl }), [resultUrl]);
   const click = useMemo(() => new ClickLog({ page_id: 'exam_result', url: resultUrl, pageParams: { exam_id: id } }), [resultUrl, id]);
   const pvSent = useRef(false);
@@ -132,7 +134,7 @@ export default function ExamResultPage() {
     setLoading(true);
     setError('');
 
-    fetchExamResult(id, requestedAttemptId)
+    fetchExamResult(id, examType, requestedAttemptId)
       .then((nextResult) => {
         if (mounted) setResult(nextResult);
       })
@@ -147,7 +149,7 @@ export default function ExamResultPage() {
     return () => {
       mounted = false;
     };
-  }, [id, navigationState, requestedAttemptId]);
+  }, [id, examType, navigationState, requestedAttemptId]);
 
   if (loading) {
     return (
@@ -167,7 +169,7 @@ export default function ExamResultPage() {
           <p className="text-sm text-slate-500 mb-4">
             {error || '제출한 모의고사 결과가 아직 없습니다.'}
           </p>
-          <button onClick={() => navigate('/exams')} className="text-primary-600 hover:underline">
+          <button onClick={() => navigate(examPath('/exams'))} className="text-primary-600 hover:underline">
             모의고사 목록으로
           </button>
         </div>
@@ -273,14 +275,14 @@ export default function ExamResultPage() {
         {/* 버튼 */}
         <div className="flex gap-3">
           <button
-            onClick={() => { click.send({ object_section_id: 'action', object_section_idx: 3, object_type: 'button', object_idx: 0, object_id: 'retry', object_url: `/exams/${id}/taking` }); navigate(`/exams/${id}/taking`); }}
+            onClick={() => { click.send({ object_section_id: 'action', object_section_idx: 3, object_type: 'button', object_idx: 0, object_id: 'retry', object_url: examPath(`/exams/${id}/taking`) }); navigate(examPath(`/exams/${id}/taking`)); }}
             className="flex items-center gap-2 flex-1 justify-center border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold py-3 rounded-xl transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
             다시 풀기
           </button>
           <button
-            onClick={() => { click.send({ object_section_id: 'action', object_section_idx: 3, object_type: 'button', object_idx: 1, object_id: 'exam_list', object_url: '/exams' }); navigate('/exams'); }}
+            onClick={() => { click.send({ object_section_id: 'action', object_section_idx: 3, object_type: 'button', object_idx: 1, object_id: 'exam_list', object_url: examPath('/exams') }); navigate(examPath('/exams')); }}
             className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-xl transition-colors"
           >
             모의고사 목록

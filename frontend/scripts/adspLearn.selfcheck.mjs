@@ -18,6 +18,7 @@ try {
     define: {
       'process.env.NODE_ENV': '"production"',
       'import.meta.env.VITE_API_BASE_URL': '"https://education.test.invalid/api"',
+      'import.meta.env.VITE_AI_MOCK': '"0"',
     },
     plugins: [
       {

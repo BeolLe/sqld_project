@@ -2,8 +2,9 @@
  * 개념 학습 탭 콘텐츠 타입.
  *
  * 구조는 한국데이터산업진흥원 공식 출제범위를 그대로 따른다.
- *   과목(2) → 주요항목(5) → 세부항목(30)
- * 세부항목 하나가 개념 노트 한 편이며 `/learn/:unitId` 에 대응한다.
+ *   SQLD: 과목(2) → 주요항목(5) → 세부항목(30)
+ *   ADsP: 과목(3) → 주요항목(8) → 세부항목(29)
+ * 세부항목 하나가 개념 노트 한 편이며 `/:examType/learn/:unitId` 에 대응한다.
  */
 
 /** 빈칸 정답 정의. 표기 흔들림은 accepts 로 흡수한다. */
@@ -107,10 +108,13 @@ export interface LearnBlock {
   blanks: Blank[];
 }
 
+/** 과목 번호. SQLD 는 1~2, ADsP 는 1~3. */
+export type LearnSubjectNo = 1 | 2 | 3;
+
 export interface LearnUnit {
   /** 예: 'sa-window' */
   id: string;
-  subject: 1 | 2;
+  subject: LearnSubjectNo;
   /** 주요항목명 */
   group: string;
   /** 공식 출제범위 순서 기준 통합 순번 */
@@ -131,7 +135,7 @@ export interface LearnGroup {
 }
 
 export interface LearnSubject {
-  subject: 1 | 2;
+  subject: LearnSubjectNo;
   title: string;
   /** 예: '10문항 / 20점' */
   exam: string;

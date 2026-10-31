@@ -4,6 +4,7 @@ import { Search, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthModal } from '../contexts/AuthModalContext';
 import { PageviewLog, ClickLog } from '../logging';
+import { useExamType } from '../hooks/useExamType';
 import type { Difficulty } from '../types';
 import { fetchSQLPracticeList, type SQLPracticeListItem } from '../api/content';
 
@@ -21,6 +22,7 @@ const DIFFICULTY_COLOR: Record<Difficulty, string> = {
 type SortKey = 'default' | 'difficulty_asc' | 'difficulty_desc' | 'rate_asc' | 'rate_desc';
 
 export default function SQLPracticeListPage() {
+  const { examPath } = useExamType();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { openAuthModal } = useAuthModal();
@@ -30,8 +32,8 @@ export default function SQLPracticeListPage() {
   const [sort, setSort] = useState<SortKey>('default');
   const [diffFilter, setDiffFilter] = useState<Difficulty | 'all'>('all');
 
-  const pageview = useMemo(() => new PageviewLog({ page_id: 'sql_list', url: '/sql-practice' }), []);
-  const click = useMemo(() => new ClickLog({ page_id: 'sql_list', url: '/sql-practice' }), []);
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'sql_list', url: examPath('/sql-practice') }), [examPath]);
+  const click = useMemo(() => new ClickLog({ page_id: 'sql_list', url: examPath('/sql-practice') }), [examPath]);
   const pvSent = useRef(false);
 
   useEffect(() => {
@@ -150,14 +152,14 @@ export default function SQLPracticeListPage() {
               onClick={() => {
                 click.send({
                   object_section_id: 'problem_list', object_section_idx: 2, object_type: 'card', object_idx: filtered.indexOf(problem), object_id: 'problem',
-                  object_url: `/sql-practice/${problem.id}`,
+                  object_url: examPath(`/sql-practice/${problem.id}`),
                   data: { problem_id: problem.id, difficulty: problem.difficulty, category: problem.category, correct_rate: problem.correctRate, is_logged_in: !!user },
                 });
                 if (!user) {
                   openAuthModal('login');
                   return;
                 }
-                navigate(`/sql-practice/${problem.id}`);
+                navigate(examPath(`/sql-practice/${problem.id}`));
               }}
               className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between hover:border-primary-400 hover:shadow-md cursor-pointer transition-all"
             >

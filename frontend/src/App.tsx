@@ -1,17 +1,19 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ExamScheduleProvider } from './contexts/ExamScheduleContext';
+import { ExamCapabilitiesProvider } from './contexts/ExamCapabilitiesContext';
 import { AIUsageProvider } from './contexts/AIUsageContext';
 import AuthModalContext from './contexts/AuthModalContext';
 import Header from './components/Header';
-import ADsPPreviewPage from './pages/ADsPPreviewPage';
-import { isExamPreviewHost, readPreviewExam } from './utils/examPreview';
 import AuthModal from './components/AuthModal';
 import ActivePopupRenderer from './components/ActivePopupRenderer';
+import ExamInterestModal from './components/ExamInterestModal';
+import { ExamHomeRedirect, ExamTypeGuard, LegacySqldRedirect, SqlPracticeOnly } from './components/ExamTypeRoute';
 import type { ActivePopupCampaign } from './components/ActivePopupRenderer';
 import { apiFetch } from './utils/api';
 import MainPage from './pages/MainPage';
+import PortalPage from './pages/PortalPage';
 import DashboardPage from './pages/DashboardPage';
 import ExamListPage from './pages/ExamListPage';
 import ExamTakingPage from './pages/ExamTakingPage';
@@ -40,8 +42,6 @@ interface ActivePopupResponse {
   activePopup: ActivePopupCampaign | null;
 }
 
-const EXAM_PREVIEW_ENABLED = isExamPreviewHost(window.location.hostname);
-
 const PUBLIC_NOTICE_DISMISS_PREFIX = 'solsqld_notice_dismissed_';
 
 function getKstDateKey() {
@@ -49,8 +49,6 @@ function getKstDateKey() {
 }
 
 function AppShell() {
-  const { pathname } = useLocation();
-  const isADsPPreview = EXAM_PREVIEW_ENABLED && /^\/adsp(?:\/|$)/.test(pathname);
   const { user } = useAuth();
   const searchParams = new URLSearchParams(window.location.search);
   const hasPendingSocialSignup =
@@ -63,7 +61,7 @@ function AppShell() {
   const [showEventPopup, setShowEventPopup] = useState(false);
   const [activeCampaign, setActiveCampaign] = useState<ActivePopupCampaign | null>(null);
   useEffect(() => {
-    if (authModal.open || isADsPPreview) {
+    if (authModal.open) {
       setShowEventPopup(false);
       setActiveCampaign(null);
       return;
@@ -97,7 +95,7 @@ function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, [authModal.open, user, isADsPPreview]);
+  }, [authModal.open, user]);
 
   useEffect(() => {
     const currentSearchParams = new URLSearchParams(window.location.search);
@@ -157,17 +155,26 @@ function AppShell() {
   return (
     <AuthModalContext.Provider value={{ openAuthModal: openAuth }}>
     <>
-      {/* 모의고사 풀이 화면은 헤더 없이 */}
+      {/* 모의고사 풀이·SQL 풀이 화면은 헤더 없이 */}
       <Routes>
-        <Route path="/exams/:id/taking" element={<ExamTakingPage />} />
         <Route
-          path="/sql-practice/:id"
+          path="/:examType/exams/:id/taking"
+          element={<ExamTypeGuard><ExamTakingPage /></ExamTypeGuard>}
+        />
+        <Route
+          path="/:examType/sql-practice/:id"
           element={
-            <Suspense fallback={<PageFallback />}>
-              <SQLPracticePage />
-            </Suspense>
+            <ExamTypeGuard>
+              <SqlPracticeOnly>
+                <Suspense fallback={<PageFallback />}>
+                  <SQLPracticePage />
+                </Suspense>
+              </SqlPracticeOnly>
+            </ExamTypeGuard>
           }
         />
+        <Route path="/exams/:id/taking" element={<LegacySqldRedirect />} />
+        <Route path="/sql-practice/:id" element={<LegacySqldRedirect />} />
         <Route
           path="*"
           element={
@@ -175,11 +182,7 @@ function AppShell() {
               <Header onAuthClick={openAuth} />
               <main>
                 <Routes>
-                  <Route path="/" element={EXAM_PREVIEW_ENABLED && readPreviewExam() === 'adsp' ? <Navigate to="/adsp" replace /> : <MainPage />} />
-                  {EXAM_PREVIEW_ENABLED && <Route path="/adsp/learn" element={<LearnIndexPage key="adsp" examType="adsp" />} />}
-                  {EXAM_PREVIEW_ENABLED && <Route path="/adsp/learn/:unitId" element={<LearnUnitPage key={pathname} examType="adsp" />} />}
-                  {EXAM_PREVIEW_ENABLED && <Route path="/adsp/*" element={<ADsPPreviewPage />} />}
-                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/" element={<PortalPage />} />
                   <Route path="/mypage" element={<MyPage />} />
                   <Route path="/feedback" element={<FeedbackPage />} />
                   <Route
@@ -190,20 +193,31 @@ function AppShell() {
                       </Suspense>
                     }
                   />
-                  <Route path="/exams" element={<ExamListPage />} />
-                  <Route path="/exams/:id" element={<ExamListPage />} />
-                  <Route path="/exams/:id/result" element={<ExamResultPage />} />
-                  <Route path="/endless" element={<EndlessPracticePage />} />
-                  <Route path="/learn" element={<LearnIndexPage key="sqld" />} />
-                  <Route path="/learn/:unitId" element={<LearnUnitPage key={pathname} />} />
-                  <Route
-                    path="/sql-practice"
-                    element={
-                      <Suspense fallback={<PageFallback />}>
-                        <SQLPracticeListPage />
-                      </Suspense>
-                    }
-                  />
+                  <Route path="/:examType" element={<ExamTypeGuard />}>
+                    <Route index element={<MainPage />} />
+                    <Route path="dashboard" element={<DashboardPage />} />
+                    <Route path="exams" element={<ExamListPage />} />
+                    <Route path="exams/:id" element={<ExamListPage />} />
+                    <Route path="exams/:id/result" element={<ExamResultPage />} />
+                    <Route path="endless" element={<EndlessPracticePage />} />
+                    <Route path="learn" element={<LearnIndexPage />} />
+                    <Route path="learn/:unitId" element={<LearnUnitPage />} />
+                    <Route
+                      path="sql-practice"
+                      element={
+                        <SqlPracticeOnly>
+                          <Suspense fallback={<PageFallback />}>
+                            <SQLPracticeListPage />
+                          </Suspense>
+                        </SqlPracticeOnly>
+                      }
+                    />
+                    <Route path="*" element={<ExamHomeRedirect />} />
+                  </Route>
+                  {/* 통합 전 URL → /sqld/... */}
+                  {['/dashboard', '/exams', '/exams/:id', '/exams/:id/result', '/endless', '/learn', '/learn/:unitId', '/sql-practice'].map((path) => (
+                    <Route key={path} path={path} element={<LegacySqldRedirect />} />
+                  ))}
                 </Routes>
               </main>
             </>
@@ -219,9 +233,12 @@ function AppShell() {
         />
       )}
 
-      {!isADsPPreview && showEventPopup && activeCampaign && (
+      {showEventPopup && activeCampaign && (
         <ActivePopupRenderer campaign={activeCampaign} onClose={closeEventPopup} />
       )}
+
+      {/* 관심 시험 선택: 로그인 후 한 번. 다른 모달이 떠 있으면 기다린다. */}
+      {user && !authModal.open && !showEventPopup && <ExamInterestModal />}
     </>
     </AuthModalContext.Provider>
   );
@@ -233,7 +250,9 @@ export default function App() {
       <AuthProvider>
         <AIUsageProvider>
           <ExamScheduleProvider>
-            <AppShell />
+            <ExamCapabilitiesProvider>
+              <AppShell />
+            </ExamCapabilitiesProvider>
           </ExamScheduleProvider>
         </AIUsageProvider>
       </AuthProvider>

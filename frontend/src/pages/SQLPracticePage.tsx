@@ -25,6 +25,7 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { keymap } from '@codemirror/view';
 import { logEvent } from '../utils/eventLogger';
 import { PageviewLog, ClickLog } from '../logging';
+import { useExamType } from '../hooks/useExamType';
 import { useAuth } from '../contexts/AuthContext';
 import { useAIStream } from '../hooks/useAIStream';
 import { useAIUsage } from '../contexts/AIUsageContext';
@@ -112,6 +113,7 @@ function useResizeDrag(
 }
 
 export default function SQLPracticePage() {
+  const { examPath } = useExamType();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -218,7 +220,7 @@ export default function SQLPracticePage() {
   const vOnMouseDown = useResizeDrag(vContainerRef, 'vertical', setVRatio, 0.2, 0.85);
 
   // ─── 로깅 ──────────────────────────────────────────────────────────────
-  const solvingUrl = `/sql-practice/${id}`;
+  const solvingUrl = examPath(`/sql-practice/${id}`);
   const pageview = useMemo(() => new PageviewLog({ page_id: 'sql_solving', url: solvingUrl }), [solvingUrl]);
   const click = useMemo(() => new ClickLog({ page_id: 'sql_solving', url: solvingUrl, pageParams: { problem_id: id } }), [solvingUrl, id]);
   const pvSent = useRef(false);
@@ -330,7 +332,7 @@ export default function SQLPracticePage() {
         <div className="text-center">
           <p className="text-slate-500 mb-4">{loadError || '문제를 불러오는 중입니다.'}</p>
           <button
-            onClick={() => navigate('/sql-practice')}
+            onClick={() => navigate(examPath('/sql-practice'))}
             className="text-primary-600 hover:underline"
           >
             목록으로
@@ -346,7 +348,7 @@ export default function SQLPracticePage() {
         <div className="text-center">
           <p className="text-slate-500 mb-4">SQL 실습은 로그인 후 이용할 수 있습니다.</p>
           <button
-            onClick={() => navigate('/sql-practice')}
+            onClick={() => navigate(examPath('/sql-practice'))}
             className="text-primary-600 hover:underline"
           >
             목록으로
@@ -367,7 +369,7 @@ export default function SQLPracticePage() {
             SQL 실습은 코드 에디터와 결과 테이블을 동시에 사용하는 기능으로, PC 환경에서 최적화되어 있습니다.
           </p>
           <button
-            onClick={() => navigate('/sql-practice')}
+            onClick={() => navigate(examPath('/sql-practice'))}
             className="bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition-colors"
           >
             목록으로 돌아가기
@@ -382,7 +384,7 @@ export default function SQLPracticePage() {
       <div className="shrink-0 bg-sqld-navy border-b border-slate-700 shadow-lg">
         <div className="px-4 h-12 flex items-center justify-between">
           <button
-            onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'button', object_idx: 0, object_id: 'home', object_url: '/', data: { header_variant: 'practice' } }); setExitTarget('/'); }}
+            onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'button', object_idx: 0, object_id: 'home', object_url: examPath('/'), data: { header_variant: 'practice' } }); setExitTarget(examPath('/')); }}
             className="flex items-center gap-2 text-white font-bold text-lg hover:opacity-80 transition-opacity"
           >
             <Database className="w-5 h-5 text-primary-500" />
@@ -392,13 +394,13 @@ export default function SQLPracticePage() {
           </button>
           <nav className="flex items-center gap-6 text-sm text-slate-300">
             <button
-              onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 1, object_id: 'exam_list', object_url: '/exams', data: { header_variant: 'practice' } }); setExitTarget('/exams'); }}
+              onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 1, object_id: 'exam_list', object_url: examPath('/exams'), data: { header_variant: 'practice' } }); setExitTarget(examPath('/exams')); }}
               className="hover:text-white transition-colors"
             >
               모의고사
             </button>
             <button
-              onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 2, object_id: 'sql_list', object_url: '/sql-practice', data: { header_variant: 'practice' } }); setExitTarget('/sql-practice'); }}
+              onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 2, object_id: 'sql_list', object_url: examPath('/sql-practice'), data: { header_variant: 'practice' } }); setExitTarget(examPath('/sql-practice')); }}
               className="hover:text-white transition-colors"
             >
               SQL 실습

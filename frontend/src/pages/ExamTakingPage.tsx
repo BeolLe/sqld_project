@@ -6,6 +6,7 @@ import Notepad from '../components/Notepad';
 import ReportErrorModal from '../components/ReportErrorModal';
 import { logEvent } from '../utils/eventLogger';
 import { PageviewLog, ClickLog } from '../logging';
+import { useExamType } from '../hooks/useExamType';
 import { useAuth } from '../contexts/AuthContext';
 import DescriptionRenderer from '../components/DescriptionRenderer';
 import type { Problem } from '../types';
@@ -70,9 +71,13 @@ export default function ExamTakingPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, updatePoints } = useAuth();
+  const { examType, config, examPath } = useExamType();
 
   const [problems, setProblems] = useState<Problem[]>([]);
   const [attemptId, setAttemptId] = useState<number | null>(null);
+  // 서버가 내려준 응시 UUID. 답안·메모·세션 저장과 제출에 함께 보낸다.
+  const [attemptUuid, setAttemptUuid] = useState<string | undefined>(undefined);
+  const scope = useMemo(() => ({ examType, attemptUuid }), [examType, attemptUuid]);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [memoContent, setMemoContent] = useState('');
@@ -84,11 +89,18 @@ export default function ExamTakingPage() {
 
     let mounted = true;
 
-    Promise.all([fetchExamProblems(id), fetchExamSession(id)])
+    // 같은 회차 번호의 다른 시험으로 바뀌어도 이전 응시 정보가 남지 않게 비운다.
+    setProblems([]);
+    setAttemptId(null);
+    setAttemptUuid(undefined);
+    setError('');
+
+    Promise.all([fetchExamProblems(id, examType), fetchExamSession(id, examType)])
       .then(([problemData, session]) => {
         if (!mounted) return;
         setProblems(problemData);
         setAttemptId(session.attemptId);
+        setAttemptUuid(session.attemptUuid);
         setAnswers(session.answers);
         setMemoContent(session.memoContent);
         setRemainingSeconds(session.remainingSeconds);
@@ -106,7 +118,7 @@ export default function ExamTakingPage() {
     return () => {
       mounted = false;
     };
-  }, [id, user]);
+  }, [id, user, examType]);
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [started] = useState(() => {
@@ -123,30 +135,36 @@ export default function ExamTakingPage() {
     [problems, currentPage]
   );
   const pageStartIndex = currentPage * PROBLEMS_PER_PAGE;
+  // 모의고사 id 는 시험 종류와 관계없이 회차 숫자 그대로다.
+  const roundLabel = id ?? '';
+  // 이 페이지 첫 문항이 속한 과목 (ADsP 는 3과목이라 페이지마다 바뀐다)
+  const currentSubject = config.subjects.find(
+    (subject) => pageStartIndex + 1 >= subject.range[0] && pageStartIndex + 1 <= subject.range[1],
+  );
 
   const goToPage = useCallback(
     (page: number) => {
       setCurrentPage(Math.max(0, Math.min(page, totalPages - 1)));
       syncStateRef.current.currentPageNo = Math.max(1, Math.min(page + 1, totalPages));
       if (id && user) {
-        void syncExamSession(id, {
+        void syncExamSession(id, scope, {
           currentPageNo: Math.max(1, Math.min(page + 1, totalPages)),
           remainingSeconds: syncStateRef.current.remainingSeconds,
         });
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
-    [id, totalPages, user]
+    [id, scope, totalPages, user]
   );
 
   const persistSnapshot = useCallback(() => {
     if (!id || !user || !attemptId) return;
 
-    void persistExamSessionSnapshot(id, {
+    void persistExamSessionSnapshot(id, scope, {
       currentPageNo: syncStateRef.current.currentPageNo,
       remainingSeconds: syncStateRef.current.remainingSeconds,
     });
-  }, [attemptId, id, user]);
+  }, [attemptId, id, scope, user]);
 
   const handleSelect = useCallback(
     (problemId: string, val: string) => {
@@ -155,7 +173,7 @@ export default function ExamTakingPage() {
         return next;
       });
       if (id && user) {
-        void saveExamAnswer(id, {
+        void saveExamAnswer(id, scope, {
           problemId,
           selectedAnswer: val,
           currentPageNo: currentPage + 1,
@@ -163,13 +181,13 @@ export default function ExamTakingPage() {
         });
       }
     },
-    [currentPage, id, user, user?.id]
+    [currentPage, id, scope, user]
   );
 
   const handleSubmit = useCallback(() => {
     if (!id || !user) return;
 
-    void submitExam(id, {
+    void submitExam(id, scope, {
       currentPageNo: currentPage + 1,
       remainingSeconds: syncStateRef.current.remainingSeconds,
     }).then((result) => {
@@ -178,7 +196,7 @@ export default function ExamTakingPage() {
       }
       logEvent('exam_submit_confirmed', { examId: id, attemptId, answers: result.answers, score: result.score }, user.id);
 
-      navigate(`/exams/${id}/result`, {
+      navigate(examPath(`/exams/${id}/result`), {
         state: {
           attemptId: result.attemptId,
           score: result.score,
@@ -191,30 +209,30 @@ export default function ExamTakingPage() {
     }).catch((caughtError) => {
       setError(caughtError instanceof Error ? caughtError.message : '시험 제출 중 오류가 발생했습니다.');
     });
-  }, [attemptId, currentPage, id, navigate, updatePoints, user]);
+  }, [attemptId, currentPage, examPath, id, navigate, scope, updatePoints, user]);
 
   const handleMemoSave = useCallback(
     async (content: string) => {
       setMemoContent(content);
       if (id && user) {
-        await saveExamMemo(id, content);
+        await saveExamMemo(id, scope, content);
       }
     },
-    [id, user]
+    [id, scope, user]
   );
 
   useEffect(() => {
     if (!id || !user || !attemptId) return;
 
     const intervalId = window.setInterval(() => {
-      void syncExamSession(id, {
+      void syncExamSession(id, scope, {
         currentPageNo: syncStateRef.current.currentPageNo,
         remainingSeconds: syncStateRef.current.remainingSeconds,
       });
     }, 5000);
 
     return () => window.clearInterval(intervalId);
-  }, [attemptId, id, user]);
+  }, [attemptId, id, scope, user]);
 
   useEffect(() => {
     if (!attemptId) return;
@@ -247,7 +265,7 @@ export default function ExamTakingPage() {
   const answeredCount = Object.keys(answers).length;
   const unanswered = problems.length - answeredCount;
 
-  const examUrl = `/exams/${id}/taking`;
+  const examUrl = examPath(`/exams/${id}/taking`);
   const pageview = useMemo(() => new PageviewLog({ page_id: 'exam_taking', url: examUrl }), [examUrl]);
   const click = useMemo(() => new ClickLog({ page_id: 'exam_taking', url: examUrl, pageParams: { exam_id: id } }), [examUrl, id]);
   const pvSent = useRef(false);
@@ -275,7 +293,7 @@ export default function ExamTakingPage() {
         <div className="text-center">
           <p className="text-slate-500 mb-4">{error}</p>
           <button
-            onClick={() => navigate('/exams')}
+            onClick={() => navigate(examPath('/exams'))}
             className="text-primary-600 hover:underline"
           >
             목록으로
@@ -291,7 +309,7 @@ export default function ExamTakingPage() {
         <div className="text-center">
           <p className="text-slate-500 mb-4">모의고사는 로그인 후 이용할 수 있습니다.</p>
           <button
-            onClick={() => navigate('/exams')}
+            onClick={() => navigate(examPath('/exams'))}
             className="text-primary-600 hover:underline"
           >
             목록으로
@@ -317,7 +335,7 @@ export default function ExamTakingPage() {
       <div className="sticky top-0 z-40 bg-sqld-navy border-b border-slate-700 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between">
           <button
-            onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'button', object_idx: 0, object_id: 'home', object_url: '/', data: { header_variant: 'exam' } }); setExitTarget('/'); }}
+            onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'button', object_idx: 0, object_id: 'home', object_url: examPath('/'), data: { header_variant: 'exam' } }); setExitTarget(examPath('/')); }}
             className="flex items-center gap-2 text-white font-bold text-lg hover:opacity-80 transition-opacity"
           >
             <Database className="w-5 h-5 text-primary-500" />
@@ -327,17 +345,26 @@ export default function ExamTakingPage() {
           </button>
           <nav className="flex items-center gap-6 text-sm text-slate-300">
             <button
-              onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 1, object_id: 'exam_list', object_url: '/exams', data: { header_variant: 'exam' } }); setExitTarget('/exams'); }}
+              onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 1, object_id: 'exam_list', object_url: examPath('/exams'), data: { header_variant: 'exam' } }); setExitTarget(examPath('/exams')); }}
               className="hover:text-white transition-colors"
             >
               모의고사
             </button>
-            <button
-              onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 2, object_id: 'sql_practice', object_url: '/sql-practice', data: { header_variant: 'exam' } }); setExitTarget('/sql-practice'); }}
-              className="hover:text-white transition-colors"
-            >
-              SQL 실습
-            </button>
+            {config.hasSqlPractice ? (
+              <button
+                onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 2, object_id: 'sql_practice', object_url: examPath('/sql-practice'), data: { header_variant: 'exam' } }); setExitTarget(examPath('/sql-practice')); }}
+                className="hover:text-white transition-colors"
+              >
+                SQL 실습
+              </button>
+            ) : (
+              <button
+                onClick={() => { click.send({ object_section_id: 'header', object_section_idx: 0, object_type: 'link', object_idx: 2, object_id: 'learn_index', object_url: examPath('/learn'), data: { header_variant: 'exam' } }); setExitTarget(examPath('/learn')); }}
+                className="hover:text-white transition-colors"
+              >
+                개념 학습
+              </button>
+            )}
           </nav>
         </div>
       </div>
@@ -346,10 +373,15 @@ export default function ExamTakingPage() {
       <div className="sticky top-12 z-30 bg-white border-b border-slate-200 shadow-sm">
         <div className="max-w-6xl mx-auto px-2 md:px-4 h-12 md:h-14 flex items-center justify-between">
           <div className="text-xs md:text-sm font-semibold text-sqld-navy truncate">
-            SQLD {id}회 &nbsp;
+            {config.name} {roundLabel}회 &nbsp;
             <span className="text-slate-400 font-normal">
               {answeredCount}/{problems.length}
             </span>
+            {currentSubject && (
+              <span className="hidden sm:inline ml-3 text-xs font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-500">
+                {currentSubject.label} · {currentSubject.description}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
             <CountdownTimer
@@ -404,9 +436,12 @@ export default function ExamTakingPage() {
             {/* 헤더는 첫 페이지에만 */}
             {currentPage === 0 && (
               <div className="text-center mb-6 md:mb-8 pb-4 border-b-2 border-sqld-navy">
-                <h1 className="text-lg md:text-xl font-bold text-sqld-navy">SQLD 모의고사 {id}회</h1>
+                <h1 className="text-lg md:text-xl font-bold text-sqld-navy">{config.name} 모의고사 {roundLabel}회</h1>
                 <p className="text-xs md:text-sm text-slate-500 mt-1">
                   총 {problems.length}문항 · 제한시간 90분 · 60점 이상 합격 · 과목별 40점 미만 과락
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  {config.subjects.map((subject) => `${subject.label} ${subject.description} ${subject.range[0]}~${subject.range[1]}번`).join(' · ')}
                 </p>
               </div>
             )}

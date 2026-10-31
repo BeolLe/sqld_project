@@ -1,0 +1,1790 @@
+<meta charset="utf-8">
+<title>SQLD·ADsP 통합 화면설계서</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* 레이아웃: 문서형 단일 칼럼. 화면마다 [와이어프레임 | 번호별 설명] 2단, 좁으면 1단 */
+:root {
+  --bg: #f4f6f9;
+  --paper: #ffffff;
+  --ink: #18202d;
+  --muted: #5a6475;
+  --line: #d6dbe3;
+  --wf: #eef1f5;
+  --wf-2: #dde2ea;
+  --wf-ink: #7b8597;
+  --accent: #1e40af;
+  --accent-soft: #e6ecfb;
+  --sqld: #1e40af;
+  --adsp: #0f7a55;
+  --mark: #d9480f;
+  --mark-ink: #ffffff;
+  --ok: #2b7a3d;
+  --warn-soft: #fff4e0;
+  --warn-ink: #8a5300;
+  --sans: "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --paper: #191e26; --ink: #e4e8ef; --muted: #9aa3b3; --line: #2d3441;
+    --wf: #222933; --wf-2: #2f3744; --wf-ink: #8d97a8; --accent: #8aa9ff; --accent-soft: #1f2a45;
+    --sqld: #8aa9ff; --adsp: #4fc79a; --mark: #ff8a50; --mark-ink: #191e26; --ok: #6fcf86;
+    --warn-soft: #3a2c12; --warn-ink: #f2c06b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --paper: #191e26; --ink: #e4e8ef; --muted: #9aa3b3; --line: #2d3441;
+  --wf: #222933; --wf-2: #2f3744; --wf-ink: #8d97a8; --accent: #8aa9ff; --accent-soft: #1f2a45;
+  --sqld: #8aa9ff; --adsp: #4fc79a; --mark: #ff8a50; --mark-ink: #191e26; --ok: #6fcf86;
+  --warn-soft: #3a2c12; --warn-ink: #f2c06b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.7; padding-inline: 16px; padding-block: 0 80px; }
+.wrap { max-width: 1180px; margin: 0 auto; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.3; margin: 0; }
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+p { margin: 0; }
+a { color: var(--accent); }
+
+/* 문서 머리 */
+.doc-head { padding-block: 48px 28px; border-bottom: 2px solid var(--ink); display: grid; gap: 20px; }
+.eyebrow { font-size: 12px; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; }
+.doc-head h1 { font-size: clamp(28px, 4vw, 40px); font-weight: 900; letter-spacing: -0.02em; }
+.doc-head h1 .s { color: var(--sqld); } .doc-head h1 .a { color: var(--adsp); }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); border: 1px solid var(--line); background: var(--paper); }
+.meta div { padding: 10px 14px; border-right: 1px solid var(--line); display: grid; gap: 2px; }
+.meta div:last-child { border-right: 0; }
+.meta dt { font-size: 11px; color: var(--muted); letter-spacing: 0.06em; }
+.meta dd { margin: 0; font-weight: 700; font-size: 14px; }
+
+.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); display: flex; gap: 4px 18px; flex-wrap: wrap; padding-block: 10px; font-size: 13px; }
+.toc a { color: var(--muted); text-decoration: none; font-weight: 500; }
+.toc a:hover, .toc a:focus-visible { color: var(--ink); }
+
+section.part { padding-top: 56px; display: grid; gap: 20px; }
+.part > h2 { font-size: 24px; font-weight: 900; display: flex; gap: 12px; align-items: baseline; }
+.part > h2 .no { font-family: var(--mono); font-size: 14px; color: var(--muted); font-weight: 600; }
+.lead { color: var(--muted); max-width: 70ch; }
+
+/* 표 */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); background: var(--paper); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { border-bottom: 1px solid var(--line); padding: 10px 14px; text-align: left; vertical-align: top; }
+th { background: var(--wf); font-weight: 700; font-size: 13px; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 3px; letter-spacing: 0.02em; white-space: nowrap; }
+.tag.sqld { background: var(--sqld); color: var(--paper); }
+.tag.adsp { background: var(--adsp); color: var(--paper); }
+.tag.chk { background: var(--warn-soft); color: var(--warn-ink); }
+.tag.rec { background: var(--accent-soft); color: var(--accent); }
+
+.callout { background: var(--warn-soft); color: var(--warn-ink); padding: 12px 16px; font-size: 14px; border-left: 3px solid var(--warn-ink); }
+
+/* 안 비교 카드 */
+.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.plan { background: var(--paper); border: 1px solid var(--line); padding: 20px; display: grid; gap: 10px; align-content: start; }
+.plan h3 { font-size: 18px; }
+.plan .k { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.plan ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+.plan.rec { border: 2px solid var(--accent); }
+
+/* 화면 블록 */
+.plan-divider { margin-top: 64px; padding: 18px 20px; background: var(--ink); color: var(--bg); display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
+.plan-divider b { font-size: 22px; font-weight: 900; }
+.plan-divider span { font-size: 14px; opacity: 0.8; }
+.screen { background: var(--paper); border: 1px solid var(--line); }
+.screen-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+.sid { font-family: var(--mono); font-weight: 600; font-size: 13px; background: var(--ink); color: var(--paper); padding: 2px 8px; }
+.screen-meta h3 { font-size: 17px; }
+.screen-meta code { color: var(--muted); }
+.screen-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; }
+@media (max-width: 1080px) { .screen-body { grid-template-columns: minmax(0, 1fr); } .notes { border-left: 0 !important; border-top: 1px solid var(--line); } }
+.frame-wrap { overflow-x: auto; padding: 20px; background: var(--bg); }
+.notes { border-left: 1px solid var(--line); padding: 18px 20px; margin: 0; list-style: none; counter-reset: n; display: grid; gap: 12px; align-content: start; font-size: 14px; }
+.notes li { counter-increment: n; display: grid; grid-template-columns: 22px 1fr; gap: 8px; }
+.notes li::before { content: counter(n); background: var(--mark); color: var(--mark-ink); width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 700; display: grid; place-items: center; margin-top: 2px; font-family: var(--mono); }
+.notes li b { display: block; }
+.notes li.plain { grid-template-columns: 1fr; color: var(--muted); font-size: 13px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.notes li.plain::before { display: none; }
+
+/* 와이어프레임 원소 */
+.frame { width: 760px; background: var(--paper); border: 1px solid var(--wf-2); font-size: 12px; color: var(--wf-ink); position: relative; }
+.frame.mobile { width: 300px; }
+.bar { height: 26px; background: var(--wf-2); display: flex; align-items: center; gap: 6px; padding: 0 10px; }
+.bar i { width: 8px; height: 8px; border-radius: 50%; background: var(--paper); opacity: 0.7; }
+.bar .url { margin-left: 10px; flex: 1; background: var(--paper); height: 16px; border-radius: 3px; font-family: var(--mono); font-size: 10px; padding: 0 8px; line-height: 16px; color: var(--muted); }
+.hd { height: 46px; border-bottom: 1px solid var(--wf-2); display: flex; align-items: center; gap: 14px; padding: 0 16px; background: var(--wf); }
+.logo { font-weight: 900; color: var(--ink); font-size: 13px; }
+.nav { display: flex; gap: 14px; color: var(--ink); font-weight: 500; }
+.nav .on { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
+.nav .dim { opacity: 0.35; text-decoration: line-through; }
+.sp { flex: 1; }
+.sw { display: inline-flex; border: 1.5px solid var(--ink); border-radius: 4px; overflow: hidden; font-weight: 700; font-size: 11px; }
+.sw span { padding: 3px 9px; color: var(--ink); }
+.sw span.on-s { background: var(--sqld); color: var(--paper); }
+.sw span.on-a { background: var(--adsp); color: var(--paper); }
+.pad { padding: 16px; display: grid; gap: 12px; }
+.box { border: 1.5px dashed var(--wf-2); background: var(--wf); padding: 12px; display: grid; gap: 6px; position: relative; }
+.box.solid { border-style: solid; background: var(--paper); }
+.box.s-edge { border-color: var(--sqld); border-style: solid; }
+.box.a-edge { border-color: var(--adsp); border-style: solid; }
+.ttl { color: var(--ink); font-weight: 700; font-size: 13px; }
+.big { color: var(--ink); font-weight: 900; font-size: 20px; letter-spacing: -0.01em; }
+.ln { height: 7px; background: var(--wf-2); border-radius: 2px; }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn { display: inline-block; border: 1.5px solid var(--ink); color: var(--ink); padding: 3px 10px; border-radius: 3px; font-weight: 700; font-size: 11px; background: var(--paper); }
+.btn.fill { background: var(--ink); color: var(--paper); }
+.chip { display: inline-block; border: 1px solid var(--wf-ink); padding: 1px 9px; border-radius: 99px; font-size: 11px; color: var(--ink); }
+.chip.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.ph { background: var(--wf-2); display: grid; place-items: center; color: var(--wf-ink); font-size: 11px; }
+.mk { position: absolute; width: 20px; height: 20px; border-radius: 50%; background: var(--mark); color: var(--mark-ink); font: 700 11px/20px var(--mono); text-align: center; z-index: 2; box-shadow: 0 0 0 2px var(--paper); }
+.mk.in { position: static; display: inline-block; flex: none; }
+.tabs { display: flex; border-bottom: 1.5px solid var(--wf-2); gap: 0; }
+.tabs span { padding: 6px 14px; color: var(--ink); font-weight: 500; }
+.tabs span.on { border-bottom: 2.5px solid var(--ink); font-weight: 700; margin-bottom: -1.5px; }
+.list-row { display: grid; grid-template-columns: 1fr 60px 60px 90px 70px; gap: 10px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--wf-2); color: var(--ink); }
+.list-row.head { color: var(--wf-ink); font-size: 11px; }
+.meter { height: 8px; background: var(--wf-2); position: relative; }
+.meter b { position: absolute; inset: 0 auto 0 0; background: var(--ink); }
+.meter .cut { position: absolute; top: -4px; bottom: -4px; left: 40%; border-left: 2px dashed var(--mark); }
+.paper { background: var(--paper); border: 1px solid var(--wf-ink); aspect-ratio: 794 / 1123; width: 100%; max-width: 100%; padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-content: start; font-size: 10.5px; color: var(--ink); }
+.paper .q { display: grid; gap: 4px; }
+.code { font-family: var(--mono); font-size: 9.5px; background: var(--wf); border: 1px solid var(--wf-2); padding: 6px; white-space: pre; overflow: hidden; color: var(--ink); }
+.omr { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; font-family: var(--mono); font-size: 9px; color: var(--ink); }
+.omr span { border: 1px solid var(--wf-2); text-align: center; padding: 1px 0; }
+.omr span.f { background: var(--ink); color: var(--paper); }
+.omr-h { font-size: 10px; font-weight: 700; color: var(--ink); grid-column: 1 / -1; margin-top: 4px; }
+.drop { position: absolute; background: var(--paper); border: 1.5px solid var(--ink); box-shadow: 0 6px 18px rgb(0 0 0 / 0.15); padding: 6px; display: grid; gap: 2px; width: 190px; z-index: 3; color: var(--ink); }
+.drop div { padding: 5px 8px; display: flex; justify-content: space-between; }
+.drop div.cur { background: var(--wf); font-weight: 700; }
+.flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; }
+.flow .n { background: var(--paper); border: 1px solid var(--line); padding: 6px 12px; font-weight: 500; }
+.flow .ar { color: var(--muted); }
+.dec { display: grid; gap: 12px; counter-reset: d; }
+.dec > div { background: var(--paper); border: 1px solid var(--line); padding: 16px 18px; display: grid; grid-template-columns: 34px 1fr; gap: 4px 12px; }
+.dec > div::before { counter-increment: d; content: counter(d, decimal-leading-zero); font-family: var(--mono); font-weight: 600; color: var(--mark); grid-row: span 3; font-size: 15px; }
+.dec h4 { margin: 0; font-size: 15px; }
+.dec p { color: var(--muted); font-size: 14px; }
+.opt { display: flex; flex-wrap: wrap; gap: 6px; }
+.opt span { font-size: 12px; border: 1px solid var(--line); padding: 1px 8px; border-radius: 3px; }
+.opt span.d { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 실제 디자인 데모 */
+.demo-block { display: grid; gap: 10px; }
+.demo-head { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; }
+.demo-head h3 { font-size: 18px; font-weight: 900; }
+.demo-head .hint { color: var(--muted); font-size: 13px; }
+.demo-reset { margin-left: auto; font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 3px 12px; cursor: pointer; }
+.demo-shell { border: 1px solid var(--line); background: var(--paper); box-shadow: 0 10px 30px rgb(15 23 42 / 0.12); }
+.demo-bar { height: 34px; background: var(--wf-2); display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+.demo-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--paper); opacity: 0.7; }
+.demo-bar .url { margin-left: 10px; flex: 1; min-width: 0; background: var(--paper); height: 22px; border-radius: 4px; font-family: var(--mono); font-size: 12px; padding: 0 10px; line-height: 22px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.demo-scroll { height: 780px; overflow: auto; background: #f8fafc; }
+.demo-app { min-width: 1040px; min-height: 100%; font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; color: #0f172a; line-height: 1.5; font-size: 16px; color-scheme: light; }
+.demo-app *, .demo-app *::before, .demo-app *::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: #e5e7eb; }
+.demo-app h1, .demo-app h2, .demo-app h3, .demo-app p, .demo-app dl, .demo-app dd, .demo-app ul { margin: 0; padding: 0; }
+.demo-app ul { list-style: none; }
+.demo-app button { font: inherit; color: inherit; background: transparent; cursor: pointer; padding: 0; line-height: inherit; text-align: inherit; }
+.demo-app svg { display: inline-block; vertical-align: middle; flex: none; }
+.demo-app pre { margin: 0; font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; }
+</style>
+
+<div class="wrap">
+
+<header class="doc-head">
+  <div class="eyebrow">화면설계서 · 초안 v0.1</div>
+  <h1><span class="s">SQLD</span>·<span class="a">ADsP</span> 통합 사이트 화면 초안</h1>
+  <p class="lead">한 사이트에서 SQLD와 ADsP를 함께 준비하는 구조의 전체 틀입니다. 구조가 다른 A안과 B안을 나란히 두었고, 회의에서 결정할 항목은 맨 아래 안건으로 모았습니다.</p>
+  <dl class="meta">
+    <div><dt>작성</dt><dd>권경민</dd></div>
+    <div><dt>작성일</dt><dd>2026-10-17 (토)</dd></div>
+    <div><dt>검토 회의</dt><dd>2026-10-18 (일) 21:00</dd></div>
+    <div><dt>상태</dt><dd>A안 / B안 비교 초안</dd></div>
+  </dl>
+</header>
+
+<nav class="toc" aria-label="목차">
+  <a href="#overview">개요</a>
+  <a href="#premise">전제</a>
+  <a href="#exams">시험 비교</a>
+  <a href="#compare">A안·B안 비교</a>
+  <a href="#demo">디자인 데모</a>
+  <a href="#plan-a">A안 화면</a>
+  <a href="#plan-b">B안 화면</a>
+  <a href="#common">공통 화면</a>
+  <a href="#routes">URL 맵</a>
+  <a href="#decisions">회의 안건</a>
+  <a href="#next">다음 단계</a>
+</nav>
+
+<!-- 1. 개요 -->
+<section class="part" id="overview">
+  <h2><span class="no">01</span>개요</h2>
+  <div class="tbl-wrap"><table>
+    <tr><th>배경</th><td>회의 결정 사항: ADsP를 먼저 개발하고 그다음 모바일 앱을 추가한다. SQLD와 ADsP는 같은 사이트에서 쓴다.</td></tr>
+    <tr><th>이 문서의 목적</th><td>사이트 통합의 전체 틀(정보 구조, 헤더, 시험 전환 방식, 화면 목록, URL)을 잡고 회의에서 A안·B안 중 하나를 고른다.</td></tr>
+    <tr><th>범위</th><td>웹 반응형 화면. 모바일 앱은 이번 범위 밖이며, 앱으로 옮기기 쉬운지만 비교 항목에 넣었다.</td></tr>
+    <tr><th>범위 밖</th><td>시각 디자인(색, 일러스트), 세부 문구, ADsP 문제 콘텐츠, 결제 상품 구성</td></tr>
+  </table></div>
+  <div class="flow" aria-label="사용자 흐름">
+    <span class="n">메인</span><span class="ar">→</span>
+    <span class="n">시험 선택 (SQLD / ADsP)</span><span class="ar">→</span>
+    <span class="n">모의고사 · 개념 학습 · 무한풀이</span><span class="ar">→</span>
+    <span class="n">응시 · 결과 · 해설</span><span class="ar">→</span>
+    <span class="n">학습현황</span>
+  </div>
+</section>
+
+<!-- 2. 전제 -->
+<section class="part" id="premise">
+  <h2><span class="no">02</span>이번 초안의 전제</h2>
+  <p class="lead">아직 정해지지 않은 부분은 아래 기본값으로 그렸습니다. 회의에서 바뀌면 해당 화면만 고치면 됩니다.</p>
+  <div class="tbl-wrap"><table>
+    <tr><th>항목</th><th>초안 기본값</th><th>이유</th><th>상태</th></tr>
+    <tr><td>ADsP 기능</td><td>모의고사, 개념 학습(커리큘럼), 무한풀이. 코드 실습 없음</td><td>ADsP는 개념 암기와 해석 위주 시험이라 코드 실습이 필요 없음. 세 기능 모두 SQLD 기능 재사용</td><td><span class="tag rec">확정</span></td></tr>
+    <tr><td>SQL 실습</td><td>SQLD 전용 메뉴로 유지</td><td>ADsP에는 해당 기능이 없음</td><td><span class="tag rec">기본값</span></td></tr>
+    <tr><td>계정 · 포인트</td><td>하나의 계정, 포인트 공통</td><td>통합 사이트의 의미. 두 시험을 함께 준비하는 사용자도 한 번만 가입</td><td><span class="tag chk">회의 확인</span></td></tr>
+    <tr><td>학습현황</td><td>시험별로 분리해서 보여줌</td><td>과목 구성과 합격 기준이 달라 한 화면에 합치면 해석이 어려움</td><td><span class="tag chk">회의 확인</span></td></tr>
+    <tr><td>서비스명</td><td>[서비스명] 자리표시 (현재 SolSQLD)</td><td>SolSQLD는 SQLD만 가리키는 이름이라 통합 시 재검토 필요</td><td><span class="tag chk">회의 확인</span></td></tr>
+    <tr><td>시험 응시 화면</td><td>A4 레이아웃(794 × 1123px) 그대로 사용</td><td>실제 시험지 경험이 핵심 가치. ADsP도 같은 틀</td><td><span class="tag rec">기본값</span></td></tr>
+    <tr><td>이벤트 로그</td><td>모든 로그에 <code>exam_type</code>(sqld / adsp) 추가</td><td>시험별 지표를 나눠 보려면 필수</td><td><span class="tag rec">기본값</span></td></tr>
+  </table></div>
+</section>
+
+<!-- 3. 시험 비교 -->
+<section class="part" id="exams">
+  <h2><span class="no">03</span>두 시험의 차이</h2>
+  <p class="lead">화면에 영향을 주는 차이만 정리했습니다. 특히 과목 수(2 vs 3)와 ADsP의 R 코드·통계 출력 문항이 화면 설계에 영향을 줍니다.</p>
+  <div class="tbl-wrap"><table>
+    <tr><th>구분</th><th><span class="tag sqld">SQLD</span> SQL 개발자</th><th><span class="tag adsp">ADsP</span> 데이터분석 준전문가</th><th>화면 영향</th></tr>
+    <tr><td>과목</td><td>2과목<br>1. 데이터 모델링의 이해 (10문항)<br>2. SQL 기본과 활용 (40문항)</td><td>3과목<br>1. 데이터 이해 (10문항)<br>2. 데이터 분석 기획 (10문항)<br>3. 데이터 분석 (30문항)</td><td>결과·학습현황의 과목 막대가 2개 또는 3개로 바뀌어야 함</td></tr>
+    <tr><td class="num">문항 · 시간</td><td class="num">객관식 50문항 · 90분</td><td class="num">객관식 50문항 · 90분</td><td>응시 화면 타이머와 답안표기란 틀은 공통</td></tr>
+    <tr><td>합격 기준</td><td>총점 60점 이상, 과목별 40% 미만 과락</td><td>총점 60점 이상, 과목별 40% 미만 과락</td><td>판정 로직 공통, 과목 수만 다름</td></tr>
+    <tr><td>문항 특성</td><td>SQL 코드, 실행 결과 테이블</td><td>R 코드와 출력, 통계 표, 그래프 이미지</td><td>문제 렌더러가 R 출력 블록과 이미지를 지원해야 함</td></tr>
+    <tr><td>전용 기능</td><td>SQL 실습</td><td>없음 (코드 실습 없음)</td><td>메뉴 구성이 시험마다 다름</td></tr>
+  </table></div>
+  <p class="callout">시험 구성은 한국데이터산업진흥원 공고 기준으로 적었습니다. 개발 착수 전에 2026년 시행 공고로 문항 수와 배점을 다시 확인해야 합니다.</p>
+</section>
+
+<!-- 4. 비교 -->
+<section class="part" id="compare">
+  <h2><span class="no">04</span>A안과 B안 한눈에 보기</h2>
+  <div class="plans">
+    <div class="plan rec">
+      <span class="tag rec" style="justify-self:start">추천</span>
+      <h3>A안 · 시험을 먼저 고른다</h3>
+      <p class="k">/sqld/exams · /adsp/exams</p>
+      <p>헤더에 <b>[SQLD | ADsP] 전환기</b>를 두고, 고른 시험에 따라 메뉴와 콘텐츠 전체가 바뀝니다. 사이트 안에 시험별 공간이 두 개 있는 구조입니다.</p>
+      <ul>
+        <li>지금 어떤 시험을 공부 중인지 항상 분명함</li>
+        <li>기존 페이지를 거의 그대로 재사용 (URL 앞에 시험만 붙임)</li>
+        <li>모바일 앱의 "시험 선택 → 하단 탭" 구조로 옮기기 쉬움</li>
+        <li>두 시험을 오가려면 전환기를 한 번 눌러야 함</li>
+      </ul>
+    </div>
+    <div class="plan">
+      <h3>B안 · 기능을 먼저 고른다</h3>
+      <p class="k">/exams?exam=adsp</p>
+      <p>메뉴는 지금처럼 기능별로 하나만 두고, <b>각 페이지 안에서 시험 탭이나 필터</b>로 나눕니다. 시험은 "내 관심 시험"으로 기본 필터만 정해 둡니다.</p>
+      <ul>
+        <li>두 시험을 함께 준비하는 사용자가 한눈에 비교하기 쉬움</li>
+        <li>URL과 메뉴 구조가 지금과 같아 기존 링크가 그대로 유지</li>
+        <li>모든 목록 페이지에 필터와 시험 뱃지를 새로 넣어야 함</li>
+        <li>SQL 실습처럼 한 시험에만 있는 메뉴가 어색해짐</li>
+      </ul>
+    </div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <tr><th>비교 항목</th><th>A안 · 시험 먼저</th><th>B안 · 기능 먼저</th></tr>
+    <tr><td>헤더</td><td>로고 + 시험 전환기 + 시험별 메뉴</td><td>로고 + 공통 메뉴 (지금과 거의 동일)</td></tr>
+    <tr><td>URL</td><td><code>/{시험}/기능</code>, 기존 URL은 <code>/sqld/…</code>로 이동</td><td>지금 URL 유지 + <code>?exam=</code> 파라미터</td></tr>
+    <tr><td>프론트 작업량</td><td>라우트에 시험 접두어 추가, 시험 상태(Context) 하나 추가. 페이지 내부는 거의 그대로</td><td>모의고사·개념 학습·무한풀이·학습현황 각각에 필터 UI와 뱃지 추가</td></tr>
+    <tr><td>백엔드 작업량</td><td colspan="2">두 안 모두 문제·모의고사·제출 데이터에 <code>exam_type</code> 구분 필요. 차이 거의 없음</td></tr>
+    <tr><td>이벤트 로그</td><td><code>exam_type</code>을 URL에서 자동으로 채울 수 있음</td><td>필터 상태에서 읽어야 하고 "전체" 상태 처리 규칙 필요</td></tr>
+    <tr><td>모바일 앱 확장</td><td>앱 첫 화면 시험 선택 + 하단 탭으로 그대로 옮겨짐</td><td>하단 탭 + 화면마다 상단 필터. 작은 화면에서 복잡해짐</td></tr>
+    <tr><td>시험 추가 확장성</td><td>세 번째 시험도 접두어만 추가</td><td>필터 항목이 늘어날수록 목록이 복잡해짐</td></tr>
+    <tr><td>잘 맞는 사용자</td><td>한 번에 한 시험만 준비하는 사람 (다수로 가정)</td><td>두 시험을 동시에 준비하는 사람</td></tr>
+  </table></div>
+  <p class="callout">A안 추천 근거: 두 시험은 콘텐츠가 거의 겹치지 않고, 대부분의 사용자는 한 시험씩 준비한다고 가정했습니다. 이 가정은 기존 SQLD 사용자의 ADsP 관심도 조사로 확인할 수 있습니다.</p>
+</section>
+
+<!-- ============ 데모 ============ -->
+<section class="part" id="demo">
+  <h2><span class="no">05</span>실제 디자인으로 보는 A안 · B안 데모</h2>
+  <p class="lead">지금 SolSQLD 화면(target/main)의 마크업과 Tailwind 클래스를 그대로 옮긴 미러 데모입니다. 헤더, 메인, 시험 일정 카드, 모의고사 목록, A4 응시 화면(5문항씩 10페이지, 타이머, 메모장, 제출·이탈 확인 창), 결과, 무한풀이 3단계 선택, 개념 학습 목차와 단원(빈칸 복습), 학습현황, SQL 실습 목록까지 실제와 같은 흐름으로 눌러볼 수 있습니다.</p>
+  <div class="tbl-wrap"><table>
+    <tr><th>ADsP에 반영한 시험 특성</th><th>반영 위치</th></tr>
+    <tr><td>3과목 구성 (10 / 10 / 30문항, 20 / 20 / 60점)</td><td>모의고사 목록, 시험지 머리말, 응시 정보 바의 과목 표시, 무한풀이 과목 선택(3열), 개념 학습 목차, 결과·학습현황 과목 점수</td></tr>
+    <tr><td>과목별 40% 과락</td><td>결과 화면의 "과목별 과락 적용" 불합격 문구(지금 로직 그대로), 학습현황의 과락 위험 안내</td></tr>
+    <tr><td>R 출력 해석 · 혼동행렬 계산 문항</td><td>응시 화면 21번, 24번 / 무한풀이 / 오답 해설 (고정폭 출력 블록)</td></tr>
+    <tr><td>코드 실습 없음</td><td>A안은 ADsP에서 SQL 실습 메뉴를 숨기고, 메인 두 번째 버튼과 응시 화면 상단 메뉴를 개념 학습으로 바꿈. 최근 SQL 실습 대신 최근 무한풀이</td></tr>
+    <tr><td>2026 시험 일정 (제48~51회)</td><td>메인 시험 일정 카드, 학습현황 D-day (제51회 10.31(토), 오늘 기준 D-13)</td></tr>
+  </table></div>
+  <p class="callout">SQLD 일정은 <code>docs/exam_schedules_2026.sql</code>, ADsP 일정은 공개된 2026 시행 일정을 썼습니다. 결과 화면의 "과목별 점수" 카드만 지금 화면에 없는 신규 제안이고 화면에도 그렇게 표시했습니다. 문제와 점수는 예시이며, 폰트는 Pretendard 대신 시스템 한글 폰트로 보일 수 있습니다.</p>
+
+  <div class="demo-block" id="demo-a">
+    <div class="demo-head">
+      <h3>A안 데모 · 시험 먼저</h3>
+      <span class="hint">해볼 것: ADsP 시작하기 → 모의고사 3회 이어하기 → 3·5페이지로 넘겨 2과목·3과목(R 출력) 문항 보기 → 최종 제출 → 헤더에서 SQLD로 전환</span>
+      <button type="button" class="demo-reset" data-reset>처음으로</button>
+    </div>
+    <div class="demo-shell">
+      <div class="demo-bar"><i></i><i></i><i></i><span class="url" data-url>/</span></div>
+      <div class="demo-scroll" data-scroll><div class="demo-app" data-app></div></div>
+    </div>
+  </div>
+
+  <div class="demo-block" id="demo-b" style="margin-top:28px">
+    <div class="demo-head">
+      <h3>B안 데모 · 기능 먼저</h3>
+      <span class="hint">해볼 것: 모의고사 필터를 전체로 → 무한풀이 카테고리별 랜덤에서 두 시험 과목 보기 → 학습현황 한눈에 보기</span>
+      <button type="button" class="demo-reset" data-reset>처음으로</button>
+    </div>
+    <div class="demo-shell">
+      <div class="demo-bar"><i></i><i></i><i></i><span class="url" data-url>/</span></div>
+      <div class="demo-scroll" data-scroll><div class="demo-app" data-app></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ A안 ============ -->
+<div class="plan-divider" id="plan-a"><b>A안</b><span>시험을 먼저 고르는 구조 · 화면 8개</span></div>
+
+<section class="part" style="padding-top:20px">
+
+<article class="screen" id="a01">
+  <div class="screen-meta"><span class="sid">A-01</span><h3>통합 메인</h3><code>/</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div class="frame">
+      <div class="bar"><i></i><i></i><i></i><span class="url">[서비스명].com/</span></div>
+      <div class="hd"><span class="logo">[서비스명]</span><span class="sw"><span class="on-s">SQLD</span><span>ADsP</span></span><span class="nav"><span>모의고사</span><span>SQL 실습</span><span>개념 학습</span><span>무한풀이</span><span>학습현황</span></span><span class="sp"></span><span class="btn">로그인</span></div>
+      <div class="pad">
+        <div class="box solid" style="text-align:center;padding:22px"><span class="big">SQLD와 ADsP, 실전처럼 준비하세요</span><div class="ln" style="width:50%;margin:4px auto 0"></div></div>
+        <div class="g2" style="position:relative">
+          <span class="mk" style="left:-8px;top:-8px">1</span>
+          <div class="box s-edge"><div class="row"><span class="tag sqld">SQLD</span><span class="ttl">SQL 개발자</span></div><div>2과목 · 50문항 · 90분</div><div>다음 시험 D-23</div><div class="row"><span class="btn fill">SQLD 시작하기</span></div></div>
+          <div class="box a-edge"><div class="row"><span class="tag adsp">ADsP</span><span class="ttl">데이터분석 준전문가</span><span class="chip">NEW</span></div><div>3과목 · 50문항 · 90분</div><div>다음 시험 D-37</div><div class="row"><span class="btn fill">ADsP 시작하기</span></div></div>
+        </div>
+        <div class="box solid row" style="position:relative;display:flex"><span class="mk" style="left:-8px;top:-8px">2</span><span class="ttl">이어서 학습</span><span>ADsP 모의고사 2회 · 23 / 50 풀이 중</span><span class="sp"></span><span class="btn">이어하기</span></div>
+        <div class="g3" style="position:relative"><span class="mk" style="left:-8px;top:-8px">3</span>
+          <div class="box"><span class="ttl">실전 모의고사</span><div class="ln"></div><div class="ln" style="width:70%"></div></div>
+          <div class="box"><span class="ttl">개념 학습</span><div class="ln"></div><div class="ln" style="width:60%"></div></div>
+          <div class="box"><span class="ttl">무한풀이</span><div class="ln"></div><div class="ln" style="width:80%"></div></div>
+        </div>
+        <div class="box" style="position:relative"><span class="mk" style="left:-8px;top:-8px">4</span><span class="ttl">2026 시험 일정</span><div class="g2"><div>SQLD 제62회 · 접수 / 시험일 / 발표일</div><div>ADsP 제51회 · 접수 / 시험일 / 발표일</div></div></div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>시험 선택 카드</b>두 시험을 같은 크기로 나란히 둔다. 누르면 해당 시험 홈(A-03)으로 이동하고, 마지막으로 고른 시험을 기억한다.</span></li>
+      <li><span><b>이어서 학습</b>로그인 + 진행 중인 응시가 있을 때만 노출. 시험 종류를 뱃지로 표시.</span></li>
+      <li><span><b>기능 소개</b>두 시험 공통 기능만 소개. SQL 실습은 SQLD 카드 안에서만 언급.</span></li>
+      <li><span><b>시험 일정</b>기존 <code>ExamScheduleCard</code>를 두 시험용으로 확장.</span></li>
+      <li class="plain">헤더 전환기는 메인에서 "마지막으로 고른 시험"을 보여준다. 처음 방문하면 선택되지 않은 상태로 둔다.</li>
+    </ol>
+  </div>
+</article>
+
+<article class="screen" id="a02">
+  <div class="screen-meta"><span class="sid">A-02</span><h3>공통 헤더와 시험 전환기</h3><code>전 화면 공통</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap" style="display:grid;gap:18px">
+      <div class="frame">
+        <div class="hd"><span class="logo">[서비스명]</span><span class="sw" style="position:relative"><span class="on-s">SQLD</span><span>ADsP</span></span><span class="nav"><span class="on">모의고사</span><span>SQL 실습</span><span>개념 학습</span><span>무한풀이</span><span>학습현황</span></span><span class="sp"></span><span>민트초코 님</span><span class="btn">⚙</span></div>
+        <div style="padding:8px 16px;position:relative;height:30px"><span class="mk" style="left:110px;top:-56px">1</span><span>SQLD 선택 상태 · <code>/sqld/exams</code></span></div>
+      </div>
+      <div class="frame">
+        <div class="hd"><span class="logo">[서비스명]</span><span class="sw"><span>SQLD</span><span class="on-a">ADsP</span></span><span class="nav"><span class="on">모의고사</span><span class="dim">SQL 실습</span><span>개념 학습</span><span>무한풀이</span><span>학습현황</span></span><span class="sp"></span><span>민트초코 님</span><span class="btn">⚙</span></div>
+        <div style="padding:8px 16px;position:relative;height:30px"><span class="mk" style="left:200px;top:-56px">2</span><span>ADsP 선택 상태 · <code>/adsp/exams</code> · SQL 실습 메뉴 숨김</span></div>
+      </div>
+      <div class="g2" style="width:760px">
+        <div class="frame mobile" style="width:auto">
+          <div class="hd"><span class="logo">[서비스명]</span><span class="sp"></span><span class="sw"><span>SQLD</span><span class="on-a">ADsP</span></span><span>☰</span></div>
+          <div class="pad" style="position:relative"><span class="mk" style="right:6px;top:-30px">3</span><div class="ln"></div><div class="ln" style="width:70%"></div><div class="ln" style="width:85%"></div></div>
+        </div>
+        <div class="frame" style="width:auto">
+          <div class="hd"><span class="logo">[서비스명]</span><span class="sw"><span class="on-s">SQLD</span><span>ADsP</span></span></div>
+          <div class="pad" style="position:relative;min-height:110px"><span class="mk" style="left:6px;top:6px">4</span>
+            <div class="box solid"><span class="ttl">ADsP로 전환할까요?</span><span>응시 중인 모의고사는 저장됩니다.</span><div class="row"><span class="btn">취소</span><span class="btn fill">전환</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ol class="notes">
+      <li><span><b>시험 전환기</b>로고 바로 옆 세그먼트 버튼. 시험별 식별 색(SQLD 파랑, ADsP 초록)으로 현재 시험을 표시.</span></li>
+      <li><span><b>같은 메뉴 위치 유지</b><code>/sqld/learn</code>에서 ADsP를 누르면 <code>/adsp/learn</code>으로 간다. 대상 시험에 없는 메뉴(SQL 실습)면 시험 홈으로 간다.</span></li>
+      <li><span><b>모바일</b>전환기는 햄버거 메뉴 밖, 헤더에 항상 노출.</span></li>
+      <li><span><b>전환 확인</b>문제를 풀던 중(무한풀이 등)에만 확인 창을 띄운다. 그 외에는 바로 전환.</span></li>
+      <li class="plain">시험 응시 화면(A-05)은 전용 화면이라 헤더와 전환기를 숨긴다. 선택한 시험은 계정에 저장해 다른 기기에서도 유지.</li>
+    </ol>
+  </div>
+</article>
+
+<article class="screen" id="a03">
+  <div class="screen-meta"><span class="sid">A-03</span><h3>시험 홈</h3><code>/adsp</code><code>/sqld</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div class="frame">
+      <div class="bar"><i></i><i></i><i></i><span class="url">[서비스명].com/adsp</span></div>
+      <div class="hd"><span class="logo">[서비스명]</span><span class="sw"><span>SQLD</span><span class="on-a">ADsP</span></span><span class="nav"><span>모의고사</span><span>개념 학습</span><span>무한풀이</span><span>학습현황</span></span></div>
+      <div class="pad">
+        <div class="box a-edge row" style="display:flex;position:relative"><span class="mk" style="left:-8px;top:-8px">1</span><span class="tag adsp">ADsP</span><span class="ttl">데이터분석 준전문가</span><span class="sp"></span><span class="big">D-37</span></div>
+        <div class="g4" style="position:relative"><span class="mk" style="left:-8px;top:-8px">2</span>
+          <div class="box solid"><span>과목</span><span class="ttl">3과목</span></div>
+          <div class="box solid"><span>문항</span><span class="ttl">객관식 50</span></div>
+          <div class="box solid"><span>시간</span><span class="ttl">90분</span></div>
+          <div class="box solid"><span>합격</span><span class="ttl">60점 · 과락 40%</span></div>
+        </div>
+        <div class="g3" style="position:relative"><span class="mk" style="left:-8px;top:-8px">3</span>
+          <div class="box"><span class="ttl">모의고사</span><span>5회 중 2회 응시</span><span class="btn">바로가기</span></div>
+          <div class="box"><span class="ttl">개념 학습</span><span>8단원 중 3단원 완료</span><span class="btn">이어 읽기</span></div>
+          <div class="box"><span class="ttl">무한풀이</span><span>오늘 12문항</span><span class="btn">풀기</span></div>
+        </div>
+        <div class="box" style="position:relative"><span class="mk" style="left:-8px;top:-8px">4</span><span class="ttl">과목별 정답률</span>
+          <div class="row"><span style="width:110px">1. 데이터 이해</span><div class="meter" style="flex:1"><b style="width:72%"></b><i class="cut"></i></div><span>72%</span></div>
+          <div class="row"><span style="width:110px">2. 분석 기획</span><div class="meter" style="flex:1"><b style="width:35%"></b><i class="cut"></i></div><span>35%</span></div>
+          <div class="row"><span style="width:110px">3. 데이터 분석</span><div class="meter" style="flex:1"><b style="width:58%"></b><i class="cut"></i></div><span>58%</span></div>
+        </div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>시험 머리</b>시험명, 식별 색, 다음 시험까지 D-day.</span></li>
+      <li><span><b>시험 정보 요약</b>처음 온 사용자가 시험 구조를 바로 파악하도록.</span></li>
+      <li><span><b>기능 바로가기</b>각 기능의 진행도를 함께 표시. SQLD 홈에는 SQL 실습 카드가 하나 더 붙는다.</span></li>
+      <li><span><b>과목별 정답률</b>점선은 과락선(40%). 과락선 아래 과목을 강조해 다음 학습을 유도.</span></li>
+      <li class="plain">새로 생기는 화면. 비로그인 상태에서는 3, 4의 진행도 대신 "로그인하고 기록 남기기"를 보여준다.</li>
+    </ol>
+  </div>
+</article>
+
+<article class="screen" id="a04">
+  <div class="screen-meta"><span class="sid">A-04</span><h3>모의고사 목록</h3><code>/adsp/exams</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div class="frame">
+      <div class="hd"><span class="logo">[서비스명]</span><span class="sw"><span>SQLD</span><span class="on-a">ADsP</span></span><span class="nav"><span class="on">모의고사</span><span>개념 학습</span><span>무한풀이</span><span>학습현황</span></span></div>
+      <div class="pad">
+        <div class="row" style="position:relative"><span class="mk in">1</span><span class="big">ADsP 모의고사</span><span class="chip">3과목 · 50문항 · 90분</span></div>
+        <div class="box solid" style="padding:0;position:relative"><span class="mk" style="left:-8px;top:-8px">2</span>
+          <div class="list-row head"><span>회차</span><span>문항</span><span>시간</span><span>내 기록</span><span></span></div>
+          <div class="list-row"><span>ADsP 실전 모의고사 1회</span><span>50</span><span>90분</span><span>72점 · 합격</span><span class="btn">해설 보기</span></div>
+          <div class="list-row"><span>ADsP 실전 모의고사 2회</span><span>50</span><span>90분</span><span>23 / 50 진행 중</span><span class="btn">이어하기</span></div>
+          <div class="list-row"><span>ADsP 실전 모의고사 3회</span><span>50</span><span>90분</span><span>미응시</span><span class="btn fill">응시하기</span></div>
+          <div class="list-row" style="border-bottom:0"><span>ADsP 실전 모의고사 4회 <span class="chip">준비 중</span></span><span>50</span><span>90분</span><span>-</span><span></span></div>
+        </div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>시험 구성 요약</b>SQLD 목록은 "2과목 · 50문항 · 90분"으로 바뀐다.</span></li>
+      <li><span><b>회차 목록</b>기존 <code>ExamListPage</code> 재사용. 데이터만 <code>exam_type</code>으로 거른다. 응시 전 안내 창도 그대로 사용.</span></li>
+      <li class="plain">SQLD 목록(<code>/sqld/exams</code>)은 지금 화면과 동일.</li>
+    </ol>
+  </div>
+</article>
+
+<article class="screen" id="a05">
+  <div class="screen-meta"><span class="sid">A-05</span><h3>시험 응시 (A4)</h3><code>/adsp/exams/:id/taking</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div class="frame">
+      <div class="hd" style="background:var(--paper)"><span class="tag adsp">ADsP</span><span class="ttl">실전 모의고사 3회</span><span class="sp"></span><span class="big" style="font-family:var(--mono);font-size:16px">89:12</span><span class="btn">메모장</span><span class="btn fill">답안 제출</span></div>
+      <div style="display:grid;grid-template-columns:1fr 200px;gap:14px;padding:14px;background:var(--wf)">
+        <div style="position:relative"><span class="mk" style="left:-8px;top:-8px">1</span>
+          <div class="paper">
+            <div class="q"><b>1과목 데이터 이해</b><span>1. 다음 중 데이터베이스의 특징으로 옳지 않은 것은?</span><span>① 통합된 데이터</span><span>② 저장된 데이터</span><span>③ 공용 데이터</span><span>④ 정적인 데이터</span></div>
+            <div class="q" style="position:relative"><span class="mk" style="right:-6px;top:-6px">2</span><span>34. 다음 R 출력 결과에 대한 해석으로 옳은 것은?</span>
+<div class="code">Coefficients:
+            Estimate Pr(&gt;|t|)
+(Intercept)   3.2140  0.0012 **
+x             0.8731  &lt;2e-16 ***
+R-squared: 0.712</div>
+<span>① 회귀계수는 유의하지 않다</span><span>② 결정계수는 0.712이다</span></div>
+            <div class="q"><span>2. 빅데이터의 특징 3V에 해당하지 않는 것은?</span><span>① Volume ② Variety</span><span>③ Velocity ④ Value</span></div>
+            <div class="q"><span>35. 아래 산점도에서 상관계수에 가장 가까운 값은?</span><div class="ph" style="height:60px">그래프 이미지</div></div>
+          </div>
+        </div>
+        <div class="box solid" style="align-content:start;position:relative"><span class="mk" style="left:-8px;top:-8px">3</span><span class="ttl">답안 표기란</span>
+          <div class="omr">
+            <span class="omr-h">1과목 (1–10)</span>
+            <span class="f">1</span><span class="f">2</span><span class="f">3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
+            <span class="omr-h">2과목 (11–20)</span>
+            <span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span>
+            <span class="omr-h">3과목 (21–50)</span>
+            <span>21</span><span>22</span><span>23</span><span>24</span><span>25</span><span>…</span><span>…</span><span>…</span><span>49</span><span>50</span>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>A4 시험지</b>794 × 1123px 레이아웃 그대로. 2단 배치, 과목 머리글 표시.</span></li>
+      <li><span><b>R 코드 · 통계 출력 · 그래프</b>ADsP에서 새로 필요한 문항 형식. 고정폭 출력 블록과 이미지 문항을 문제 렌더러에 추가해야 함.</span></li>
+      <li><span><b>답안 표기란 (선택 제안)</b>지금 응시 화면은 오른쪽에 메모장만 있다. 표기란을 넣는다면 과목 구간을 시험 설정에서 읽어 3구간(10 / 10 / 30)으로 나눈다. 실제 화면 기준은 05번 데모 참고.</span></li>
+      <li class="plain">헤더 없는 전용 화면. 타이머, 메모장, 제출 흐름은 SQLD와 동일하게 재사용. 이 화면은 B안에서도 똑같다.</li>
+    </ol>
+  </div>
+</article>
+
+<article class="screen" id="a06">
+  <div class="screen-meta"><span class="sid">A-06</span><h3>시험 결과</h3><code>/adsp/exams/:id/result</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div class="frame">
+      <div class="hd"><span class="logo">[서비스명]</span><span class="sw"><span>SQLD</span><span class="on-a">ADsP</span></span><span class="nav"><span class="on">모의고사</span><span>개념 학습</span><span>무한풀이</span><span>학습현황</span></span></div>
+      <div class="pad">
+        <div class="box solid row" style="display:flex;position:relative"><span class="mk" style="left:-8px;top:-8px">1</span><span class="big">62점</span><span class="tag" style="background:var(--mark);color:var(--mark-ink)">불합격 · 과락</span><span class="sp"></span><span>+30P 획득</span></div>
+        <div class="box" style="position:relative"><span class="mk" style="left:-8px;top:-8px">2</span><span class="ttl">과목별 점수 (점선 = 과락 40%)</span>
+          <div class="row"><span style="width:130px">1. 데이터 이해</span><div class="meter" style="flex:1"><b style="width:80%"></b><i class="cut"></i></div><span>16 / 20</span></div>
+          <div class="row"><span style="width:130px">2. 데이터 분석 기획</span><div class="meter" style="flex:1"><b style="width:30%"></b><i class="cut"></i></div><span style="color:var(--mark);font-weight:700">6 / 20 과락</span></div>
+          <div class="row"><span style="width:130px">3. 데이터 분석</span><div class="meter" style="flex:1"><b style="width:67%"></b><i class="cut"></i></div><span>40 / 60</span></div>
+        </div>
+        <div class="box solid" style="position:relative"><span class="mk" style="left:-8px;top:-8px">3</span><div class="row"><span class="ttl">문항별 결과</span><span class="sp"></span><span class="chip on">전체</span><span class="chip">오답만</span><span class="chip">2과목</span></div>
+          <div class="ln"></div><div class="ln" style="width:85%"></div><div class="ln" style="width:92%"></div></div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>판정</b>총점 60점 이상이어도 한 과목이라도 40% 미만이면 불합격. 사유(과락)를 함께 표시.</span></li>
+      <li><span><b>과목별 점수</b>과목 수만큼 막대를 그린다. 과락 과목은 강조색.</span></li>
+      <li><span><b>문항별 결과 · 해설</b>기존 결과 화면 재사용. 과목 필터 칩은 시험 설정의 과목 목록에서 만든다.</span></li>
+      <li class="plain">정답 1문항당 +10P(<code>points_update</code>)는 두 시험 공통.</li>
+    </ol>
+  </div>
+</article>
+
+<article class="screen" id="a07">
+  <div class="screen-meta"><span class="sid">A-07</span><h3>개념 학습 목차</h3><code>/adsp/learn</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div class="frame">
+      <div class="hd"><span class="logo">[서비스명]</span><span class="sw"><span>SQLD</span><span class="on-a">ADsP</span></span><span class="nav"><span>모의고사</span><span class="on">개념 학습</span><span>무한풀이</span><span>학습현황</span></span></div>
+      <div class="pad">
+        <span class="big">ADsP 개념 학습</span>
+        <div class="box solid" style="position:relative"><span class="mk" style="left:-8px;top:-8px">1</span><span class="ttl">1과목 · 데이터 이해</span>
+          <div class="g3"><div class="box"><span>데이터의 이해</span><span class="chip">완료</span></div><div class="box"><span>데이터의 가치와 미래</span><span>12분</span></div><div class="box"><span>데이터 사이언스와 전략 인사이트</span><span>15분</span></div></div></div>
+        <div class="box solid"><span class="ttl">2과목 · 데이터 분석 기획</span>
+          <div class="g3"><div class="box"><span>데이터 분석 기획의 이해</span><span>14분</span></div><div class="box"><span>분석 마스터 플랜</span><span>10분</span></div><div class="box" style="opacity:.5"><span>&nbsp;</span></div></div></div>
+        <div class="box solid" style="position:relative"><span class="mk" style="left:-8px;top:-8px">2</span><span class="ttl">3과목 · 데이터 분석</span>
+          <div class="g3"><div class="box"><span>R 기초와 데이터 마트</span><span class="chip">준비 중</span></div><div class="box"><span>통계 분석</span><span class="chip">준비 중</span></div><div class="box"><span>정형 데이터 마이닝</span><span class="chip">준비 중</span></div></div></div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>과목 → 단원 구조</b>기존 <code>LearnIndexPage</code>의 과목·그룹·단원 구조를 그대로 사용. 과목이 3개로 늘어날 뿐.</span></li>
+      <li><span><b>준비 중 단원</b>기존 "준비 중" 안내 창 재사용. 콘텐츠가 다 준비되지 않아도 출시 가능.</span></li>
+      <li class="plain">단원 본문(<code>/adsp/learn/:unitId</code>)은 기존 개념 학습 화면과 동일. 콘텐츠는 기존 저작 도구로 작성.</li>
+    </ol>
+  </div>
+</article>
+
+<article class="screen" id="a08">
+  <div class="screen-meta"><span class="sid">A-08</span><h3>학습현황</h3><code>/adsp/dashboard</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div class="frame">
+      <div class="hd"><span class="logo">[서비스명]</span><span class="sw"><span>SQLD</span><span class="on-a">ADsP</span></span><span class="nav"><span>모의고사</span><span>개념 학습</span><span>무한풀이</span><span class="on">학습현황</span></span></div>
+      <div class="pad">
+        <div class="row" style="position:relative"><span class="mk in">1</span><span class="big">ADsP 학습현황</span><span class="sp"></span><span class="chip">보유 포인트 1,240P (공통)</span></div>
+        <div class="g2">
+          <div class="box" style="position:relative"><span class="mk" style="left:-8px;top:-8px">2</span><span class="ttl">과목별 정답률</span><div class="ph" style="height:80px">막대 3개</div></div>
+          <div class="box"><span class="ttl">모의고사 점수 추이</span><div class="ph" style="height:80px">선 그래프</div></div>
+        </div>
+        <div class="g2"><div class="box"><span class="ttl">학습 캘린더</span><div class="ph" style="height:60px">잔디</div></div><div class="box"><span class="ttl">최근 모의고사</span><div class="ln"></div><div class="ln" style="width:70%"></div></div></div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>시험별 학습현황</b>헤더에서 고른 시험의 기록만 보여준다. 포인트는 계정 공통이라 시험과 상관없이 같은 값.</span></li>
+      <li><span><b>위젯 재사용</b>기존 <code>DashboardPage</code> 위젯 그대로. 과목 수에 맞춰 막대 개수만 바뀐다. SQLD의 "최근 SQL 실습" 위젯은 ADsP에서 숨김.</span></li>
+      <li class="plain">학습 캘린더를 시험별로 나눌지, 두 시험 합산으로 보여줄지는 회의 안건 4번.</li>
+    </ol>
+  </div>
+</article>
+</section>
+
+<!-- ============ B안 ============ -->
+<div class="plan-divider" id="plan-b"><b>B안</b><span>기능을 먼저 고르는 구조 · A안과 달라지는 화면 5개</span></div>
+
+<section class="part" style="padding-top:20px">
+<p class="lead">시험 응시(A-05)와 결과(A-06)는 B안에서도 똑같습니다. URL만 <code>/exams/:id/taking</code>으로 바뀝니다.</p>
+
+<article class="screen" id="b01">
+  <div class="screen-meta"><span class="sid">B-01</span><h3>통합 메인</h3><code>/</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div class="frame">
+      <div class="bar"><i></i><i></i><i></i><span class="url">[서비스명].com/</span></div>
+      <div class="hd"><span class="logo">[서비스명]</span><span class="nav"><span>모의고사</span><span>SQL 실습</span><span>개념 학습</span><span>무한풀이</span><span>학습현황</span></span><span class="sp"></span><span class="btn">로그인</span></div>
+      <div class="pad">
+        <div class="box solid" style="text-align:center;padding:22px;position:relative"><span class="mk" style="left:-8px;top:-8px">1</span><span class="big">데이터 자격증, 실전처럼 준비하세요</span><div class="row" style="justify-content:center"><span class="tag sqld">SQLD</span><span class="tag adsp">ADsP</span></div></div>
+        <div class="g3" style="position:relative"><span class="mk" style="left:-8px;top:-8px">2</span>
+          <div class="box"><span class="ttl">실전 모의고사</span><span>SQLD 6회 · ADsP 5회</span><span class="btn">둘러보기</span></div>
+          <div class="box"><span class="ttl">개념 학습</span><span>SQLD 24단원 · ADsP 8단원</span><span class="btn">둘러보기</span></div>
+          <div class="box"><span class="ttl">무한풀이</span><span>두 시험 문제 은행</span><span class="btn">둘러보기</span></div>
+        </div>
+        <div class="box" style="position:relative"><span class="mk" style="left:-8px;top:-8px">3</span><span class="ttl">2026 시험 일정</span><div class="g2"><div>SQLD 제62회</div><div>ADsP 제51회</div></div></div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>기능 중심 소개</b>시험은 뱃지로만 보여주고 기능이 주인공.</span></li>
+      <li><span><b>기능 카드</b>각 카드에 두 시험의 콘텐츠 양을 함께 표시. 누르면 "내 관심 시험"으로 걸러진 목록으로 이동.</span></li>
+      <li><span><b>시험 일정</b>A안과 동일.</span></li>
+    </ol>
+  </div>
+</article>
+
+<article class="screen" id="b02">
+  <div class="screen-meta"><span class="sid">B-02</span><h3>모의고사 목록 + 시험 필터</h3><code>/exams?exam=adsp</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div class="frame">
+      <div class="hd"><span class="logo">[서비스명]</span><span class="nav"><span class="on">모의고사</span><span>SQL 실습</span><span>개념 학습</span><span>무한풀이</span><span>학습현황</span></span></div>
+      <div class="pad">
+        <span class="big">모의고사</span>
+        <div class="row" style="position:relative"><span class="mk in">1</span><span class="chip">전체</span><span class="chip">SQLD</span><span class="chip on">ADsP</span><span style="margin-left:8px">관심 시험으로 기본 선택됨</span></div>
+        <div class="box solid" style="padding:0;position:relative"><span class="mk" style="left:-8px;top:-8px">2</span>
+          <div class="list-row head"><span>회차</span><span>문항</span><span>시간</span><span>내 기록</span><span></span></div>
+          <div class="list-row"><span><span class="tag adsp">ADsP</span> 실전 모의고사 1회</span><span>50</span><span>90분</span><span>72점 · 합격</span><span class="btn">해설 보기</span></div>
+          <div class="list-row"><span><span class="tag adsp">ADsP</span> 실전 모의고사 2회</span><span>50</span><span>90분</span><span>진행 중</span><span class="btn">이어하기</span></div>
+          <div class="list-row" style="border-bottom:0"><span><span class="tag adsp">ADsP</span> 실전 모의고사 3회</span><span>50</span><span>90분</span><span>미응시</span><span class="btn fill">응시하기</span></div>
+        </div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>시험 필터</b>전체 / SQLD / ADsP. 처음엔 회원가입 때 고른 관심 시험이 선택된 상태. 선택은 URL 파라미터에 남겨 공유·뒤로가기에 대응.</span></li>
+      <li><span><b>시험 뱃지</b>"전체" 상태에서 섞여 보이므로 모든 행에 시험 뱃지 필수.</span></li>
+      <li class="plain">무한풀이(<code>/endless</code>)도 같은 필터를 상단에 둔다.</li>
+    </ol>
+  </div>
+</article>
+
+<article class="screen" id="b03">
+  <div class="screen-meta"><span class="sid">B-03</span><h3>개념 학습 목차 + 시험 탭</h3><code>/learn?exam=adsp</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div class="frame">
+      <div class="hd"><span class="logo">[서비스명]</span><span class="nav"><span>모의고사</span><span>SQL 실습</span><span class="on">개념 학습</span><span>무한풀이</span><span>학습현황</span></span></div>
+      <div class="pad">
+        <span class="big">개념 학습</span>
+        <div class="tabs" style="position:relative"><span class="mk" style="left:-8px;top:-8px">1</span><span>SQLD</span><span class="on">ADsP</span></div>
+        <div class="box solid"><span class="ttl">1과목 · 데이터 이해</span><div class="g3"><div class="box"><span>데이터의 이해</span></div><div class="box"><span>데이터의 가치와 미래</span></div><div class="box"><span>데이터 사이언스와 전략 인사이트</span></div></div></div>
+        <div class="box solid"><span class="ttl">2과목 · 데이터 분석 기획</span><div class="ln" style="width:60%"></div></div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>시험 탭</b>개념 학습은 두 시험을 섞으면 의미가 없어 "전체" 없이 탭 2개만 둔다. 모의고사 목록의 필터와 모양이 달라지는 점이 B안의 약점.</span></li>
+      <li class="plain">본문 화면은 A-07과 동일.</li>
+    </ol>
+  </div>
+</article>
+
+<article class="screen" id="b04">
+  <div class="screen-meta"><span class="sid">B-04</span><h3>학습현황 + 시험 탭</h3><code>/dashboard?exam=all</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div class="frame">
+      <div class="hd"><span class="logo">[서비스명]</span><span class="nav"><span>모의고사</span><span>SQL 실습</span><span>개념 학습</span><span>무한풀이</span><span class="on">학습현황</span></span></div>
+      <div class="pad">
+        <div class="row"><span class="big">학습현황</span><span class="sp"></span><span class="chip">보유 포인트 1,240P</span></div>
+        <div class="tabs" style="position:relative"><span class="mk" style="left:-8px;top:-8px">1</span><span class="on">한눈에 보기</span><span>SQLD</span><span>ADsP</span></div>
+        <div class="g2" style="position:relative"><span class="mk" style="left:-8px;top:-8px">2</span>
+          <div class="box s-edge"><div class="row"><span class="tag sqld">SQLD</span><span class="ttl">최근 점수 78</span></div><div class="ph" style="height:60px">점수 추이</div><span>합격 예상권</span></div>
+          <div class="box a-edge"><div class="row"><span class="tag adsp">ADsP</span><span class="ttl">최근 점수 62</span></div><div class="ph" style="height:60px">점수 추이</div><span>2과목 과락 위험</span></div>
+        </div>
+        <div class="box"><span class="ttl">학습 캘린더 (두 시험 합산)</span><div class="ph" style="height:50px">잔디</div></div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>탭 3개</b>한눈에 보기 + 시험별 상세. 시험별 탭은 A-08과 같은 내용.</span></li>
+      <li><span><b>요약 카드</b>두 시험을 동시에 준비하는 사용자에게 B안이 주는 가장 큰 가치. 과목 막대는 합치지 않고 시험별로 따로.</span></li>
+    </ol>
+  </div>
+</article>
+
+<article class="screen" id="b05">
+  <div class="screen-meta"><span class="sid">B-05</span><h3>모바일 헤더와 필터</h3><code>전 화면 공통</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div style="display:flex;gap:16px">
+      <div class="frame mobile">
+        <div class="hd"><span class="logo">[서비스명]</span><span class="sp"></span><span>☰</span></div>
+        <div class="pad"><span class="ttl">모의고사</span><div class="row" style="position:relative"><span class="mk in">1</span><span class="chip">전체</span><span class="chip">SQLD</span><span class="chip on">ADsP</span></div><div class="ln"></div><div class="ln" style="width:80%"></div><div class="ln" style="width:65%"></div></div>
+      </div>
+      <div class="frame mobile">
+        <div class="hd"><span class="logo">[서비스명]</span><span class="sp"></span><span>✕</span></div>
+        <div class="pad" style="position:relative"><span class="mk" style="right:6px;top:6px">2</span><span>모의고사</span><span>SQL 실습 <span class="tag sqld">SQLD</span></span><span>개념 학습</span><span>무한풀이</span><span>학습현황</span><span>피드백</span></div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>화면마다 상단 필터</b>작은 화면에서 필터 줄이 항상 한 줄을 차지한다.</span></li>
+      <li><span><b>시험 전용 메뉴 표시</b>SQL 실습 옆에 SQLD 뱃지를 붙여 ADsP 사용자가 헷갈리지 않게 한다.</span></li>
+    </ol>
+  </div>
+</article>
+</section>
+
+<!-- ============ 공통 ============ -->
+<section class="part" id="common">
+  <h2><span class="no">06</span>두 안 공통 화면</h2>
+
+<article class="screen" id="c01">
+  <div class="screen-meta"><span class="sid">C-01</span><h3>관심 시험 선택 (가입 직후 · 기존 회원 첫 방문)</h3><code>모달</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div class="frame" style="width:520px">
+      <div class="pad" style="padding:22px">
+        <span class="big">어떤 시험을 준비하세요?</span>
+        <span>선택한 시험으로 화면이 먼저 열립니다. 마이페이지에서 언제든 바꿀 수 있어요.</span>
+        <div class="g3" style="position:relative"><span class="mk" style="left:-8px;top:-8px">1</span>
+          <div class="box s-edge" style="text-align:center"><span class="tag sqld" style="justify-self:center">SQLD</span><span class="ttl">SQL 개발자</span></div>
+          <div class="box a-edge" style="text-align:center"><span class="tag adsp" style="justify-self:center">ADsP</span><span class="ttl">데이터분석 준전문가</span></div>
+          <div class="box" style="text-align:center"><span class="ttl">둘 다</span><span>SQLD로 시작</span></div>
+        </div>
+        <div class="row" style="justify-content:flex-end;position:relative"><span class="mk in">2</span><span class="btn">나중에</span><span class="btn fill">시작하기</span></div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>관심 시험</b>A안에서는 첫 진입 시험, B안에서는 필터 기본값이 된다. 계정에 저장.</span></li>
+      <li><span><b>나중에</b>건너뛰면 기존 회원은 SQLD, 신규 회원은 메인에서 고르게 한다.</span></li>
+      <li class="plain">기존 SQLD 회원에게는 통합 출시 후 첫 방문 때 한 번만 띄운다. 이때 ADsP 관심 비율을 로그로 수집하면 A안 가정 검증에 쓸 수 있다.</li>
+    </ol>
+  </div>
+</article>
+
+<article class="screen" id="c02">
+  <div class="screen-meta"><span class="sid">C-02</span><h3>마이페이지 변경점</h3><code>/mypage</code></div>
+  <div class="screen-body">
+    <div class="frame-wrap"><div class="frame">
+      <div class="hd"><span class="logo">[서비스명]</span></div>
+      <div class="pad">
+        <span class="big">마이페이지</span>
+        <div class="box solid"><span class="ttl">기본 정보</span><div class="ln" style="width:50%"></div><div class="ln" style="width:40%"></div></div>
+        <div class="box solid" style="position:relative"><span class="mk" style="left:-8px;top:-8px">1</span><span class="ttl">관심 시험</span><div class="row"><span class="chip on">SQLD</span><span class="chip on">ADsP</span></div></div>
+        <div class="box solid" style="position:relative"><span class="mk" style="left:-8px;top:-8px">2</span><span class="ttl">포인트 1,240P</span><span>SQLD 860P · ADsP 380P 적립</span></div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span><b>관심 시험 설정</b>새로 추가되는 항목. C-01에서 고른 값 수정.</span></li>
+      <li><span><b>포인트</b>잔액은 하나, 적립 내역은 시험별로 볼 수 있게.</span></li>
+      <li class="plain">피드백, 관리자 화면은 공통 유지. 관리자 문제 관리에만 시험 구분 필드 추가.</li>
+    </ol>
+  </div>
+</article>
+</section>
+
+<!-- URL 맵 -->
+<section class="part" id="routes">
+  <h2><span class="no">07</span>URL 맵</h2>
+  <div class="tbl-wrap"><table>
+    <tr><th>화면</th><th>현재</th><th>A안</th><th>B안</th></tr>
+    <tr><td>메인</td><td><code>/</code></td><td><code>/</code></td><td><code>/</code></td></tr>
+    <tr><td>시험 홈</td><td>없음</td><td><code>/sqld</code> · <code>/adsp</code> (신규)</td><td>없음</td></tr>
+    <tr><td>모의고사 목록</td><td><code>/exams</code></td><td><code>/{시험}/exams</code></td><td><code>/exams?exam=</code></td></tr>
+    <tr><td>시험 응시</td><td><code>/exams/:id/taking</code></td><td><code>/{시험}/exams/:id/taking</code></td><td><code>/exams/:id/taking</code></td></tr>
+    <tr><td>시험 결과</td><td><code>/exams/:id/result</code></td><td><code>/{시험}/exams/:id/result</code></td><td><code>/exams/:id/result</code></td></tr>
+    <tr><td>SQL 실습</td><td><code>/sql-practice</code></td><td><code>/sqld/sql-practice</code></td><td><code>/sql-practice</code></td></tr>
+    <tr><td>개념 학습</td><td><code>/learn</code>, <code>/learn/:unitId</code></td><td><code>/{시험}/learn/…</code></td><td><code>/learn?exam=</code>, <code>/learn/:unitId</code></td></tr>
+    <tr><td>무한풀이</td><td><code>/endless</code></td><td><code>/{시험}/endless</code></td><td><code>/endless?exam=</code></td></tr>
+    <tr><td>학습현황</td><td><code>/dashboard</code></td><td><code>/{시험}/dashboard</code></td><td><code>/dashboard?exam=</code></td></tr>
+    <tr><td>마이페이지 · 피드백 · 관리자</td><td><code>/mypage</code> 등</td><td colspan="2">두 안 모두 공통으로 유지</td></tr>
+  </table></div>
+  <p class="callout">A안은 기존 URL(<code>/exams</code>, <code>/learn</code> 등)을 <code>/sqld/…</code>로 자동 이동시켜야 합니다. 검색 유입과 공유된 링크를 지키기 위해서입니다. 로그명세의 <code>page_id</code>는 그대로 두고 <code>exam_type</code>만 추가하는 방식을 권장합니다.</p>
+</section>
+
+<!-- 안건 -->
+<section class="part" id="decisions">
+  <h2><span class="no">08</span>10월 18일 회의 결정 안건</h2>
+  <p class="lead">파란 테두리가 이 초안의 기본값입니다. ADsP 기능 범위(모의고사·개념 학습·무한풀이, 코드 실습 없음)는 10월 17일에 확정되어 안건에서 뺐습니다.</p>
+  <div class="dec">
+    <div><h4>사이트 구조</h4><p>시험을 먼저 고를지, 기능을 먼저 고를지. 나머지 안건 대부분이 이 결정에 따라 정리된다.</p><div class="opt"><span class="d">A안 · 시험 먼저</span><span>B안 · 기능 먼저</span></div></div>
+    <div><h4>서비스명</h4><p>SolSQLD는 SQLD만 가리킨다. 도메인, 로고, 약관 문구까지 영향.</p><div class="opt"><span>SolSQLD 유지</span><span class="d">통합 이름 새로 정하기</span></div></div>
+    <div><h4>학습현황 범위</h4><p>시험별 분리만 할지, 두 시험 요약 화면도 둘지. 학습 캘린더는 합산할지.</p><div class="opt"><span class="d">시험별 분리</span><span>요약 + 시험별</span><span>전부 합산</span></div></div>
+    <div><h4>포인트</h4><p>공통으로 쓰면 SQLD 사용자가 쌓은 포인트로 ADsP 유료 기능을 쓸 수 있다.</p><div class="opt"><span class="d">계정 공통</span><span>시험별 분리</span></div></div>
+    <div><h4>ADsP 콘텐츠 확보</h4><p>출시 시점 모의고사 회차 수, 문제 작성 담당, 검수 방법. R 출력·그래프 문항 저작 방식.</p><div class="opt"><span>회차 수 ?</span><span>담당 ?</span></div></div>
+    <div><h4>유료 상품 구성</h4><p>결제 PRD가 SQLD 기준으로 작성되어 있다. 시험별 상품인지 통합 이용권인지.</p><div class="opt"><span>시험별</span><span>통합 이용권</span><span>다음 회의로</span></div></div>
+    <div><h4>모바일 앱 착수 시점</h4><p>ADsP 출시 후 바로인지, 웹 반응형 완성 후인지. 구조 결정(A/B)이 앱 내비게이션에 그대로 이어진다.</p><div class="opt"><span>ADsP 출시 직후</span><span>안정화 후</span></div></div>
+  </div>
+</section>
+
+<!-- 다음 단계 -->
+<section class="part" id="next">
+  <h2><span class="no">09</span>결정 후 작업 순서 (예비)</h2>
+  <div class="tbl-wrap"><table>
+    <tr><th>순서</th><th>담당</th><th>작업</th><th>선행 조건</th></tr>
+    <tr><td class="num">1</td><td>백엔드</td><td>문제 · 모의고사 · 제출 · 개념 단원 데이터에 <code>exam_type</code> 추가, 기존 데이터는 <code>sqld</code>로 채움. 시험별 과목 설정 테이블</td><td>구조 결정</td></tr>
+    <tr><td class="num">2</td><td>프론트</td><td>시험 상태(Context)와 라우트 변경, 헤더 전환기 또는 필터, 관심 시험 선택 모달</td><td>1과 병행 가능</td></tr>
+    <tr><td class="num">3</td><td>프론트</td><td>과목 수 가변 대응(답안표기란, 결과, 학습현황), R 출력 블록 · 이미지 문항 렌더링</td><td>1</td></tr>
+    <tr><td class="num">4</td><td>콘텐츠</td><td>ADsP 모의고사 회차와 개념 학습 단원 작성</td><td>안건 6</td></tr>
+    <tr><td class="num">5</td><td>데이터</td><td>로그명세에 <code>exam_type</code> 추가, 관심 시험 선택 이벤트 정의</td><td>구조 결정</td></tr>
+    <tr><td class="num">6</td><td>QA</td><td>SQLD 기존 흐름 회귀 테스트, 기존 URL 이동 확인, ADsP 판정 로직(과락) 검증</td><td>2, 3</td></tr>
+  </table></div>
+</section>
+
+</div>
+
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+  // 실제 frontend/tailwind.config.js 값. 데모 영역 안에서만 적용되도록 범위를 묶는다.
+  tailwind.config = {
+    important: '.demo-app',
+    corePlugins: { preflight: false },
+    theme: { extend: {
+      colors: {
+        primary: { 50: '#eff6ff', 100: '#dbeafe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 900: '#1e3a8a' },
+        sqld: { blue: '#1e40af', navy: '#0f172a', accent: '#f59e0b' },
+      },
+    } },
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  // ─────────────────────────────────────────────────────────────
+  // 데이터: SQLD는 target/main 실제 값, ADsP는 같은 구조로 시험 특성만 반영
+  // ─────────────────────────────────────────────────────────────
+  const EX = {
+    sqld: {
+      key: 'sqld', name: 'SQLD', full: 'SQL 개발자', units: 30,
+      accentText: 'text-primary-500', accentText4: 'text-primary-400', btn: 'bg-primary-600 hover:bg-primary-700',
+      hero: { badge: 'SQLD 합격을 위한 최적의 플랫폼', l1: 'SQL을 실습하고', l2: 'SQLD를 정복', sub: 'Oracle 기반 실시간 SQL 실습 환경과 실제 시험장을 재현한 모의고사로<br>SQLD 자격증 합격을 향한 최단 경로를 제시합니다.', second: ['sql', 'SQL 실습'] },
+      features: [['book-open', '실전 모의고사', '실제 SQLD 시험 형식 반영 (50문항, 90분)', 'bg-blue-500'], ['terminal', 'SQL 실습', 'Oracle 환경 기반 SQL 실행 및 확인', 'bg-emerald-500'], ['trophy', '성과 분석', '과목별 정답률 시각화 및 오답 노트 자동 생성', 'bg-amber-500']],
+      schedule: { title: 'SQLD', sub: 'SQL 개발자 (제60회 ~ 제63회)', next: '제63회 11.14(토)', dday: 27, examDate: '2026-11-14',
+        rows: [['제60회', '2.2 ~ 2.6', '3.7(토)', '3.27', 'end'], ['제61회', '4.27 ~ 5.1', '5.31(일)', '6.19', 'end'], ['제62회', '7.20 ~ 7.24', '8.22(토)', '9.11', 'end'], ['제63회', '10.12 ~ 10.16', '11.14(토)', '12.4', 'next']] },
+      subjects: [
+        { no: '1', label: '1과목', desc: '데이터 모델링의 이해', exam: '10문항 / 20점', range: [1, 10], cats: [['데이터모델링', 86], ['정규화', 34]] },
+        { no: '2', label: '2과목', desc: 'SQL 기본 및 활용', exam: '40문항 / 80점', range: [11, 50], cats: [['SQL 기본', 168], ['SQL 활용', 142], ['관리 구문', 90]] },
+      ],
+      listDesc: '실제 SQLD 시험 형식의 모의고사로 실력을 점검하세요. (1~3회 기본 / 4~6회 중급 / 7~10회 고급)',
+      mocks: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((r) => [r, r <= 3 ? 'easy' : r <= 6 ? 'medium' : 'hard']),
+      stats: { points: 1240, attempts: 4, time: '18시간 20분', solved: 412 },
+      greeting: '오늘도 SQL 실력을 키워보세요.',
+      radar: { labels: ['데이터모델링', '정규화', 'SQL 기본', 'SQL 활용', '관리 구문'], all: [82, 64, 71, 58, 76], exam: [80, 60, 74, 55, 78], endless: [85, 70, 68, 62, 72], learn: [90, 75, 80, 66, 84] },
+      recent: [['SQLD 모의고사 4회', '2026. 10. 15.', 78, true], ['SQLD 모의고사 3회', '2026. 10. 9.', 64, true], ['SQLD 모의고사 2회', '2026. 10. 2.', 56, false], ['SQLD 모의고사 1회', '2026. 9. 26.', 48, false]],
+      recent2: { title: '최근 SQL 실습', empty: '아직 SQL 실습 기록이 없습니다.', items: [['부서별 평균 급여 구하기', '2026. 10. 16.', true], ['윈도우 함수로 급여 순위 매기기', '2026. 10. 14.', false], ['계층형 질의로 조직도 출력', '2026. 10. 11.', true]] },
+      result: { round: 4, score: 78, passed: true, cutoff: false, correct: 39, sub: [16, 62], subMax: [20, 80], wrong: [[3, '1'], [13, '2']] },
+      takeLabel: 'SQLD',
+    },
+    adsp: {
+      key: 'adsp', name: 'ADsP', full: '데이터분석 준전문가', units: 29,
+      accentText: 'text-emerald-400', accentText4: 'text-emerald-400', btn: 'bg-emerald-600 hover:bg-emerald-700',
+      hero: { badge: 'ADsP 합격을 위한 최적의 플랫폼', l1: '개념을 잡고', l2: 'ADsP를 정복', sub: '3과목 출제범위를 그대로 따른 개념 학습과 실제 시험장을 재현한 모의고사로<br>ADsP 자격증 합격을 향한 최단 경로를 제시합니다.', second: ['learn', '개념 학습'] },
+      features: [['book-open', '실전 모의고사', '실제 ADsP 시험 형식 반영 (50문항, 90분)', 'bg-blue-500'], ['layers', '개념 학습', '3과목 세부항목별 개념 노트와 빈칸 복습', 'bg-emerald-500'], ['trophy', '성과 분석', '과목별 정답률과 과락 위험 과목 자동 표시', 'bg-amber-500']],
+      schedule: { title: 'ADsP', sub: '데이터분석 준전문가 (제48회 ~ 제51회)', next: '제51회 10.31(토)', dday: 13, examDate: '2026-10-31',
+        rows: [['제48회', '1.5 ~ 1.9', '2.7(토)', '3.6', 'end'], ['제49회', '4.13 ~ 4.17', '5.17(일)', '6.5', 'end'], ['제50회', '7.6 ~ 7.10', '8.8(토)', '8.28', 'end'], ['제51회', '9.28 ~ 10.2', '10.31(토)', '11.20', 'next']] },
+      subjects: [
+        { no: '1', label: '1과목', desc: '데이터 이해', exam: '10문항 / 20점', range: [1, 10], cats: [['데이터의 이해', 38], ['데이터의 가치와 미래', 42], ['데이터 사이언스와 전략 인사이트', 30]] },
+        { no: '2', label: '2과목', desc: '데이터 분석 기획', exam: '10문항 / 20점', range: [11, 20], cats: [['데이터 분석 기획의 이해', 54], ['분석 마스터 플랜', 36]] },
+        { no: '3', label: '3과목', desc: '데이터 분석', exam: '30문항 / 60점', range: [21, 50], cats: [['R 기초와 데이터 마트', 40], ['통계분석', 92], ['정형 데이터 마이닝', 78]] },
+      ],
+      listDesc: '실제 ADsP 시험 형식(3과목 · 50문항 · 90분)의 모의고사로 실력을 점검하세요. (1~2회 기본 / 3~4회 중급 / 5회 고급)',
+      mocks: [1, 2, 3, 4, 5].map((r) => [r, r <= 2 ? 'easy' : r <= 4 ? 'medium' : 'hard']),
+      stats: { points: 1240, attempts: 2, time: '6시간 40분', solved: 138 },
+      greeting: '오늘도 데이터 분석 실력을 키워보세요.',
+      radar: { labels: ['데이터의 이해', '가치와 미래', '분석 기획', '마스터 플랜', 'R·데이터 마트', '통계분석', '데이터 마이닝'], all: [78, 70, 38, 32, 61, 54, 66], exam: [80, 72, 35, 30, 58, 50, 63], endless: [74, 68, 42, 36, 64, 57, 70], learn: [88, 80, 50, 40, 0, 0, 72] },
+      recent: [['ADsP 모의고사 2회', '2026. 10. 16.', 62, false], ['ADsP 모의고사 1회', '2026. 10. 10.', 72, true]],
+      recent2: { title: '최근 무한풀이', empty: '아직 무한풀이 기록이 없습니다.', items: [['연관규칙 향상도의 의미', '2026. 10. 17.', true], ['혼동행렬 정밀도 계산', '2026. 10. 17.', false], ['분석 거버넌스 구성 요소', '2026. 10. 16.', false]] },
+      result: { round: 2, score: 62, passed: false, cutoff: true, correct: 31, sub: [16, 6, 40], subMax: [20, 20, 60], wrong: [[13, '3'], [14, '2'], [24, '1']] },
+      takeLabel: 'ADsP',
+    },
+  };
+
+  const PROB = {
+    sqld: {
+      1: ['데이터모델링', 'easy', '다음 중 엔터티의 특징으로 옳지 않은 것은?', '', ['해당 업무에서 필요하고 관리하고자 하는 정보여야 한다', '유일한 식별자에 의해 식별이 가능해야 한다', '영속적으로 존재하는 인스턴스의 집합이어야 한다', '다른 엔터티와 관계가 없어도 된다'], '4', '엔터티는 다른 엔터티와 최소 한 개 이상의 관계가 있어야 한다. 관계가 없는 엔터티는 업무 분석이 덜 된 신호다.'],
+      2: ['정규화', 'medium', '제2정규형을 만족하기 위해 제거해야 하는 종속은?', '', ['부분 함수 종속', '이행 함수 종속', '다치 종속', '조인 종속'], '1', '제2정규형은 기본키의 일부에만 종속되는 부분 함수 종속을 제거한 상태다. 이행 함수 종속 제거는 제3정규형이다.'],
+      3: ['데이터모델링', 'easy', '주식별자가 가져야 할 특징이 아닌 것은?', '', ['유일성', '최소성', '불변성', '참조성'], '4', '주식별자의 특징은 유일성, 최소성, 불변성, 존재성이다.'],
+      4: ['데이터모델링', 'medium', '관계를 표기할 때 사용하는 개념이 아닌 것은?', '', ['관계명', '관계차수', '관계선택사양', '관계정의서'], '4', '관계 표기법은 관계명(Membership), 관계차수(Cardinality), 관계선택사양(Optionality) 세 가지다.'],
+      5: ['데이터모델링', 'medium', 'NULL에 대한 설명으로 옳은 것은?', '', ['NULL + 1의 결과는 1이다', 'NULL은 공백 문자와 같다', 'SUM, AVG 같은 집계 함수는 NULL을 제외하고 계산한다', 'NULL = NULL의 결과는 TRUE다'], '3', '집계 함수는 NULL을 제외하고 계산한다(COUNT(*)는 예외). NULL과의 산술 연산은 NULL, 비교 연산은 UNKNOWN이다.'],
+      11: ['관리 구문', 'easy', '다음 중 DDL에 해당하는 명령어는?', '', ['SELECT', 'INSERT', 'CREATE', 'COMMIT'], '3', 'DDL은 CREATE, ALTER, DROP, RENAME, TRUNCATE다. INSERT는 DML, COMMIT은 TCL이다.'],
+      12: ['SQL 활용', 'medium', '동일한 값에 같은 순위를 주고, 다음 순위는 건너뛰는 윈도우 함수는?', '', ['ROW_NUMBER', 'RANK', 'DENSE_RANK', 'NTILE'], '2', 'RANK는 1, 1, 3처럼 공동 순위 다음 순위를 건너뛴다. DENSE_RANK는 1, 1, 2로 건너뛰지 않는다.'],
+      13: ['SQL 기본', 'medium', 'EMP 테이블의 COMM 값이 아래와 같을 때 SQL의 실행 결과는?', 'COMM : 300, NULL, 500, NULL\n\nSELECT COUNT(COMM), COUNT(*)\nFROM   EMP;', ['2, 4', '4, 4', '2, 2', '4, 2'], '1', 'COUNT(컬럼)은 NULL을 제외하고 세고, COUNT(*)는 모든 행을 센다.'],
+      14: ['관리 구문', 'easy', '다음 중 TCL에 해당하는 것은?', '', ['GRANT', 'COMMIT', 'ALTER', 'MERGE'], '2', 'TCL은 COMMIT, ROLLBACK, SAVEPOINT다. GRANT는 DCL, ALTER는 DDL, MERGE는 DML이다.'],
+      15: ['SQL 활용', 'easy', '다중 행 서브쿼리에 사용할 수 없는 비교 연산자는?', '', ['IN', 'ANY', 'ALL', '='], '4', '=는 단일 행 비교 연산자다. 다중 행 서브쿼리에는 IN, ANY, ALL, EXISTS를 쓴다.'],
+    },
+    adsp: {
+      1: ['데이터의 가치와 미래', 'easy', '다음 중 빅데이터의 특징 3V에 해당하지 않는 것은?', '', ['Volume', 'Variety', 'Velocity', 'Value'], '4', '3V는 Volume(규모), Variety(다양성), Velocity(속도)다. Value(가치)는 4V로 확장할 때 더해진다.'],
+      2: ['데이터의 이해', 'easy', 'DIKW 피라미드에서 데이터를 가공해 의미를 도출한 단계는?', '', ['데이터', '정보', '지식', '지혜'], '2', '데이터를 가공·처리해 데이터 간 연관 관계와 의미를 도출한 것이 정보(Information)다.'],
+      3: ['데이터의 이해', 'medium', '암묵지를 문서나 매체에 저장해 형식지로 바꾸는 과정은?', '', ['공통화', '표출화', '연결화', '내면화'], '2', '지식 전환은 공통화 → 표출화 → 연결화 → 내면화 순서다. 암묵지를 형식지로 바꾸는 단계가 표출화다.'],
+      4: ['데이터의 이해', 'easy', '데이터베이스의 특징으로 옳지 않은 것은?', '', ['통합된 데이터', '저장된 데이터', '공용 데이터', '정적인 데이터'], '4', '데이터베이스는 통합된·저장된·공용·변화되는 데이터다.'],
+      5: ['데이터의 가치와 미래', 'medium', '빅데이터 위기 요인인 사생활 침해의 통제 방안으로 옳은 것은?', '', ['동의제에서 책임제로 전환', '결과 기반 책임 원칙 고수', '알고리즈미스트 고용', '데이터 수집 전면 금지'], '1', '사생활 침해는 개인정보 사용 주체가 책임지는 책임제로 통제한다. 알고리즈미스트는 데이터 오용에 대한 대응이다.'],
+      11: ['데이터 분석 기획의 이해', 'easy', '분석 대상과 분석 방법을 모두 알고 있을 때의 분석 주제 유형은?', '', ['최적화(Optimization)', '솔루션(Solution)', '통찰(Insight)', '발견(Discovery)'], '1', '대상과 방법을 모두 알면 최적화, 대상만 알면 솔루션, 방법만 알면 통찰, 둘 다 모르면 발견이다.'],
+      12: ['데이터 분석 기획의 이해', 'medium', 'CRISP-DM 프로세스의 단계가 아닌 것은?', '', ['업무 이해', '데이터 준비', '모델링', '데이터 정규화'], '4', 'CRISP-DM은 업무 이해 → 데이터 이해 → 데이터 준비 → 모델링 → 평가 → 전개의 6단계다.'],
+      13: ['분석 마스터 플랜', 'medium', '시급성과 난이도로 우선순위를 정할 때 가장 먼저 추진할 과제는?', '', ['시급성 높음 · 난이도 쉬움', '시급성 낮음 · 난이도 어려움', '시급성 높음 · 난이도 어려움', '시급성 낮음 · 난이도 쉬움'], '1', '현재 시급하고 쉽게 할 수 있는 과제(3사분면)를 가장 먼저 추진한다.'],
+      14: ['분석 마스터 플랜', 'hard', '분석 거버넌스 체계의 구성 요소가 아닌 것은?', '', ['조직(Organization)', '프로세스(Process)', '시스템(System)', '마케팅(Marketing)'], '4', '분석 거버넌스 체계는 조직, 과제 기획·운영 프로세스, 분석 관련 시스템, 데이터, 분석 교육·마인드 육성 체계로 구성된다.'],
+      15: ['데이터 분석 기획의 이해', 'medium', '하향식 접근법의 문제 탐색 단계에서 업무, 제품, 고객 영역으로 과제를 도출할 때 쓰는 도구는?', '', ['비즈니스 모델 캔버스', '디자인 사고', '프로토타이핑', '군집 분석'], '1', '하향식 접근법의 문제 탐색은 비즈니스 모델 캔버스로 업무·제품·고객·규제와 감사·지원 인프라 영역을 살핀다.'],
+      21: ['통계분석', 'medium', '다음 R 출력 결과에 대한 해석으로 옳은 것은?', 'Coefficients:\n            Estimate Std. Error t value Pr(>|t|)\n(Intercept)   3.2140     0.9521   3.376   0.0012 **\nx             0.8731     0.0880   9.922   <2e-16 ***\n---\nMultiple R-squared:  0.712,  Adjusted R-squared:  0.709', ['회귀계수 x는 유의수준 0.05에서 유의하지 않다', '결정계수는 0.712이다', '절편의 추정값은 0.9521이다', 'x가 1 증가하면 y는 3.214 증가한다'], '2', 'Multiple R-squared가 결정계수로 0.712다. x의 p-value가 매우 작아 유의하고, x가 1 증가하면 y는 0.8731 증가한다.'],
+      22: ['정형 데이터 마이닝', 'medium', '연관규칙 A→B의 향상도(Lift)가 1보다 크다는 의미로 옳은 것은?', '', ['A와 B는 서로 독립이다', 'A를 구매하면 B를 구매할 가능성이 높아진다', 'A를 구매하면 B를 구매할 가능성이 낮아진다', '규칙 A→B의 지지도가 낮다'], '2', '향상도가 1보다 크면 양의 관계, 1이면 독립, 1보다 작으면 음의 관계다.'],
+      23: ['정형 데이터 마이닝', 'easy', '다음 중 비지도학습에 해당하는 기법은?', '', ['로지스틱 회귀', '의사결정나무', 'K-평균 군집', '서포트 벡터 머신'], '3', 'K-평균 군집은 정답 레이블 없이 유사한 개체를 묶는 비지도학습이다. 나머지는 지도학습이다.'],
+      24: ['정형 데이터 마이닝', 'hard', '다음 혼동행렬에서 정밀도(Precision)는?', '               예측 Positive   예측 Negative\n실제 Positive         40              20\n실제 Negative         10              30', ['0.67', '0.80', '0.70', '0.57'], '2', '정밀도 = TP / (TP + FP) = 40 / (40 + 10) = 0.8. 재현율은 TP / (TP + FN) = 40 / 60 ≈ 0.67이다.'],
+      25: ['R 기초와 데이터 마트', 'easy', '결측값 처리 방법에 해당하지 않는 것은?', '', ['완전 응답 개체 분석', '평균 대치법', '다중 대치법', '표준화'], '4', '표준화는 변수의 척도를 맞추는 변환이다. 결측값은 완전 응답 개체 분석, 평균 대치법, 다중 대치법 등으로 처리한다.'],
+    },
+  };
+  const prob = (k, n) => { const p = PROB[k][n]; return p && { n, k, cat: p[0], diff: p[1], title: p[2], code: p[3], opts: p[4], ans: p[5], exp: p[6] }; };
+
+  const CURR = {
+    sqld: [
+      { s: 1, t: '데이터 모델링의 이해', exam: '10문항 / 20점', groups: [
+        ['데이터 모델링의 이해', [['dm-model', '데이터모델의 이해', 10], ['dm-entity', '엔터티', 7], ['dm-attr', '속성', 6], ['dm-rel', '관계', 9], ['dm-key', '식별자', 8]]],
+        ['데이터 모델과 SQL', [['dm-norm', '정규화', 9], ['dm-join', '관계와 조인의 이해', 7], ['dm-trx', '모델이 표현하는 트랜잭션의 이해', 6], ['dm-null', 'Null 속성의 이해', 5], ['dm-natkey', '본질식별자 vs 인조식별자', 6]]] ] },
+      { s: 2, t: 'SQL 기본 및 활용', exam: '40문항 / 80점', groups: [
+        ['SQL 기본', [['sb-rdb', '관계형 데이터베이스 개요', 6], ['sb-select', 'SELECT 문', 8], ['sb-func', '함수', 13], ['sb-where', 'WHERE 절', 8], ['sb-group', 'GROUP BY, HAVING 절', 8], ['sb-order', 'ORDER BY 절', 5], ['sb-join', '조인', 10], ['sb-stdjoin', '표준 조인', 9]]],
+        ['SQL 활용', [['sa-sub', '서브쿼리', 12], ['sa-set', '집합 연산자', 9], ['sa-gfunc', '그룹 함수', 10], ['sa-window', '윈도우 함수', 10], ['sa-topn', 'Top N 쿼리', 8], ['sa-hier', '계층형 질의와 셀프 조인', 10], ['sa-pivot', 'PIVOT 절과 UNPIVOT 절', 8], ['sa-regex', '정규 표현식', 8]]],
+        ['관리 구문', [['ad-dml', 'DML', 7], ['ad-tcl', 'TCL', 6], ['ad-ddl', 'DDL', 8], ['ad-dcl', 'DCL', 5]]] ] },
+    ],
+    adsp: [
+      { s: 1, t: '데이터 이해', exam: '10문항 / 20점', groups: [
+        ['데이터의 이해', [['du-info', '데이터와 정보', 8], ['du-db', '데이터베이스의 정의와 특징', 7], ['du-dbuse', '데이터베이스 활용', 6]]],
+        ['데이터의 가치와 미래', [['dv-big', '빅데이터의 이해', 8], ['dv-value', '빅데이터의 가치와 영향', 6], ['dv-bm', '비즈니스 모델', 6], ['dv-risk', '위기 요인과 통제 방안', 7], ['dv-future', '미래의 빅데이터', 5]]],
+        ['가치 창조를 위한 데이터 사이언스와 전략 인사이트', [['ds-insight', '빅데이터 분석과 전략 인사이트', 6], ['ds-skill', '전략 인사이트 도출을 위한 필요 역량', 6], ['ds-future', '빅데이터 그리고 데이터 사이언스의 미래', 5]]] ] },
+      { s: 2, t: '데이터 분석 기획', exam: '10문항 / 20점', groups: [
+        ['데이터 분석 기획의 이해', [['pl-dir', '분석 기획 방향성 도출', 8], ['pl-method', '분석 방법론', 10], ['pl-task', '분석 과제 발굴', 9], ['pl-pm', '분석 프로젝트 관리 방안', 7]]],
+        ['분석 마스터 플랜', [['mp-frame', '마스터 플랜 수립 프레임워크', 8], ['mp-gov', '분석 거버넌스 체계 수립', 9]]] ] },
+      { s: 3, t: '데이터 분석', exam: '30문항 / 60점', groups: [
+        ['R 기초와 데이터 마트', [['rb-r', 'R 기초', 12], ['rb-mart', '데이터 마트', 9], ['rb-na', '결측값 처리와 이상값 검색', 8]]],
+        ['통계분석', [['st-intro', '통계학 개론', 12], ['st-basic', '기초 통계분석', 14], ['st-multi', '다변량 분석', 12], ['st-ts', '시계열 예측', 9], ['st-pca', '주성분 분석', 8]]],
+        ['정형 데이터 마이닝', [['dm-overview', '데이터 마이닝 개요', 6], ['dm-cls', '분류 분석', 14], ['dm-clu', '군집 분석', 11], ['dm-assoc', '연관 분석', 9]]] ] },
+    ],
+  };
+  const READY = { adsp: ['du-info', 'du-db', 'dv-big', 'pl-method', 'dm-assoc'] };
+  const isReady = (k, id) => k === 'sqld' || READY.adsp.includes(id);
+  function units(k) {
+    const out = []; let order = 0;
+    CURR[k].forEach((s) => s.groups.forEach(([g, us]) => us.forEach(([id, t, m]) => { order += 1; out.push({ id, t, m, s: s.s, g, order }); })));
+    return out;
+  }
+
+  // 단원 본문 견본: {{정답}} 은 빈칸 복습 모드에서 입력칸이 된다
+  const LESSON = {
+    'ad-ddl': [
+      { h: 'DDL이란', nodes: [
+        ['p', 'DDL(Data Definition Language)은 테이블처럼 데이터를 담는 {{구조}}를 정의하는 명령어다. CREATE, ALTER, DROP, RENAME, TRUNCATE가 여기에 속한다.'],
+        ['code', 'CREATE TABLE PLAYER (\n  PLAYER_ID   CHAR(7)      NOT NULL,\n  PLAYER_NAME VARCHAR2(20) NOT NULL,\n  TEAM_ID     CHAR(3),\n  CONSTRAINT PLAYER_PK PRIMARY KEY (PLAYER_ID)\n);'],
+        ['memo', 'Oracle에서 DDL은 실행 즉시 {{자동 커밋}}된다. ROLLBACK으로 되돌릴 수 없다.'] ] },
+      { h: '제약조건', nodes: [
+        ['table', ['제약조건', '중복', 'NULL'], [['PRIMARY KEY', '불가', '불가'], ['UNIQUE', '불가', '허용'], ['NOT NULL', '허용', '불가'], ['FOREIGN KEY', '허용', '허용']]],
+        ['p', '기본키는 테이블당 {{하나}}만 만들 수 있고, 여러 컬럼을 묶어 하나의 기본키로 만들 수도 있다.'] ] },
+      { h: 'DROP, TRUNCATE, DELETE 차이', nodes: [
+        ['analogy', '책장 비유', ['DELETE는 책을 한 권씩 빼는 것, TRUNCATE는 책을 한 번에 모두 비우는 것, DROP은 책장 자체를 버리는 것이다.']],
+        ['trap', 'TRUNCATE는 행을 지우지만 DML이 아니라 {{DDL}}이다. 그래서 자동 커밋되어 되돌릴 수 없다.'] ] },
+    ],
+    'dm-assoc': [
+      { h: '연관 분석이란', nodes: [
+        ['p', '거래 데이터에서 "A를 사면 B도 산다" 같은 규칙을 찾는 분석이다. {{장바구니 분석}}이라고도 하며, 조건과 결과가 있는 if-then 형태로 표현한다.'],
+        ['analogy', '편의점 진열 비유', ['맥주를 산 손님이 땅콩도 함께 사는 경향을 발견해 두 상품을 가까이 놓는 것과 같다.', '규칙은 "맥주 → 땅콩"처럼 방향이 있다.']] ] },
+      { h: '세 가지 측정 지표', nodes: [
+        ['table', ['지표', '의미', '계산식'], [['지지도', '전체 거래 중 A와 B를 함께 산 비율', 'P(A∩B)'], ['신뢰도', 'A를 산 거래 중 B도 산 비율', 'P(A∩B) / P(A)'], ['향상도', 'B를 살 확률 대비, A를 샀을 때 B를 살 확률', 'P(B|A) / P(B)']]],
+        ['memo', '향상도 > 1 양의 관계 · = 1 {{독립}} · < 1 음의 관계'],
+        ['trap', 'A→B와 B→A는 {{신뢰도}}가 다를 수 있다. 지지도와 향상도는 방향과 상관없이 같다.'] ] },
+      { h: '계산해 보기', nodes: [
+        ['code', '전체 거래 100건\nA를 포함한 거래  40건\nB를 포함한 거래  50건\nA와 B를 함께 포함 20건'],
+        ['p', '지지도 = 20 / 100 = {{0.2}}, 신뢰도 = 20 / 40 = {{0.5}}, 향상도 = 0.5 / 0.5 = {{1}}. 향상도가 1이므로 두 상품은 서로 독립이다.'] ] },
+      { h: 'Apriori 알고리즘', nodes: [
+        ['p', '최소 지지도 이상인 {{빈발 항목 집합}}만 남기고 나머지는 버려 계산량을 줄인다. 어떤 항목 집합이 빈발하지 않으면 그 상위 집합도 빈발하지 않는다는 성질을 이용한다.'] ] },
+    ],
+  };
+
+  const DIFF_L = { easy: '기본', medium: '중급', hard: '고급' };
+  const DIFF_C = { easy: 'bg-emerald-100 text-emerald-700', medium: 'bg-amber-100 text-amber-700', hard: 'bg-red-100 text-red-700' };
+  const ic = (n, c) => `<i data-lucide="${n}" class="${c || 'w-4 h-4'}"></i>`;
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const badge = (k) => `<span class="text-[11px] font-bold px-1.5 py-0.5 rounded border ${k === 'sqld' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}">${EX[k].name}</span>`;
+  // 실제 SQL 실습 목록의 난이도 칩 스타일을 시험 필터에 그대로 사용
+  const chips = (opts, cur, act) => `<div class="flex items-center gap-2">${opts.map(([v, l]) => `<button type="button" data-act="${act}" data-v="${v}" class="text-xs px-3 py-1.5 rounded-full font-semibold transition-colors border ${v === cur ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}">${l}</button>`).join('')}</div>`;
+  // 실제 학습현황 과목별 정답률 탭 스타일
+  const segTabs = (opts, cur, act) => `<div class="flex rounded-lg border border-slate-200 overflow-hidden">${opts.map(([v, l]) => `<button type="button" data-act="${act}" data-v="${v}" class="px-3 py-1 text-xs font-medium transition-colors ${v === cur ? 'bg-primary-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}">${l}</button>`).join('')}</div>`;
+
+  function createDemo(root, plan) {
+    const app = root.querySelector('[data-app]');
+    const urlEl = root.querySelector('[data-url]');
+    const scroller = root.querySelector('[data-scroll]');
+    const init = () => ({
+      exam: 'adsp', page: plan === 'A' ? 'portal' : 'home',
+      filter: 'adsp', ltab: 'adsp', dtab: 'all', sched: 'adsp', radar: 'all', sqlDiff: 'all',
+      round: 3, unit: null, quiz: false, blanks: {},
+      tk: { page: 0, answers: {}, memo: '', modal: null, remaining: 90 * 60 },
+      es: { step: 'mode', exam: 'adsp', subject: null, cats: [], qi: 0, picked: null, answered: 47, correct: 31 },
+      points: 1240,
+    });
+    let st = init();
+    const cur = () => st.exam;
+
+    function url() {
+      const k = cur(), p = st.page;
+      if (p === 'portal' || (p === 'home' && plan === 'B')) return '/';
+      if (p === 'feedback') return '/feedback';
+      const pre = plan === 'A' ? `/${k}` : '';
+      if (p === 'home') return `/${k}`;
+      if (p === 'exams') return plan === 'A' ? `${pre}/exams` : `/exams?exam=${st.filter}`;
+      if (p === 'taking') return plan === 'A' ? `${pre}/exams/${st.round}/taking` : `/exams/${k}-${st.round}/taking`;
+      if (p === 'result') return plan === 'A' ? `${pre}/exams/${EX[k].result.round}/result` : `/exams/${k}-${EX[k].result.round}/result`;
+      if (p === 'learn') return plan === 'A' ? `${pre}/learn` : `/learn?exam=${st.ltab}`;
+      if (p === 'unit') return `${pre}/learn/${st.unit.split(':')[1]}`;
+      if (p === 'endless') return plan === 'A' ? `${pre}/endless` : `/endless?exam=${st.filter}`;
+      if (p === 'dashboard') return plan === 'A' ? `${pre}/dashboard` : `/dashboard?exam=${st.dtab}`;
+      if (p === 'sql') return plan === 'A' ? '/sqld/sql-practice' : '/sql-practice';
+      return '/';
+    }
+
+    // ── 공통 헤더 (components/Header.tsx) ──
+    function header() {
+      const k = cur();
+      const nav = plan === 'A'
+        ? [['exams', '모의고사'], ...(k === 'sqld' ? [['sql', 'SQL 실습']] : []), ['learn', '개념 학습'], ['endless', '무한풀이'], ['dashboard', '학습현황'], ['feedback', '피드백']]
+        : [['exams', '모의고사'], ['sql', 'SQL 실습'], ['learn', '개념 학습'], ['endless', '무한풀이'], ['dashboard', '학습현황'], ['feedback', '피드백']];
+      const activeOf = { taking: 'exams', result: 'exams', unit: 'learn' };
+      const act = activeOf[st.page] || st.page;
+      const brandK = plan === 'A' && st.page !== 'portal' ? k : null;
+      const logoColor = brandK === 'adsp' ? 'text-emerald-400' : 'text-primary-500';
+      return `
+      <header class="sticky top-0 z-40 bg-sqld-navy border-b border-slate-700 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div class="flex items-center">
+            <button type="button" data-act="go" data-v="${plan === 'A' ? 'portal' : 'home'}" class="flex items-center gap-2 text-white font-bold text-xl hover:opacity-80 transition-opacity">
+              ${ic('database', `w-6 h-6 ${logoColor}`)}<span>Sol<span class="${logoColor}">${brandK ? EX[brandK].name : 'SQLD'}</span></span>
+            </button>
+            ${plan === 'A' ? `
+            <div class="flex items-center rounded-lg bg-slate-800 border border-slate-700 p-0.5 ml-5">
+              <button type="button" data-act="exam" data-v="sqld" class="px-3 py-1 rounded-md text-xs font-bold transition-colors ${k === 'sqld' && st.page !== 'portal' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'}">SQLD</button>
+              <button type="button" data-act="exam" data-v="adsp" class="px-3 py-1 rounded-md text-xs font-bold transition-colors ${k === 'adsp' && st.page !== 'portal' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}">ADsP</button>
+            </div>` : ''}
+          </div>
+          <nav class="flex items-center gap-6 text-sm text-slate-300">
+            ${nav.map(([p, l]) => `<button type="button" data-act="go" data-v="${p}" class="flex items-center gap-1 transition-colors ${act === p ? 'text-white font-semibold' : 'hover:text-white'}">${l}${plan === 'B' && p === 'sql' ? '<span class="text-[10px] font-bold px-1 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">SQLD</span>' : ''}</button>`).join('')}
+          </nav>
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-slate-300"><span class="text-sqld-accent font-semibold">민트초코</span><span class="ml-1"> 님 환영합니다!</span></span>
+            <span class="text-slate-400" title="마이페이지">${ic('settings')}</span>
+            <span class="flex items-center gap-1 text-slate-400 text-sm">${ic('log-out')}로그아웃</span>
+          </div>
+        </div>
+      </header>`;
+    }
+
+    // ── 메인 구성 요소 (MainPage, ExamScheduleCard, CreatorCredentials) ──
+    function statusBadge(type, dday) {
+      if (type === 'next') return `<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">D-${dday}</span>`;
+      return '<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-600/20 text-slate-500 border border-slate-600/30">종료</span>';
+    }
+    function scheduleCard(k, withTabs) {
+      const s = EX[k].schedule;
+      return `
+      <section class="max-w-5xl mx-auto px-4 pb-12">
+        <div class="bg-slate-800/60 border border-slate-700 rounded-2xl p-8">
+          <div class="flex items-center justify-between gap-3 mb-6">
+            <div class="flex items-center gap-3">
+              <div class="bg-blue-500/20 w-10 h-10 rounded-xl flex items-center justify-center">${ic('calendar', 'w-5 h-5 text-blue-400')}</div>
+              <div><h2 class="text-lg font-bold text-white">2026년 ${s.title} 시험 일정</h2><p class="text-xs text-slate-400">${s.sub}</p></div>
+              ${withTabs ? `<div class="flex items-center rounded-lg bg-slate-900/60 border border-slate-700 p-0.5 ml-3">${['sqld', 'adsp'].map((x) => `<button type="button" data-act="sched" data-v="${x}" class="px-3 py-1 rounded-md text-xs font-bold ${x === k ? (x === 'sqld' ? 'bg-primary-600 text-white' : 'bg-emerald-600 text-white') : 'text-slate-400 hover:text-white'}">${EX[x].name}</button>`).join('')}</div>` : ''}
+            </div>
+            <div class="flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-2">
+              <span class="text-2xl font-extrabold text-blue-400">D-${s.dday}</span><span class="text-xs text-slate-400">다음 시험 | ${s.next}</span>
+            </div>
+          </div>
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-700">${['회차', '원서접수', '시험일', '합격자 발표'].map((h) => `<th class="text-left text-slate-400 font-medium py-3 px-3">${h}</th>`).join('')}<th class="text-right text-slate-400 font-medium py-3 px-3">상태</th></tr></thead>
+            <tbody>${s.rows.map(([r, reg, ex, res, t]) => { const n = t === 'next'; return `
+              <tr class="border-b border-slate-700/50 ${n ? 'bg-blue-500/5' : ''}">
+                <td class="py-3 px-3"><span class="font-semibold ${n ? 'text-blue-400' : 'text-white'}">${r}</span></td>
+                <td class="py-3 px-3 text-slate-300">${reg}</td>
+                <td class="py-3 px-3"><span class="font-medium ${n ? 'text-blue-300' : 'text-slate-200'}">${ex}</span></td>
+                <td class="py-3 px-3 text-slate-300">${res}</td>
+                <td class="py-3 px-3 text-right">${statusBadge(t, s.dday)}</td>
+              </tr>`; }).join('')}</tbody>
+          </table>
+        </div>
+      </section>`;
+    }
+    function credentials() {
+      const c = [['운영진 A', '現 유니콘 스타트업 재직 중', '2025.12.12'], ['운영진 B', '', '2025.06.27']];
+      return `
+      <section class="max-w-5xl mx-auto px-4 pb-16">
+        <div class="bg-slate-800/40 border border-slate-700 rounded-2xl p-8">
+          <div class="flex items-center gap-2.5 mb-7"><div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">${ic('award', 'w-4 h-4 text-sqld-accent')}</div><h2 class="text-2xl font-bold text-white">합격자가 직접 만들었습니다</h2></div>
+          <div class="grid grid-cols-2 gap-4">${c.map(([r, j, d]) => `
+            <div class="flex items-center gap-4 bg-sqld-navy/55 border border-slate-700 rounded-xl p-3.5">
+              <span class="w-[5.25rem] h-[3.7rem] rounded-md border border-slate-600 bg-white flex items-center justify-center text-[10px] text-slate-400">합격증</span>
+              <span><span class="block text-[0.9375rem] font-bold text-white mb-0.5">${r}</span>${j ? `<span class="block text-[0.8125rem] text-primary-400 mb-1.5">${j}</span>` : ''}<span class="block text-xs text-slate-400 tabular-nums">${d} 합격</span></span>
+            </div>`).join('')}</div>
+          <p class="mt-6 pt-5 border-t border-slate-700 text-xs text-slate-500 leading-relaxed">※ 운영진 개인의 자격 취득 증빙이며, 한국데이터산업진흥원(KDATA)과 제휴·후원 관계가 없습니다. 본 서비스는 KDATA가 인증하거나 공인한 서비스가 아닙니다.</p>
+        </div>
+      </section>`;
+    }
+    function featureCards(list) {
+      return `<section class="max-w-5xl mx-auto px-4 pb-16"><div class="grid grid-cols-3 gap-6">${list.map(([i, t, d, c]) => `
+        <div class="bg-slate-800/60 border border-slate-700 rounded-2xl p-6 hover:border-primary-600 transition-colors">
+          <div class="${c} w-12 h-12 rounded-xl flex items-center justify-center mb-4">${ic(i, 'w-6 h-6 text-white')}</div>
+          <h3 class="text-white font-bold text-lg mb-2">${t}</h3><p class="text-slate-400 text-sm leading-relaxed">${d}</p>
+        </div>`).join('')}</div></section>`;
+    }
+    function highlights(k) {
+      const list = ['A4 스케일 레이아웃으로 실제 시험지 재현', '남은 시간 카운트다운 실시간 표시', '사이드 메모장 입력 내용 자동 저장', k === 'adsp' ? '합격(60점 이상)/불합격 즉시 판정 · 3과목 과락 자동 확인' : '합격(60점 이상)/불합격 즉시 판정'];
+      return `<section class="max-w-5xl mx-auto px-4 pb-24"><div class="bg-slate-800/40 border border-slate-700 rounded-2xl p-8"><h2 class="text-2xl font-bold text-white mb-6">실제 시험장 그대로</h2><ul class="space-y-3">${list.map((x) => `<li class="flex items-center gap-3 text-slate-300">${ic('check-circle', 'w-5 h-5 text-emerald-400')}${x}</li>`).join('')}</ul></div></section>`;
+    }
+    const heroBtn = (act, v, label, primary) => `<button type="button" data-act="${act}" data-v="${v}" class="flex items-center justify-center gap-2 ${primary ? 'bg-primary-600 hover:bg-primary-700 shadow-lg shadow-primary-900/40' : 'bg-slate-700 hover:bg-slate-600'} text-white font-bold px-8 py-4 rounded-xl text-lg transition-colors">${label} ${ic('chevron-right', 'w-5 h-5')}</button>`;
+
+    // A안 '/' : 시험 선택 포털
+    function portal() {
+      const card = (k) => { const e = EX[k]; return `
+        <div class="bg-slate-800/60 border border-slate-700 rounded-2xl p-7 flex flex-col gap-4 hover:border-${k === 'sqld' ? 'primary-500' : 'emerald-500'} transition-colors">
+          <div class="flex items-center gap-3">
+            <div class="${k === 'sqld' ? 'bg-blue-500' : 'bg-emerald-500'} w-12 h-12 rounded-xl flex items-center justify-center">${ic(k === 'sqld' ? 'database' : 'bar-chart-3', 'w-6 h-6 text-white')}</div>
+            <div><div class="flex items-center gap-2"><h3 class="text-white font-bold text-xl">${e.name}</h3>${k === 'adsp' ? '<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">NEW</span>' : ''}</div><p class="text-slate-400 text-sm">${e.full}</p></div>
+            <div class="ml-auto text-right"><p class="text-2xl font-extrabold text-blue-400">D-${e.schedule.dday}</p><p class="text-xs text-slate-400">${e.schedule.next}</p></div>
+          </div>
+          <ul class="space-y-1.5 text-sm text-slate-300">
+            <li class="flex items-center gap-2">${ic('check-circle', 'w-4 h-4 text-emerald-400')}${e.subjects.length}과목 · 50문항 · 90분 · 60점 이상 합격</li>
+            <li class="flex items-center gap-2">${ic('check-circle', 'w-4 h-4 text-emerald-400')}${k === 'sqld' ? '모의고사 10회 · SQL 실습 · 개념 학습 30항목' : '모의고사 5회 · 개념 학습 29항목 · 무한풀이'}</li>
+          </ul>
+          <button type="button" data-act="start" data-v="${k}" class="mt-1 flex items-center justify-center gap-2 ${e.btn} text-white font-bold py-3.5 rounded-xl transition-colors">${e.name} 시작하기 ${ic('chevron-right', 'w-5 h-5')}</button>
+        </div>`; };
+      return `
+      <div class="min-h-full bg-gradient-to-b from-sqld-navy to-slate-900">
+        <section class="max-w-5xl mx-auto px-4 pt-20 pb-14 text-center">
+          <span class="inline-block bg-blue-500/20 text-blue-400 text-xs font-semibold px-3 py-1 rounded-full mb-4 border border-blue-500/30">데이터 자격증 합격을 위한 최적의 플랫폼</span>
+          <h1 class="text-6xl font-extrabold text-white leading-tight mb-6">어떤 시험을<br><span class="text-primary-400">준비하고 계세요?</span></h1>
+          <p class="text-lg text-slate-400 max-w-xl mx-auto">시험을 고르면 그 시험에 맞춘 모의고사, 개념 학습, 무한풀이로 바로 이어집니다.<br>마지막으로 고른 시험은 다음 방문 때 자동으로 열립니다.</p>
+        </section>
+        <section class="max-w-5xl mx-auto px-4 grid grid-cols-2 gap-6 pb-8">${card('sqld')}${card('adsp')}</section>
+        <section class="max-w-5xl mx-auto px-4 pb-12">
+          <div class="bg-slate-800/40 border border-slate-700 rounded-2xl p-5 flex items-center gap-4">
+            ${ic('rotate-ccw', 'w-5 h-5 text-slate-400')}<span class="text-slate-200 font-semibold">이어서 풀기</span>${badge('adsp')}
+            <span class="text-slate-400 text-sm">ADsP 모의고사 3회 · 남은 시간 64:12</span>
+            <button type="button" data-act="take" data-v="adsp:3" class="ml-auto flex items-center gap-1 bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold px-4 py-2 rounded-lg">이어하기 ${ic('chevron-right')}</button>
+          </div>
+        </section>
+        ${credentials()}
+      </div>`;
+    }
+
+    // A안 '/sqld', '/adsp' : 지금 MainPage 그대로, 시험별 문구만 교체
+    function examMain() {
+      const k = cur(), e = EX[k];
+      return `
+      <div class="min-h-full bg-gradient-to-b from-sqld-navy to-slate-900">
+        <section class="max-w-5xl mx-auto px-4 pt-24 pb-20 text-center">
+          <span class="inline-block ${k === 'adsp' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-blue-500/20 text-blue-400 border-blue-500/30'} text-xs font-semibold px-3 py-1 rounded-full mb-4 border">${e.hero.badge}</span>
+          <h1 class="text-6xl font-extrabold text-white leading-tight mb-6">${e.hero.l1}<br><span class="${k === 'adsp' ? 'text-emerald-400' : 'text-primary-400'}">${e.hero.l2}</span>하세요</h1>
+          <p class="text-lg text-slate-400 mb-10 max-w-xl mx-auto">${e.hero.sub}</p>
+          <div class="flex gap-4 justify-center">${heroBtn('go', 'exams', '모의고사 풀이', true)}${heroBtn('go', e.hero.second[0], e.hero.second[1], false)}</div>
+        </section>
+        ${scheduleCard(k, false)}
+        ${credentials()}
+        ${featureCards(e.features)}
+        ${highlights(k)}
+      </div>`;
+    }
+
+    // B안 '/' : 지금 MainPage에 두 시험을 함께
+    function mainB() {
+      const k = st.sched;
+      return `
+      <div class="min-h-full bg-gradient-to-b from-sqld-navy to-slate-900">
+        <section class="max-w-5xl mx-auto px-4 pt-24 pb-20 text-center">
+          <span class="inline-block bg-blue-500/20 text-blue-400 text-xs font-semibold px-3 py-1 rounded-full mb-4 border border-blue-500/30">SQLD · ADsP 합격을 위한 최적의 플랫폼</span>
+          <h1 class="text-6xl font-extrabold text-white leading-tight mb-6">실전처럼 풀고<br><span class="text-primary-400">한 번에 합격</span>하세요</h1>
+          <p class="text-lg text-slate-400 mb-10 max-w-xl mx-auto">실제 시험장을 재현한 SQLD · ADsP 모의고사와 출제범위 그대로의 개념 학습으로<br>데이터 자격증 합격을 향한 최단 경로를 제시합니다.</p>
+          <div class="flex gap-4 justify-center">${heroBtn('go', 'exams', '모의고사 풀이', true)}${heroBtn('go', 'learn', '개념 학습', false)}</div>
+        </section>
+        ${scheduleCard(k, true)}
+        ${credentials()}
+        ${featureCards([['book-open', '실전 모의고사', 'SQLD 10회 · ADsP 5회<br>실제 시험 형식 반영 (50문항, 90분)', 'bg-blue-500'], ['layers', '개념 학습', 'SQLD 30항목 · ADsP 29항목<br>공식 출제범위 세부항목 그대로', 'bg-emerald-500'], ['trophy', '성과 분석', '시험별 과목 정답률 시각화 및 오답 노트 자동 생성', 'bg-amber-500']])}
+        ${highlights('sqld')}
+      </div>`;
+    }
+
+    // ── 모의고사 목록 (ExamListPage) ──
+    function examList() {
+      const keys = plan === 'A' ? [cur()] : st.filter === 'all' ? ['sqld', 'adsp'] : [st.filter];
+      const rows = keys.flatMap((k) => EX[k].mocks.map(([r, d]) => [k, r, d]));
+      const rec = (k, r) => (k === 'adsp' && r === 3 ? ['진행 중 · 남은 시간 64:12', 'text-amber-600'] : EX[k].recent.find((x) => x[0].endsWith(`${r}회`)) ? [`${EX[k].recent.find((x) => x[0].endsWith(`${r}회`))[2]}점`, 'text-slate-700'] : null);
+      return `
+      <div class="min-h-full bg-slate-50">
+        <div class="max-w-4xl mx-auto px-4 py-10">
+          <h1 class="text-2xl font-bold text-sqld-navy mb-1">모의고사</h1>
+          <p class="text-slate-500 text-sm mb-8">${plan === 'A' ? EX[cur()].listDesc : '실제 시험 형식의 모의고사로 실력을 점검하세요. 관심 시험이 기본으로 선택됩니다.'}</p>
+          ${plan === 'B' ? `<div class="mb-6">${chips([['all', '전체'], ['sqld', 'SQLD'], ['adsp', 'ADsP']], st.filter, 'filter')}</div>` : ''}
+          <div class="grid gap-4">
+            ${rows.map(([k, r, d]) => { const rc = rec(k, r); return `
+            <button type="button" data-act="take" data-v="${k}:${r}" class="bg-white border border-slate-200 rounded-xl p-5 hover:border-primary-400 hover:shadow-md transition-all cursor-pointer flex items-center justify-between w-full text-left">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl ${k === 'adsp' ? 'bg-emerald-50 border-emerald-100' : 'bg-primary-50 border-primary-100'} border flex items-center justify-center"><span class="${k === 'adsp' ? 'text-emerald-600' : 'text-primary-600'} font-bold text-lg">${r}</span></div>
+                <div>
+                  <div class="flex items-center gap-2 mb-1">${plan === 'B' ? badge(k) : ''}<h2 class="font-bold text-sqld-navy">${EX[k].name} 모의고사 ${r}회</h2></div>
+                  <div class="flex items-center gap-3 text-xs text-slate-500">
+                    <span class="flex items-center gap-1">${ic('file-text', 'w-3.5 h-3.5')}50문항</span>
+                    <span class="flex items-center gap-1">${ic('clock', 'w-3.5 h-3.5')}90분</span>
+                    <span class="px-2 py-0.5 rounded-full font-semibold ${DIFF_C[d]}">${DIFF_L[d]}</span>
+                    ${k === 'adsp' ? '<span class="text-slate-400">1과목 10 · 2과목 10 · 3과목 30</span>' : ''}
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">${rc ? `<span class="text-sm font-semibold ${rc[1]}">${rc[0]}</span>` : ''}${ic('chevron-right', 'w-5 h-5 text-slate-400')}</div>
+            </button>`; }).join('')}
+          </div>
+        </div>
+      </div>`;
+    }
+
+    // ── 시험 응시 (ExamTakingPage) ──
+    function choiceProblem(k, n) {
+      const p = prob(k, n);
+      if (!p) {
+        return `<div class="mb-8"><div class="font-semibold text-slate-800 mb-3 leading-relaxed"><span class="text-primary-600 mr-1">${n}.</span><span class="inline-block align-middle h-3 w-80 rounded bg-slate-100"></span></div>
+          <div class="space-y-2 ml-4">${[1, 2, 3, 4].map((i) => `<div class="flex items-center gap-2"><span class="w-4 h-4 rounded-full border border-slate-300"></span><span class="h-2.5 rounded bg-slate-100" style="width:${140 + ((n * 37 + i * 53) % 160)}px"></span></div>`).join('')}</div></div>`;
+      }
+      const sel = st.tk.answers[n];
+      return `
+        <div class="mb-8 break-inside-avoid">
+          <div class="font-semibold text-slate-800 mb-3 leading-relaxed"><span class="text-primary-600 mr-1">${n}.</span>${esc(p.title)}</div>
+          ${p.code ? `<pre class="mb-3 ml-4 border border-slate-300 bg-slate-50 text-[12.5px] leading-5 p-3 text-slate-800 overflow-x-auto">${esc(p.code)}</pre>` : ''}
+          <div class="space-y-2 ml-4">${p.opts.map((o, i) => { const v = String(i + 1); return `
+            <label class="flex items-start gap-2 cursor-pointer group">
+              <input type="radio" id="${plan}-${k}-q${n}-${v}" name="${plan}-${k}-q${n}" data-act="ans" data-v="${n}:${v}" ${sel === v ? 'checked' : ''} class="mt-0.5 w-4 h-4">
+              <span class="text-sm leading-relaxed ${sel === v ? 'text-primary-700 font-medium' : 'text-slate-600 group-hover:text-slate-800'}">${v}) ${esc(o)}</span>
+            </label>`; }).join('')}</div>
+        </div>`;
+    }
+    function timerHtml() {
+      const r = st.tk.remaining, m = Math.floor(r / 60), s = r % 60;
+      const cls = r <= 180 ? 'bg-red-50 border-red-400 text-red-600' : r <= 600 ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-slate-50 border-slate-300 text-slate-700';
+      return `<div data-timer class="flex items-center gap-2 font-mono text-lg font-bold px-4 py-2 rounded-lg border-2 ${cls}">${ic('clock', 'w-5 h-5')}<span data-timer-text>${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}</span></div>`;
+    }
+    function taking() {
+      const k = cur(), e = EX[k], tk = st.tk, pg = tk.page, total = 10;
+      const answered = Object.keys(tk.answers).length;
+      const start = pg * 5 + 1;
+      const subj = e.subjects.find((s) => start >= s.range[0] && start <= s.range[1]);
+      const sampleNote = [1, 11, 21].includes(start) && prob(k, start) ? '' : `<p class="mb-6 text-xs text-slate-400 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">데모에는 각 과목 첫 페이지 문항만 실었습니다. ${e.subjects.map((s) => `${s.label} ${s.range[0]}번`).join(' · ')} 페이지를 눌러 보세요.</p>`;
+      return `
+      <div class="min-h-full bg-slate-200 relative">
+        <div class="sticky top-0 z-40 bg-sqld-navy border-b border-slate-700 shadow-lg">
+          <div class="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between">
+            <button type="button" data-act="exit" data-v="${plan === 'A' ? 'home' : 'home'}" class="flex items-center gap-2 text-white font-bold text-lg hover:opacity-80">${ic('database', `w-5 h-5 ${plan === 'A' && k === 'adsp' ? 'text-emerald-400' : 'text-primary-500'}`)}<span>Sol<span class="${plan === 'A' && k === 'adsp' ? 'text-emerald-400' : 'text-primary-500'}">${plan === 'A' ? e.name : 'SQLD'}</span></span></button>
+            <nav class="flex items-center gap-6 text-sm text-slate-300">
+              <button type="button" data-act="exit" data-v="exams" class="hover:text-white">모의고사</button>
+              ${k === 'sqld' ? '<button type="button" data-act="exit" data-v="sql" class="hover:text-white">SQL 실습</button>' : '<button type="button" data-act="exit" data-v="learn" class="hover:text-white">개념 학습</button>'}
+            </nav>
+          </div>
+        </div>
+        <div class="sticky top-12 z-30 bg-white border-b border-slate-200 shadow-sm">
+          <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+            <div class="text-sm font-semibold text-sqld-navy">${e.takeLabel} ${st.round}회 &nbsp;<span class="text-slate-400 font-normal">${answered}/50</span>${subj ? `<span class="ml-3 text-xs font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-500">${subj.label} · ${subj.desc}</span>` : ''}</div>
+            <div class="flex items-center gap-3">
+              ${timerHtml()}
+              <span class="flex items-center gap-1 text-slate-400 text-sm">${ic('flag')}오류 제보</span>
+              <button type="button" data-act="submit" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors">최종 제출</button>
+            </div>
+          </div>
+        </div>
+        <div class="max-w-6xl mx-auto px-4 mt-6 flex gap-5 pb-6">
+          <div class="flex-1 min-w-0 relative">
+            ${pg > 0 ? `<button type="button" data-act="tpage" data-v="${pg - 1}" class="flex absolute left-0 top-1/2 -translate-y-1/2 z-20 w-9 h-16 items-center justify-center bg-sqld-navy/20 hover:bg-sqld-navy/40 text-sqld-navy/60 hover:text-sqld-navy rounded-r-lg">${ic('chevron-left', 'w-5 h-5')}</button>` : ''}
+            ${pg < total - 1 ? `<button type="button" data-act="tpage" data-v="${pg + 1}" class="flex absolute right-0 top-1/2 -translate-y-1/2 z-20 w-9 h-16 items-center justify-center bg-sqld-navy/20 hover:bg-sqld-navy/40 text-sqld-navy/60 hover:text-sqld-navy rounded-l-lg">${ic('chevron-right', 'w-5 h-5')}</button>` : ''}
+            <div class="bg-white shadow-xl mx-auto p-12 rounded-sm border border-slate-300" style="width:794px;min-height:1123px">
+              ${pg === 0 ? `<div class="text-center mb-8 pb-4 border-b-2 border-sqld-navy"><h1 class="text-xl font-bold text-sqld-navy">${e.takeLabel} 모의고사 ${st.round}회</h1><p class="text-sm text-slate-500 mt-1">총 50문항 · 제한시간 90분 · 60점 이상 합격 · 과목별 40점 미만 과락</p>${k === 'adsp' ? '<p class="text-xs text-slate-400 mt-1">1과목 데이터 이해 1~10번 · 2과목 데이터 분석 기획 11~20번 · 3과목 데이터 분석 21~50번</p>' : '<p class="text-xs text-slate-400 mt-1">1과목 데이터 모델링의 이해 1~10번 · 2과목 SQL 기본 및 활용 11~50번</p>'}</div>` : `<div class="text-right text-xs text-slate-400 mb-6">${start}~${start + 4}번 문제</div>`}
+              ${sampleNote}
+              ${[0, 1, 2, 3, 4].map((i) => choiceProblem(k, start + i)).join('')}
+              <div class="mt-8 pt-4 border-t border-slate-200 flex items-center justify-between">
+                <span class="text-xs text-slate-400">${pg + 1} / ${total} 페이지</span>
+                <div class="flex gap-1.5">${Array.from({ length: total }, (_, i) => `<button type="button" data-act="tpage" data-v="${i}" class="w-7 h-7 rounded text-xs font-medium transition-colors ${i === pg ? 'bg-sqld-navy text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}">${i + 1}</button>`).join('')}</div>
+              </div>
+            </div>
+          </div>
+          <div class="w-64 shrink-0 sticky top-32 self-start" style="height:600px">
+            <div class="flex flex-col h-full bg-amber-50 border border-amber-200 rounded-xl shadow-md overflow-hidden">
+              <div class="flex items-center gap-2 px-4 py-2 bg-amber-100 border-b border-amber-200">${ic('sticky-note', 'w-4 h-4 text-amber-600')}<span class="text-sm font-semibold text-amber-800">메모장</span><span class="ml-auto flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded bg-amber-200 text-amber-700">${ic('save', 'w-3 h-3')}저장</span></div>
+              <textarea id="${plan}-memo" data-act="memo" placeholder="시험 중 메모가 필요하신가요?&#10;여기에 자유롭게 입력하세요." class="flex-1 resize-none bg-transparent p-3 text-sm text-slate-700 focus:outline-none leading-relaxed font-mono" style="border:0">${esc(tk.memo || (k === 'adsp' ? '24번\nTP=40 FP=10\n정밀도 = 40/50' : ''))}</textarea>
+            </div>
+          </div>
+        </div>
+        ${tk.modal === 'submit' ? `
+        <div class="absolute inset-0 z-50 flex items-start justify-center bg-black/50 pt-48">
+          <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full mx-4">
+            ${50 - answered > 0 ? `<div class="flex items-center gap-2 text-amber-600 bg-amber-50 rounded-lg px-4 py-3 mb-4">${ic('alert-triangle', 'w-5 h-5')}<p class="text-sm font-medium">${50 - answered}문제가 미답변 상태입니다.</p></div>` : ''}
+            <h3 class="text-lg font-bold text-sqld-navy mb-2">최종 제출하시겠습니까?</h3>
+            <p class="text-sm text-slate-500 mb-6">제출 후에는 답안을 변경할 수 없습니다.</p>
+            <div class="flex gap-3"><button type="button" data-act="modal" data-v="" class="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold py-2.5 rounded-lg text-sm">계속 풀기</button><button type="button" data-act="go" data-v="result" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 rounded-lg text-sm">제출</button></div>
+          </div>
+        </div>` : ''}
+        ${tk.modal && tk.modal.startsWith('exit:') ? `
+        <div class="absolute inset-0 z-50 flex items-start justify-center bg-black/50 pt-48">
+          <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full mx-4">
+            <h3 class="text-lg font-bold text-sqld-navy mb-2">시험을 나가시겠습니까?</h3>
+            <p class="text-sm text-slate-500 mb-1">현재까지 선택한 답안과 메모, 남은 시간은 저장되며,</p>
+            <p class="text-sm text-slate-500 mb-6">다시 들어오면 저장된 시점부터 이어집니다.</p>
+            <div class="flex gap-3"><button type="button" data-act="modal" data-v="" class="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold py-2.5 rounded-lg text-sm">계속 풀기</button><button type="button" data-act="go" data-v="${tk.modal.slice(5)}" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 rounded-lg text-sm">나가기</button></div>
+          </div>
+        </div>` : ''}
+      </div>`;
+    }
+
+    // ── 시험 결과 (ExamResultPage) ──
+    function result() {
+      const k = cur(), e = EX[k], r = e.result;
+      const summary = r.cutoff ? '총점이 합격 기준을 넘었더라도, 과목별 40점 미만이 있으면 불합격입니다.' : r.passed ? '총점 60점 이상으로 합격 기준을 충족했습니다.' : '총점이 60점 미만으로 불합격입니다.';
+      const meta = r.cutoff ? '과목별 과락 적용' : r.passed ? '60점 이상 합격' : '60점 미만 불합격';
+      return `
+      <div class="min-h-full bg-slate-50 py-10">
+        <div class="max-w-3xl mx-auto px-4">
+          <div class="rounded-2xl p-8 text-center mb-8 ${r.passed ? 'bg-emerald-600' : 'bg-red-500'} text-white shadow-lg">
+            <div class="flex justify-center mb-4">${r.passed ? ic('trophy', 'w-16 h-16 text-yellow-300') : ic('x-circle', 'w-16 h-16 text-white/80')}</div>
+            <h1 class="text-3xl font-extrabold mb-2">${r.passed ? '합격' : '불합격'}</h1>
+            <p class="text-5xl font-black mb-2">${r.score}점</p>
+            <p class="text-sm font-medium opacity-90 mb-2">${summary}</p>
+            <p class="text-sm opacity-80">${meta} &nbsp;|&nbsp; 정답 ${r.correct}문제 / 오답 ${50 - r.correct}문제</p>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+            <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2"><h2 class="font-bold text-sqld-navy">과목별 점수</h2><span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-primary-50 text-primary-600 border border-primary-100">신규 제안</span><span class="ml-auto text-xs text-slate-400">점선 = 과락 기준 40%</span></div>
+            <div class="px-6 py-5 grid gap-4">${e.subjects.map((s, i) => { const pct = Math.round((r.sub[i] / r.subMax[i]) * 100), fail = pct < 40; return `
+              <div>
+                <div class="flex justify-between text-sm mb-1.5"><span class="font-medium text-slate-700">${s.label} · ${s.desc}</span><span class="tabular-nums font-semibold ${fail ? 'text-red-600' : 'text-slate-900'}">${r.sub[i]} / ${r.subMax[i]}점${fail ? ' · 과락' : ''}</span></div>
+                <div class="relative h-2.5 rounded-full bg-slate-100"><div class="absolute inset-y-0 left-0 rounded-full ${fail ? 'bg-red-400' : 'bg-primary-600'}" style="width:${pct}%"></div><div class="absolute -top-1 -bottom-1 border-l-2 border-dashed border-amber-500" style="left:40%"></div></div>
+              </div>`; }).join('')}</div>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+            <div class="px-6 py-4 border-b border-slate-100 bg-slate-50"><h2 class="font-bold text-sqld-navy">오답 및 해설 (${50 - r.correct}문제)</h2></div>
+            <ul class="divide-y divide-slate-100">
+              ${r.wrong.map(([n, mine]) => { const p = prob(k, n); return `
+              <li class="px-6 py-5">
+                <div class="flex items-start gap-2 mb-2">${ic('x-circle', 'w-4 h-4 text-red-400 mt-0.5')}<p class="text-sm font-semibold text-slate-800 leading-relaxed">${n}. ${esc(p.title)}</p></div>
+                <div class="ml-6 space-y-1 text-xs text-slate-500">
+                  ${p.code ? `<pre class="mb-2 border border-slate-200 bg-slate-50 text-[11.5px] leading-5 p-2.5 text-slate-700 overflow-x-auto">${esc(p.code)}</pre>` : ''}
+                  <p><span class="text-red-500 font-semibold">내 답:</span> ${mine}번) ${esc(p.opts[Number(mine) - 1])}</p>
+                  <p><span class="text-emerald-600 font-semibold">정답:</span> ${p.ans}번) ${esc(p.opts[Number(p.ans) - 1])}</p>
+                  <span class="inline-flex items-center gap-1 text-xs text-amber-600 font-medium mt-2">${ic('flag', 'w-3.5 h-3.5')}오류 제보</span>
+                  <p class="mt-2 text-slate-600 leading-relaxed border-l-2 border-primary-300 pl-3">${esc(p.exp)}</p>
+                  <div class="mt-2"><span class="inline-flex items-center gap-1 text-xs text-primary-600 font-medium">${ic('sparkles', 'w-3.5 h-3.5')}AI 맞춤 해설 보기 (3/5)</span></div>
+                </div>
+              </li>`; }).join('')}
+              <li class="px-6 py-4 text-xs text-slate-400">… 데모에서는 오답 일부만 표시합니다.</li>
+            </ul>
+          </div>
+          <div class="flex gap-3">
+            <button type="button" data-act="take" data-v="${k}:${r.round}" class="flex items-center gap-2 flex-1 justify-center border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold py-3 rounded-xl">${ic('rotate-ccw')}다시 풀기</button>
+            <button type="button" data-act="go" data-v="exams" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-xl">모의고사 목록</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    // ── 무한풀이 (EndlessPracticePage + EndlessPracticePlayer) ──
+    function poolFor() {
+      const es = st.es;
+      const keys = plan === 'B' && st.filter === 'all' && !es.subject ? ['sqld', 'adsp'] : [es.exam];
+      let list = keys.flatMap((k) => Object.keys(PROB[k]).map((n) => prob(k, Number(n))));
+      if (es.cats.length) { const f = list.filter((p) => es.cats.includes(p.cat)); if (f.length) list = f; }
+      return list;
+    }
+    function endless() {
+      const es = st.es;
+      const keyNow = plan === 'A' ? cur() : (st.filter === 'all' ? null : st.filter);
+      const total = (k) => EX[k].subjects.reduce((a, s) => a + s.cats.reduce((b, c) => b + c[1], 0), 0);
+      const head = (back) => `<div class="flex items-center gap-3 mb-8"><button type="button" data-act="es" data-v="${back}" class="text-slate-400 hover:text-slate-600">${back === 'home' ? ic('home', 'w-5 h-5') : ic('chevron-left', 'w-5 h-5')}</button><h1 class="text-lg font-bold text-sqld-navy flex items-center gap-2">${ic('shuffle', 'w-5 h-5 text-primary-500')}무한풀이</h1>${plan === 'A' ? badge(cur()) : ''}</div>`;
+      const wrap = (inner) => `<div class="min-h-full bg-slate-50"><div class="max-w-3xl mx-auto px-4 py-6">${inner}</div></div>`;
+      if (es.step === 'mode') {
+        const cnt = keyNow ? total(keyNow) : total('sqld') + total('adsp');
+        return wrap(`${head('home')}
+          ${plan === 'B' ? `<div class="mb-6">${chips([['all', '전체'], ['sqld', 'SQLD'], ['adsp', 'ADsP']], st.filter, 'filter')}</div>` : ''}
+          <div class="grid grid-cols-2 gap-4">
+            <button type="button" data-act="es" data-v="random" class="group bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-left hover:border-primary-300 hover:shadow-md transition-all">
+              <div class="bg-primary-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary-200">${ic('shuffle', 'w-6 h-6 text-primary-600')}</div>
+              <h2 class="text-base font-bold text-sqld-navy mb-1">전체 랜덤</h2><p class="text-sm text-slate-500">전체 ${cnt}문제를 랜덤으로 풀기</p>
+              <div class="flex items-center gap-1 mt-4 text-xs text-primary-600 font-medium">시작하기 ${ic('chevron-right')}</div>
+            </button>
+            <button type="button" data-act="es" data-v="subject" class="group bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-left hover:border-primary-300 hover:shadow-md transition-all">
+              <div class="bg-amber-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-amber-200">${ic('layers', 'w-6 h-6 text-amber-600')}</div>
+              <h2 class="text-base font-bold text-sqld-navy mb-1">카테고리별 랜덤</h2><p class="text-sm text-slate-500">과목 · 세부과목을 선택해서 풀기</p>
+              <div class="flex items-center gap-1 mt-4 text-xs text-amber-600 font-medium">과목 선택 ${ic('chevron-right')}</div>
+            </button>
+          </div>`);
+      }
+      if (es.step === 'subject') {
+        const groups = keyNow ? [keyNow] : ['sqld', 'adsp'];
+        return wrap(`${head('mode')}${groups.map((k) => `
+          ${groups.length > 1 ? `<div class="flex items-center gap-2 mb-3 mt-2">${badge(k)}<span class="text-sm text-slate-500">${EX[k].full}</span></div>` : ''}
+          <div class="grid grid-cols-${EX[k].subjects.length === 3 ? 3 : 2} gap-4 mb-6">${EX[k].subjects.map((s) => `
+            <button type="button" data-act="subj" data-v="${k}:${s.no}" class="group bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-left hover:border-primary-300 hover:shadow-md transition-all">
+              <div class="bg-slate-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary-100">${ic('book-open', 'w-6 h-6 text-slate-500 group-hover:text-primary-600')}</div>
+              <h2 class="text-base font-bold text-sqld-navy mb-1">${s.label}</h2><p class="text-sm text-slate-500">${s.desc}</p>
+              <p class="text-xs text-slate-400 mt-2">${s.cats.length}개 카테고리 · ${s.cats.reduce((a, c) => a + c[1], 0)}문제</p>
+              <div class="flex items-center gap-1 mt-4 text-xs text-primary-600 font-medium">세부과목 선택 ${ic('chevron-right')}</div>
+            </button>`).join('')}</div>`).join('')}`);
+      }
+      if (es.step === 'category') {
+        const s = EX[es.exam].subjects.find((x) => x.no === es.subject);
+        const all = s.cats.every(([c]) => es.cats.includes(c));
+        const sum = s.cats.filter(([c]) => es.cats.includes(c)).reduce((a, c) => a + c[1], 0);
+        return wrap(`${head('subject')}
+          <div class="flex items-center justify-between mb-4"><p class="text-sm text-slate-500">${s.label} — ${s.desc}</p><button type="button" data-act="catall" class="px-3 py-1.5 rounded-lg text-sm font-medium ${all ? 'bg-primary-100 text-primary-700' : 'text-primary-600 hover:bg-primary-50'}">${all ? '전체 해제' : '전체 선택'}</button></div>
+          <div class="grid grid-cols-3 gap-3">${s.cats.map(([c, n]) => { const on = es.cats.includes(c); return `
+            <button type="button" data-act="cat" data-v="${c}" class="rounded-xl shadow-sm border px-4 py-4 text-left transition-all ${on ? 'border-primary-400 bg-primary-50 shadow-md' : 'border-slate-200 bg-white hover:border-primary-300 hover:shadow-md'}">
+              <div class="flex items-start justify-between gap-2"><div><h3 class="text-sm font-semibold text-sqld-navy">${c}</h3><p class="text-xs text-slate-400 mt-1">${n}문제</p></div>
+              <div class="shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center ${on ? 'bg-primary-600 border-primary-600' : 'border-slate-300'}">${on ? ic('check', 'w-3.5 h-3.5 text-white') : ''}</div></div>
+            </button>`; }).join('')}</div>
+          <div class="mt-6">${es.cats.length ? `<div class="space-y-3"><p class="text-sm text-slate-500 text-center">${es.cats.length}개 카테고리 · ${sum}문제 선택됨</p><button type="button" data-act="es" data-v="play" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2">시작하기 ${ic('chevron-right', 'w-5 h-5')}</button></div>` : '<p class="text-sm text-slate-400 text-center">풀고 싶은 카테고리를 선택하세요</p>'}</div>`);
+      }
+      // playing
+      const list = poolFor(), p = list[es.qi % list.length], done = es.picked !== null, ok = done && es.picked === p.ans;
+      const subjLabel = es.subject ? EX[es.exam].subjects.find((x) => x.no === es.subject).label : '';
+      const label = es.cats.length ? `${subjLabel} > ${es.cats.join(', ')}` : '전체 랜덤';
+      const rate = Math.round((es.correct / Math.max(1, es.answered)) * 100);
+      return wrap(`
+        <div class="flex items-center justify-between mb-6">
+          <div class="flex items-center gap-3"><button type="button" data-act="es" data-v="mode" class="text-slate-400 hover:text-slate-600">${ic('chevron-left', 'w-5 h-5')}</button>
+            <div><h1 class="text-lg font-bold text-sqld-navy flex items-center gap-2">${ic('shuffle', 'w-5 h-5 text-primary-500')}무한풀이${plan === 'A' ? badge(cur()) : ''}</h1><p class="text-xs text-slate-400">${label}</p></div></div>
+          <div class="flex items-center gap-4">
+            <div class="text-sm text-slate-500"><span class="font-bold text-sqld-navy">${es.answered}</span>문제<span class="mx-1.5 text-slate-300">·</span>정답률 <span class="font-bold ${rate >= 60 ? 'text-emerald-600' : 'text-red-500'}">${rate}%</span></div>
+            <span class="flex items-center gap-1 text-slate-400 text-sm">${ic('flag')}오류 제보</span>
+            <span class="text-slate-400">${ic('rotate-ccw')}</span>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="flex items-center gap-2 px-6 py-3 bg-slate-50 border-b border-slate-100">${plan === 'B' ? badge(p.k) : ''}<span class="text-xs font-semibold px-2 py-0.5 rounded-full ${DIFF_C[p.diff]}">${DIFF_L[p.diff]}</span><span class="text-xs text-slate-400">${p.cat}</span></div>
+          <div class="px-6 py-5"><h2 class="text-base font-semibold text-slate-800 leading-relaxed mb-1">${esc(p.title)}</h2>${p.code ? `<pre class="mt-3 bg-slate-50 border border-slate-200 rounded-lg text-[12.5px] leading-5 p-3 text-slate-800 overflow-x-auto">${esc(p.code)}</pre>` : ''}</div>
+          <div class="px-6 pb-5 space-y-2.5">${p.opts.map((o, i) => { const v = String(i + 1), isAns = p.ans === v, isSel = es.picked === v;
+            let b = 'border-slate-200 hover:border-primary-300 hover:bg-primary-50/30', icon = '';
+            if (done) { if (isAns) { b = 'border-emerald-400 bg-emerald-50'; icon = ic('check-circle', 'w-5 h-5 text-emerald-500'); } else if (isSel) { b = 'border-red-400 bg-red-50'; icon = ic('x-circle', 'w-5 h-5 text-red-500'); } else b = 'border-slate-200 opacity-50'; }
+            const num = done && isAns ? 'bg-emerald-500 text-white' : done && isSel ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-500';
+            return `<button type="button" ${done ? '' : `data-act="pick" data-v="${v}"`} class="w-full text-left flex items-start gap-3 px-4 py-3 rounded-xl border transition-all ${b} ${done ? 'cursor-default' : 'cursor-pointer'}"><span class="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${num}">${v}</span><span class="text-sm text-slate-700 flex-1 pt-0.5">${esc(o)}</span>${icon}</button>`; }).join('')}</div>
+          ${done ? `
+          <div class="px-6 pb-5"><div class="rounded-xl px-5 py-4 ${ok ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}">
+            <p class="text-xs font-bold mb-1.5 ${ok ? 'text-emerald-700' : 'text-amber-700'}">${ok ? '정답입니다! +10pt' : `오답 — 정답은 ${p.ans}번`}</p>
+            <p class="text-sm text-slate-700 leading-relaxed">${esc(p.exp)}</p>
+            ${ok ? '' : `<div class="mt-2"><span class="inline-flex items-center gap-1 text-xs text-primary-600 font-medium">${ic('sparkles', 'w-3.5 h-3.5')}AI 맞춤 해설 보기 (3/5)</span></div>`}
+          </div></div>
+          <div class="px-6 pb-6"><button type="button" data-act="next" class="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-xl">다음 문제 ${ic('chevron-right', 'w-5 h-5')}</button></div>` : ''}
+        </div>`);
+    }
+
+    // ── 개념 학습 (LearnIndexPage, LearnUnitPage) ──
+    function learnIndex() {
+      const k = plan === 'A' ? cur() : st.ltab;
+      const us = units(k), ready = us.filter((u) => isReady(k, u.id));
+      const mins = us.reduce((a, u) => a + u.m, 0);
+      return `
+      <div class="min-h-full bg-white">
+        <div class="mx-auto max-w-6xl px-5 pb-16">
+          <header class="border-b border-slate-200 pb-9 pt-12">
+            ${plan === 'B' ? `<div class="mb-6">${chips([['sqld', 'SQLD'], ['adsp', 'ADsP']], st.ltab, 'ltab')}</div>` : ''}
+            <h1 class="mb-2.5 text-[2.1rem] font-extrabold tracking-tight text-slate-900">개념 학습</h1>
+            <p class="mb-6 max-w-[44rem] text-slate-500">한국데이터산업진흥원 공식 출제범위의 세부항목을 그대로 따라 구성했습니다.<br>각 항목을 짧은 개념 노트로 읽고, 다 읽으면 같은 내용을 빈칸으로 채우며 확인합니다.</p>
+            <dl class="flex flex-wrap gap-9">
+              <div><dd class="text-2xl font-extrabold tabular-nums text-slate-900">${ready.length} / ${us.length}</dd><dt class="text-[0.8125rem] text-slate-500">학습 가능한 항목</dt></div>
+              <div><dd class="text-2xl font-extrabold text-slate-900">${CURR[k].reduce((a, s) => a + s.groups.length, 0)}개</dd><dt class="text-[0.8125rem] text-slate-500">주요항목</dt></div>
+              <div><dd class="text-2xl font-extrabold tabular-nums text-slate-900">${Math.round((mins / 60) * 10) / 10}시간</dd><dt class="text-[0.8125rem] text-slate-500">전체 예상 시간</dt></div>
+            </dl>
+          </header>
+          ${CURR[k].map((s) => `
+          <section class="pt-9">
+            <div class="mb-4 flex flex-wrap items-baseline gap-2.5">
+              <h2 class="text-lg font-bold text-slate-900">${s.s}과목 · ${s.t}</h2><span class="text-[0.8125rem] text-slate-500">${s.exam}</span>
+              <span class="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[0.72rem] font-semibold text-amber-700">${ic('alert-triangle', 'h-3 w-3')}과목 40% 미만 시 과락</span>
+            </div>
+            ${s.groups.map(([g, list]) => `
+            <div class="mb-6">
+              <div class="mb-2.5 flex items-baseline gap-2"><h3 class="text-[0.9375rem] font-bold text-slate-900">${g}</h3><span class="text-[0.72rem] text-slate-400">세부항목 ${list.length}개</span></div>
+              <div class="grid gap-2.5 grid-cols-3">${list.map(([id, t, m]) => { const u = us.find((x) => x.id === id), ok = isReady(k, id); return `
+                <button type="button" data-act="unit" data-v="${k}:${id}" class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-primary-400 hover:shadow-sm">
+                  <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[0.8125rem] font-bold ${ok ? 'bg-primary-50 text-primary-600' : 'bg-slate-100 text-slate-400'}">${u.order}</span>
+                  <span class="flex min-w-0 flex-1 flex-col gap-1.5"><span class="font-bold leading-snug text-slate-900">${t}</span>
+                  <span class="flex flex-wrap items-center gap-2 text-[0.72rem] text-slate-400"><span class="rounded px-1.5 py-0.5 font-semibold ${ok ? 'bg-primary-50 text-primary-600' : 'bg-slate-100 text-slate-500'}">${ok ? '학습 가능' : '준비 중'}</span><span>${m}분</span></span></span>
+                </button>`; }).join('')}</div>
+            </div>`).join('')}
+          </section>`).join('')}
+        </div>
+      </div>`;
+    }
+    function inlineText(text, bid) {
+      let i = 0;
+      return esc(text).replace(/\{\{(.+?)\}\}/g, (_, ans) => {
+        const key = `${bid}-${i++}`;
+        if (!st.quiz) return `<b class="font-bold text-slate-900">${ans}</b>`;
+        const b = st.blanks[key];
+        const okv = !!(b && b.ok);
+        const tone = !b ? 'border-slate-300 bg-white' : okv ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-red-300 bg-red-50 text-red-700';
+        return `<input id="${plan}-blank-${key}" data-act="blank" data-v="${key}" data-ans="${ans}" value="${b ? esc(b.val) : ''}" class="mx-0.5 inline-block min-w-[5rem] rounded border border-b-2 border-b-primary-500 px-1.5 py-0.5 text-center align-baseline text-[0.94em] outline-none ${tone}" style="width:${Math.max(5, ans.length + 2)}em">${okv ? '<span data-okmark class="ml-1 text-[0.82em] font-semibold text-emerald-600">정답</span>' : ''}`;
+      });
+    }
+    function node(nd, bid, j) {
+      const [t, a, b] = nd, id = `${bid}${j}`;
+      if (t === 'p') return `<p class="mb-3.5 whitespace-pre-line leading-[1.8] text-slate-700">${inlineText(a, id)}</p>`;
+      if (t === 'code') return `<pre class="mb-4 rounded-xl bg-slate-900 text-slate-100 text-[13px] leading-relaxed p-4 overflow-x-auto">${esc(a)}</pre>`;
+      if (t === 'table') return `<div class="mb-4 overflow-x-auto"><table class="w-full border-collapse text-sm"><thead><tr>${a.map((h) => `<th class="whitespace-pre border border-slate-300 bg-slate-100 px-3 py-2 text-left text-[0.8125rem] font-semibold text-slate-600">${h}</th>`).join('')}</tr></thead><tbody>${b.map((r) => `<tr>${r.map((c, ci) => `<td class="border border-slate-300 px-3 py-2 align-top leading-relaxed ${ci === 0 ? 'font-semibold text-slate-800' : 'text-slate-700'}">${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+      if (t === 'analogy') return `<div class="mb-4 rounded-xl border border-primary-100 bg-primary-50 px-4 py-3.5"><div class="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-primary-600">${ic('lightbulb', 'h-3.5 w-3.5')}비유로 이해하기</div><p class="mb-2 font-bold leading-relaxed text-slate-900">${a}</p>${b.map((x) => `<p class="text-[0.9375rem] leading-[1.75] text-slate-700">${x}</p>`).join('')}</div>`;
+      if (t === 'memo') return `<div class="mb-4 rounded-xl border border-primary-100 border-l-4 border-l-primary-500 bg-primary-50 px-4 py-3"><div class="mb-1 flex items-center gap-1.5 text-xs font-bold text-primary-600">${ic('brain', 'h-3.5 w-3.5')}암기</div><p class="text-[0.9rem] font-bold leading-[1.7] text-primary-900">${inlineText(a, id)}</p></div>`;
+      if (t === 'trap') return `<div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"><div class="mb-1 flex items-center gap-1.5 text-xs font-bold text-amber-700">${ic('alert-triangle', 'h-3.5 w-3.5')}함정</div><p class="text-[0.9rem] leading-[1.7] text-amber-900">${inlineText(a, id)}</p></div>`;
+      return '';
+    }
+    function learnUnit() {
+      const [k, id] = st.unit.split(':'), us = units(k), u = us.find((x) => x.id === id), ok = isReady(k, id);
+      const lesson = LESSON[id];
+      const blanksTotal = lesson ? JSON.stringify(lesson).match(/\{\{/g).length : 0;
+      return `
+      <div class="min-h-full bg-white">
+        <div class="mx-auto max-w-6xl px-5">
+          <div class="grid items-start gap-11 py-8 pb-20" style="grid-template-columns:15rem minmax(0,1fr)">
+            <nav class="sticky top-20 text-[0.8125rem]">
+              <button type="button" data-act="go" data-v="learn" class="mb-4 inline-flex items-center gap-1 text-slate-500 hover:text-primary-600">${ic('arrow-left', 'h-3.5 w-3.5')}목차로</button>
+              ${lesson ? `<h2 class="mb-2.5 text-[0.72rem] font-bold tracking-wide text-slate-400">이 항목의 목차</h2><ol class="border-l-2 border-slate-200" style="list-style:none;margin:0;padding:0">${lesson.map((b, i) => `<li><span class="-ml-0.5 block border-l-2 border-transparent py-1.5 pl-3 leading-snug text-slate-500">${i + 1}. ${b.h}</span></li>`).join('')}</ol>` : ''}
+            </nav>
+            <article class="max-w-[44rem]">
+              <p class="mb-2 text-[0.78rem] text-slate-400">개념 학습 › ${u.s}과목 › ${u.g}</p>
+              <h1 class="mb-2 text-[1.85rem] font-extrabold leading-tight tracking-tight text-slate-900">${u.t}</h1>
+              <div class="mb-8 flex flex-wrap gap-4 border-b border-slate-200 pb-5 text-[0.8125rem] text-slate-500">
+                <span>예상 <b class="font-semibold text-slate-700">${u.m}분</b></span><span>세부항목 <b class="font-semibold text-slate-700">${u.order} / ${EX[k].units}</b></span>${lesson ? `<span>빈칸 <b class="font-semibold text-slate-700">${blanksTotal}개</b></span>` : ''}
+              </div>
+              ${!ok ? `<div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5"><p class="text-[0.9rem] leading-relaxed text-amber-900">콘텐츠 준비 중입니다.<br>빠른 시일 내에 업데이트할 수 있도록 하겠습니다.</p><button type="button" data-act="go" data-v="learn" class="mt-3 inline-block text-[0.9rem] font-semibold text-amber-900 underline">목차로 돌아가기</button></div>` : ''}
+              ${ok && !lesson ? `<div class="space-y-3"><div class="h-32 rounded-2xl bg-slate-100"></div><div class="h-24 rounded-2xl bg-slate-100"></div><p class="text-sm text-slate-400">데모에는 ${k === 'sqld' ? 'DDL' : '연관 분석'} 항목 본문만 실었습니다. <button type="button" data-act="unit" data-v="${k}:${k === 'sqld' ? 'ad-ddl' : 'dm-assoc'}" class="text-primary-600 font-semibold underline">본문 보러 가기</button></p></div>` : ''}
+              ${lesson ? `
+                ${st.quiz ? '<p class="mb-4 inline-flex items-center rounded-full border border-primary-100 bg-primary-50 px-2.5 py-1 text-[0.72rem] font-bold text-primary-600">빈칸 복습 모드</p>' : ''}
+                ${lesson.map((b, i) => `<section class="mb-11"><h2 class="mb-3.5 text-[1.22rem] font-bold leading-snug text-slate-900">${i + 1}. ${b.h}</h2>${b.nodes.map((nd, j) => node(nd, `b${i}-`, j)).join('')}</section>`).join('')}
+                ${!st.quiz ? `
+                <div class="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4">
+                  <p class="text-[0.9rem] text-slate-500"><b class="block font-bold text-slate-900">다 읽으셨나요?</b>같은 내용을 빈칸으로 채우며 확인해 보세요.</p>
+                  <div class="flex gap-2"><span class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700">${ic('download', 'h-4 w-4')}인쇄 · PDF 저장</span>
+                  <button type="button" data-act="quiz" data-v="1" class="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-700">빈칸으로 복습하기 ${ic('arrow-right', 'h-4 w-4')}</button></div>
+                </div>` : `
+                <div class="mt-10 flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4">
+                  <span class="text-2xl font-extrabold tabular-nums text-primary-600" data-blank-score>${scoreBlanks()} / ${blanksTotal}</span>
+                  <span class="flex-1 text-sm text-slate-500">빈칸에 입력하고 Enter 또는 다른 곳을 클릭하면 즉시 채점됩니다.</span>
+                  <button type="button" data-act="quiz" data-v="0" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100">개념 노트로 돌아가기</button>
+                </div>`}` : ''}
+            </article>
+          </div>
+        </div>
+      </div>`;
+    }
+    function scoreBlanks() {
+      return Object.values(st.blanks).filter((b) => b.ok).length;
+    }
+
+    // ── 학습현황 (DashboardPage) ──
+    function radarSvg(k) {
+      const R = EX[k].radar, vals = R[st.radar], n = R.labels.length, cx = 230, cy = 140, rad = 95;
+      const pt = (i, r) => { const a = (Math.PI * 2 * i) / n - Math.PI / 2; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; };
+      const ring = (f) => R.labels.map((_, i) => pt(i, rad * f).join(',')).join(' ');
+      return `<svg viewBox="0 0 460 280" class="w-full" style="height:260px">
+        ${[0.25, 0.5, 0.75, 1].map((f) => `<polygon points="${ring(f)}" fill="none" stroke="#e2e8f0"/>`).join('')}
+        ${R.labels.map((_, i) => { const [x, y] = pt(i, rad); return `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#e2e8f0"/>`; }).join('')}
+        <polygon points="${vals.map((v, i) => pt(i, (rad * v) / 100).join(',')).join(' ')}" fill="#2563eb" fill-opacity="0.25" stroke="#2563eb" stroke-width="2"/>
+        ${R.labels.map((l, i) => { const [x, y] = pt(i, rad + 22); return `<text x="${x}" y="${y}" font-size="11" fill="#64748b" text-anchor="middle" dominant-baseline="middle">${l}</text>`; }).join('')}
+      </svg>`;
+    }
+    function barSvg(k) {
+      const rows = [...EX[k].recent].reverse(), W = 460, H = 260, L = 34, B = 30, T = 10, ih = H - B - T, bw = Math.min(56, ((W - L - 20) / rows.length) * 0.55);
+      const y = (v) => T + ih - (ih * v) / 100;
+      return `<svg viewBox="0 0 ${W} ${H}" class="w-full" style="height:260px">
+        ${[0, 25, 50, 75, 100].map((v) => `<line x1="${L}" x2="${W - 10}" y1="${y(v)}" y2="${y(v)}" stroke="#f1f5f9" stroke-dasharray="3 3"/><text x="${L - 6}" y="${y(v)}" font-size="10" fill="#94a3b8" text-anchor="end" dominant-baseline="middle">${v}</text>`).join('')}
+        <line x1="${L}" x2="${W - 10}" y1="${y(60)}" y2="${y(60)}" stroke="#10b981" stroke-dasharray="4 4"/>
+        ${rows.map((r, i) => { const step = (W - L - 20) / rows.length, x = L + 10 + step * i + (step - bw) / 2; return `<rect x="${x}" y="${y(r[2])}" width="${bw}" height="${ih - (ih * (100 - r[2])) / 100}" rx="4" fill="#2563eb"/><text x="${x + bw / 2}" y="${H - 12}" font-size="10" fill="#64748b" text-anchor="middle">${r[0].replace(/^.* 모의고사 /, '')}</text>`; }).join('')}
+      </svg>`;
+    }
+    function calendar(k) {
+      const LV = ['bg-slate-100', 'bg-emerald-200', 'bg-emerald-400', 'bg-emerald-500', 'bg-emerald-700'];
+      const weeks = 20, seed = k === 'adsp' ? 7 : k === 'all' ? 3 : 1;
+      const lvl = (w, d) => { if (k === 'adsp' && w < 14) return 0; const h = (w * 7 + d) * 2654435761 * seed % 97; return h < 40 ? 0 : h < 60 ? 1 : h < 78 ? 2 : h < 90 ? 3 : 4; };
+      const months = ['6월', '', '', '', '7월', '', '', '', '8월', '', '', '', '', '9월', '', '', '', '10월', '', ''];
+      return `
+      <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
+        <h2 class="text-base font-bold text-sqld-navy mb-4">학습 캘린더</h2>
+        <div class="flex flex-row gap-6 items-center">
+          <div class="shrink-0">
+            <div class="inline-flex flex-col gap-2">
+              <div class="flex items-end"><div class="w-8"></div><div class="flex gap-1">${months.map((m) => `<div class="w-5 text-xs text-slate-400 text-center">${m}</div>`).join('')}</div></div>
+              <div class="flex gap-2">
+                <div class="grid grid-rows-7 gap-1 text-xs text-slate-400 pt-0.5">${['', '월', '', '수', '', '금', ''].map((d) => `<span class="h-5">${d}</span>`).join('')}</div>
+                <div class="flex gap-1">${Array.from({ length: weeks }, (_, w) => `<div class="grid grid-rows-7 gap-1">${Array.from({ length: 7 }, (_, d) => `<div class="w-5 h-5 rounded-[3px] ${w === weeks - 1 && d > 0 ? 'bg-transparent' : LV[lvl(w, d)]}"></div>`).join('')}</div>`).join('')}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 mt-3 text-xs text-slate-400"><span>적음</span>${LV.map((c) => `<div class="w-4 h-4 rounded-[3px] ${c}"></div>`).join('')}<span>많음</span></div>
+          </div>
+          <div class="grid grid-cols-3 gap-4 flex-1 border-l border-slate-100 pl-6">
+            ${[['연속 학습일', k === 'adsp' ? 5 : 12, true], ['이번 달 학습일', k === 'adsp' ? 9 : 14], ['이번 주 학습일', k === 'adsp' ? 1 : 1]].map(([l, v, a]) => `<div class="flex flex-col gap-1"><span class="text-xs text-slate-400">${l}</span><span class="text-xl font-bold tabular-nums ${a ? 'text-primary-600' : 'text-sqld-navy'}">${v}<span class="text-xs font-medium text-slate-400 ml-0.5">일</span></span></div>`).join('')}
+          </div>
+        </div>
+      </div>`;
+    }
+    function statCards(s, note) {
+      return `<div class="grid grid-cols-4 gap-4 mb-8">${[['trophy', '보유 포인트', `${st.points.toLocaleString()}pt`, 'text-amber-500', note], ['target', '모의고사 응시', `${s.attempts}회`, 'text-emerald-500'], ['clock', '총 학습 시간', s.time, 'text-blue-500'], ['book-open', '푼 문제 수', `${s.solved}문제`, 'text-purple-500']].map(([i, l, v, c, nt]) => `
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">${ic(i, `w-6 h-6 ${c} mb-2`)}<p class="text-xs text-slate-500">${l}${nt ? `<span class="ml-1 text-[10px] text-slate-400">${nt}</span>` : ''}</p><p class="text-xl font-bold text-sqld-navy">${v}</p></div>`).join('')}</div>`;
+    }
+    function recentList(k, withBadge) {
+      return `<ul class="space-y-3">${(k === 'all' ? [...EX.adsp.recent.map((r) => ['adsp', ...r]), ...EX.sqld.recent.slice(0, 3).map((r) => ['sqld', ...r])] : EX[k].recent.map((r) => [k, ...r])).slice(0, 5).map(([kk, t, d, s, p]) => `
+        <li><div class="flex items-center justify-between text-sm hover:bg-slate-50 -mx-2 px-2 py-1.5 rounded-lg"><div><p class="font-medium text-slate-700 flex items-center gap-2">${withBadge ? badge(kk) : ''}${t}</p><p class="text-xs text-slate-400">${d}</p></div>
+        <div class="flex items-center gap-2"><span class="font-bold text-sqld-navy">${s}점</span><span class="text-xs px-2 py-0.5 rounded-full font-semibold ${p ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}">${p ? '합격' : '불합격'}</span></div></div></li>`).join('')}</ul>`;
+    }
+    function dashExam(k) {
+      const e = EX[k];
+      return `
+        ${statCards(e.stats, '(두 시험 공통)')}
+        <div class="grid grid-cols-2 gap-6 mb-6">
+          <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
+            <div class="flex items-center justify-between mb-4"><h2 class="text-base font-bold text-sqld-navy">과목별 정답률</h2>${segTabs([['all', '전체'], ['exam', '모의고사'], ['endless', '무한풀이'], ['learn', '개념학습']], st.radar, 'radar')}</div>
+            ${radarSvg(k)}
+            ${k === 'adsp' ? `<p class="text-[11px] text-red-500 mt-2 flex items-center gap-1">${ic('alert-triangle', 'w-3 h-3')}2과목(분석 기획 · 마스터 플랜) 정답률이 과락 기준 40% 아래입니다.</p>` : ''}
+          </div>
+          <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
+            <h2 class="text-base font-bold text-sqld-navy mb-4">모의고사 점수 추이</h2>${barSvg(k)}
+            <div class="flex items-center gap-2 mt-2 text-xs text-slate-400"><span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>합격 기준: 60점</div>
+          </div>
+        </div>
+        <div class="mb-6">${calendar(k)}</div>
+        <div class="grid grid-cols-2 gap-6">
+          <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-100"><h2 class="text-base font-bold text-sqld-navy mb-4">최근 모의고사</h2>${recentList(k, false)}</div>
+          <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-100"><h2 class="text-base font-bold text-sqld-navy mb-4">${e.recent2.title}</h2>
+            <ul class="space-y-3">${e.recent2.items.map(([t, d, okk]) => `<li><div class="flex items-center justify-between text-sm hover:bg-slate-50 -mx-2 px-2 py-1.5 rounded-lg"><div><p class="font-medium text-slate-700">${t}</p><p class="text-xs text-slate-400">${d}</p></div><span class="text-xs px-2 py-0.5 rounded-full font-semibold ${okk ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}">${okk ? '정답' : '오답'}</span></div></li>`).join('')}</ul>
+          </div>
+        </div>`;
+    }
+    function dashboard() {
+      const k = plan === 'A' ? cur() : st.dtab;
+      const dday = k === 'all' ? null : EX[k].schedule;
+      let body;
+      if (k !== 'all') body = dashExam(k);
+      else {
+        const sum = { attempts: EX.sqld.stats.attempts + EX.adsp.stats.attempts, time: '25시간 0분', solved: EX.sqld.stats.solved + EX.adsp.stats.solved };
+        body = `${statCards(sum, '')}
+        <div class="grid grid-cols-2 gap-6 mb-6">${['sqld', 'adsp'].map((x) => { const r = EX[x].recent[0]; return `
+          <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
+            <div class="flex items-center gap-2 mb-3">${badge(x)}<span class="text-sm text-slate-500">${EX[x].full}</span><span class="ml-auto inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1 text-xs font-bold text-blue-700">${ic('calendar', 'w-3.5 h-3.5 text-blue-500')}D-${EX[x].schedule.dday}</span></div>
+            <div class="flex items-end gap-2 mb-1"><span class="text-3xl font-extrabold text-sqld-navy">${r[2]}점</span><span class="text-sm text-slate-400 mb-1">최근 모의고사 · ${r[0].replace(/^.* 모의고사 /, '')}</span></div>
+            <p class="text-sm font-semibold mb-4 ${x === 'sqld' ? 'text-emerald-600' : 'text-red-500'}">${x === 'sqld' ? '합격권 · 4회 연속 상승' : '2과목 과락 위험'}</p>
+            <div class="grid gap-3">${EX[x].subjects.map((s, i) => { const v = EX[x].result.sub[i] / EX[x].result.subMax[i] * 100; return `<div><div class="flex justify-between text-xs mb-1"><span class="text-slate-600">${s.label} · ${s.desc}</span><span class="font-semibold ${v < 40 ? 'text-red-600' : 'text-slate-700'}">${Math.round(v)}%</span></div><div class="relative h-2 rounded-full bg-slate-100"><div class="absolute inset-y-0 left-0 rounded-full ${v < 40 ? 'bg-red-400' : 'bg-primary-600'}" style="width:${v}%"></div><div class="absolute -top-1 -bottom-1 border-l-2 border-dashed border-amber-500" style="left:40%"></div></div></div>`; }).join('')}</div>
+            <button type="button" data-act="dtab" data-v="${x}" class="mt-5 text-sm text-primary-600 font-semibold hover:underline">${EX[x].name} 상세 보기 →</button>
+          </div>`; }).join('')}</div>
+        <div class="mb-6">${calendar('all')}</div>
+        <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-100"><h2 class="text-base font-bold text-sqld-navy mb-4">최근 모의고사</h2>${recentList('all', true)}</div>`;
+      }
+      return `
+      <div class="min-h-full bg-slate-50">
+        <div class="max-w-6xl mx-auto px-4 py-8">
+          <div class="mb-8">
+            <h1 class="text-2xl font-bold text-sqld-navy">안녕하세요, <span class="text-primary-600">민트초코</span>님!</h1>
+            <p class="text-slate-500 mt-1">${k === 'all' ? '두 시험의 학습 상태를 한눈에 확인하세요.' : EX[k].greeting}</p>
+            ${dday ? `<div class="inline-flex items-center gap-2 mt-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">${ic('calendar', 'w-4 h-4 text-blue-500')}<span class="text-sm font-bold text-blue-700">D-${dday.dday}</span><span class="text-sm text-blue-600">(시험일: ${dday.examDate})</span></div>` : ''}
+          </div>
+          ${plan === 'B' ? `<div class="mb-6">${segTabs([['all', '한눈에 보기'], ['sqld', 'SQLD'], ['adsp', 'ADsP']], st.dtab, 'dtab')}</div>` : ''}
+          ${body}
+        </div>
+      </div>`;
+    }
+
+    // ── SQL 실습 목록 (SQLPracticeListPage) ──
+    function sql() {
+      const list = [['EMP 테이블 부서별 평균 급여 구하기', 'SQL 기본', 'easy', 82], ['급여 상위 3명 사원 조회 (Top N)', 'SQL 활용', 'medium', 61], ['윈도우 함수로 부서 내 급여 순위 매기기', 'SQL 활용', 'medium', 54], ['계층형 질의로 조직도 출력하기', 'SQL 활용', 'hard', 38], ['OUTER JOIN으로 사원 없는 부서 찾기', 'SQL 기본', 'medium', 66], ['GROUP BY ROLLUP으로 소계 구하기', 'SQL 활용', 'hard', 41]]
+        .filter((x) => st.sqlDiff === 'all' || x[2] === st.sqlDiff);
+      return `
+      <div class="min-h-full bg-slate-50">
+        <div class="max-w-4xl mx-auto px-4 py-10">
+          <h1 class="text-2xl font-bold text-sqld-navy mb-1">SQL 실습</h1>
+          <p class="text-slate-500 text-sm mb-6">Oracle 환경에서 직접 SQL을 작성하고 결과를 확인하세요.</p>
+          ${plan === 'B' ? `<div class="mb-5 flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 text-sm rounded-lg px-4 py-3">${ic('info')}SQL 실습은 SQLD 전용 기능입니다. ADsP에는 코드 실습이 없습니다.</div>` : ''}
+          <div class="flex flex-wrap gap-3 mb-6">
+            <div class="relative flex-1 min-w-48"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">${ic('search')}</span><input id="${plan}-sql-search" placeholder="문제명 또는 카테고리 검색" class="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-lg bg-white"></div>
+            <div class="flex items-center gap-2">${ic('sliders-horizontal', 'w-4 h-4 text-slate-400')}${chips([['all', '전체'], ['easy', '기본'], ['medium', '중급'], ['hard', '고급']], st.sqlDiff, 'sqlDiff')}</div>
+            <select id="${plan}-sql-sort" class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-600"><option>기본 순서</option><option>난이도 낮은 순</option><option>난이도 높은 순</option></select>
+          </div>
+          <div class="grid gap-3">${list.map(([t, c, d, r]) => `
+            <div class="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between hover:border-primary-400 hover:shadow-md cursor-pointer transition-all">
+              <div class="flex items-center gap-3"><span class="text-xs px-2.5 py-1 rounded-full font-semibold ${DIFF_C[d]}">${DIFF_L[d]}</span><div><p class="font-semibold text-slate-800 text-sm">${t}</p><p class="text-xs text-slate-400 mt-0.5">${c}</p></div></div>
+              <div class="flex items-center gap-4"><div class="text-right"><p class="text-xs text-slate-400">정답률</p><p class="text-sm font-bold text-sqld-navy">${r}%</p></div>${ic('chevron-right', 'w-5 h-5 text-slate-400')}</div>
+            </div>`).join('')}</div>
+        </div>
+      </div>`;
+    }
+    function feedback() {
+      return `<div class="min-h-full bg-slate-50"><div class="max-w-3xl mx-auto px-4 py-10"><h1 class="text-2xl font-bold text-sqld-navy mb-1">피드백</h1><p class="text-slate-500 text-sm mb-6">서비스 개선 의견이나 문제 오류를 알려주세요.</p>
+        <div class="bg-white rounded-xl border border-slate-200 p-6 space-y-4"><div><p class="text-sm font-semibold text-slate-700 mb-2">어떤 시험에 대한 의견인가요?</p>${chips([['sqld', 'SQLD'], ['adsp', 'ADsP'], ['etc', '공통']], cur(), 'none')}</div><textarea id="${plan}-fb" class="w-full h-32 border border-slate-200 rounded-lg p-3 text-sm" placeholder="의견을 입력하세요"></textarea><p class="text-xs text-slate-400">공통 화면입니다. 지금 피드백 화면에 시험 구분 항목만 추가합니다.</p></div></div></div>`;
+    }
+
+    // ── 렌더링 ──
+    function render(jump) {
+      const P = { portal, home: plan === 'A' ? examMain : mainB, exams: examList, taking, result, endless, learn: learnIndex, unit: learnUnit, dashboard, sql, feedback };
+      const body = (P[st.page] || P.home)();
+      app.innerHTML = st.page === 'taking' ? body : header() + body;
+      urlEl.textContent = url();
+      if (jump) scroller.scrollTop = 0;
+      if (window.lucide) { try { window.lucide.createIcons(); } catch (e) { /* 아이콘 없이도 화면은 그대로 */ } }
+    }
+
+    function go(page) {
+      if (plan === 'A' && page === 'sql') st.exam = 'sqld';
+      if (page === 'endless') st.es = { ...st.es, step: 'mode', subject: null, cats: [], picked: null, exam: plan === 'A' ? cur() : (st.filter === 'all' ? 'sqld' : st.filter) };
+      if (page === 'learn' || page === 'unit') st.quiz = false;
+      if (page !== 'taking') st.tk.modal = null;
+      st.page = page;
+    }
+
+    root.addEventListener('click', (ev) => {
+      const t = ev.target.closest('[data-act]');
+      if (!t || !root.contains(t) || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return;
+      const a = t.dataset.act, v = t.dataset.v;
+      let jump = true;
+      if (a === 'go') go(v);
+      else if (a === 'exam') {
+        st.exam = v;
+        if (st.page === 'portal') st.page = 'home';
+        else if (st.page === 'sql' && v === 'adsp') st.page = 'home';
+        else if (['taking', 'result'].includes(st.page)) st.page = 'exams';
+        else if (st.page === 'unit') st.page = 'learn';
+        else if (st.page === 'endless') go('endless');
+        jump = false;
+      } else if (a === 'start') { st.exam = v; st.page = 'home'; }
+      else if (a === 'take') {
+        const [k, r] = v.split(':'); st.exam = k; st.round = Number(r);
+        st.tk = { page: 0, answers: k === 'adsp' && r === '3' ? { 1: '4', 2: '2', 3: '2' } : {}, memo: '', modal: null, remaining: k === 'adsp' && r === '3' ? 64 * 60 + 12 : 90 * 60 };
+        st.page = 'taking';
+      } else if (a === 'tpage') st.tk.page = Number(v);
+      else if (a === 'submit') { st.tk.modal = 'submit'; jump = false; }
+      else if (a === 'exit') { st.tk.modal = `exit:${v}`; jump = false; }
+      else if (a === 'modal') { st.tk.modal = v || null; jump = false; }
+      else if (a === 'filter') { st.filter = v; if (st.page === 'endless') st.es.exam = v === 'all' ? 'sqld' : v; st.es.qi = 0; st.es.picked = null; jump = false; }
+      else if (a === 'ltab') { st.ltab = v; jump = false; }
+      else if (a === 'dtab') st.dtab = v;
+      else if (a === 'radar') { st.radar = v; jump = false; }
+      else if (a === 'sched') { st.sched = v; jump = false; }
+      else if (a === 'sqlDiff') { st.sqlDiff = v; jump = false; }
+      else if (a === 'es') {
+        if (v === 'home') go(plan === 'A' ? 'home' : 'home');
+        else if (v === 'random') { st.es.subject = null; st.es.cats = []; st.es.step = 'play'; st.es.qi = 0; st.es.picked = null; if (plan === 'A') st.es.exam = cur(); }
+        else if (v === 'play') { st.es.step = 'play'; st.es.qi = 0; st.es.picked = null; }
+        else st.es.step = v === 'subject' ? 'subject' : v === 'mode' ? 'mode' : v;
+        if (v === 'subject') { st.es.cats = []; st.es.subject = null; }
+      } else if (a === 'subj') { const [k, no] = v.split(':'); st.es.exam = k; st.es.subject = no; st.es.cats = []; st.es.step = 'category'; }
+      else if (a === 'cat') { const c = st.es.cats; st.es.cats = c.includes(v) ? c.filter((x) => x !== v) : [...c, v]; jump = false; }
+      else if (a === 'catall') { const s = EX[st.es.exam].subjects.find((x) => x.no === st.es.subject); const all = s.cats.every(([c]) => st.es.cats.includes(c)); st.es.cats = all ? [] : s.cats.map(([c]) => c); jump = false; }
+      else if (a === 'pick') { const p = poolFor()[st.es.qi % poolFor().length]; st.es.picked = v; st.es.answered += 1; if (v === p.ans) { st.es.correct += 1; st.points += 10; } jump = false; }
+      else if (a === 'next') { st.es.qi += 1; st.es.picked = null; jump = false; }
+      else if (a === 'unit') { st.unit = v; st.exam = v.split(':')[0]; st.quiz = false; st.blanks = {}; st.page = 'unit'; }
+      else if (a === 'quiz') { st.quiz = v === '1'; st.blanks = {}; }
+      else return;
+      render(jump);
+    });
+    root.querySelector('[data-reset]').addEventListener('click', () => { st = init(); render(true); });
+    root.addEventListener('change', (ev) => {
+      const t = ev.target;
+      if (t.dataset.act === 'ans') { const [n, v] = t.dataset.v.split(':'); st.tk.answers[n] = v; render(false); }
+      if (t.dataset.act === 'blank') { st.blanks[t.dataset.v] = { val: t.value, ok: t.value.trim() === t.dataset.ans }; renderBlanks(); }
+    });
+    root.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && ev.target.dataset && ev.target.dataset.act === 'blank') ev.target.blur(); });
+    root.addEventListener('input', (ev) => { if (ev.target.dataset && ev.target.dataset.act === 'memo') st.tk.memo = ev.target.value; });
+
+    // 빈칸 채점은 입력칸 상태만 갱신해 포커스를 잃지 않게 한다
+    function renderBlanks() {
+      app.querySelectorAll('[data-act="blank"]').forEach((el) => {
+        const b = st.blanks[el.dataset.v]; if (!b) return;
+        el.classList.remove('border-slate-300', 'bg-white', 'border-emerald-300', 'bg-emerald-50', 'text-emerald-700', 'border-red-300', 'bg-red-50', 'text-red-700');
+        el.classList.add(...(b.ok ? ['border-emerald-300', 'bg-emerald-50', 'text-emerald-700'] : ['border-red-300', 'bg-red-50', 'text-red-700']));
+        const next = el.nextElementSibling, has = next && next.dataset && next.dataset.okmark !== undefined;
+        if (b.ok && !has) el.insertAdjacentHTML('afterend', '<span data-okmark class="ml-1 text-[0.82em] font-semibold text-emerald-600">정답</span>');
+        if (!b.ok && has) next.remove();
+      });
+      const sc = app.querySelector('[data-blank-score]');
+      if (sc) sc.textContent = `${Object.values(st.blanks).filter((b) => b.ok).length} / ${app.querySelectorAll('[data-act="blank"]').length}`;
+    }
+
+    // 응시 화면 타이머 (CountdownTimer: 10분 이하 주황, 3분 이하 빨강)
+    setInterval(() => {
+      if (st.page !== 'taking' || st.tk.modal || st.tk.remaining <= 0) return;
+      st.tk.remaining -= 1;
+      const el = app.querySelector('[data-timer-text]');
+      if (el) el.textContent = `${String(Math.floor(st.tk.remaining / 60)).padStart(2, '0')}:${String(st.tk.remaining % 60).padStart(2, '0')}`;
+    }, 1000);
+
+    render(true);
+  }
+
+  createDemo(document.getElementById('demo-a'), 'A');
+  createDemo(document.getElementById('demo-b'), 'B');
+})();
+</script>

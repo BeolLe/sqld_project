@@ -6,7 +6,7 @@ import {
   type LessonProgress,
   type RemoteLesson,
 } from '../api/education';
-import type { LearnExamType } from '../data/learn/catalog';
+import type { ExamType } from '../constants/examTypes';
 import { useAuth } from '../contexts/AuthContext';
 
 export type RemoteLessonStatus = 'loading' | 'not-found' | 'error' | 'ready';
@@ -24,7 +24,7 @@ interface UseRemoteLessonReturn {
  * 로그인 상태에서만 진도(첫 열람 → IN_PROGRESS)를 기록한다 — 비로그인 사용자의
  * 진도는 DB에 저장하지 않는다는 education 스키마 정책을 그대로 따른다.
  */
-export function useRemoteLesson(lessonCode: string | undefined, examType: LearnExamType = 'sqld'): UseRemoteLessonReturn {
+export function useRemoteLesson(lessonCode: string | undefined, examType: ExamType = 'sqld'): UseRemoteLessonReturn {
   const { isLoggedIn } = useAuth();
   const [asyncStatus, setStatus] = useState<RemoteLessonStatus>('loading');
   const [lesson, setLesson] = useState<RemoteLesson | null>(null);
