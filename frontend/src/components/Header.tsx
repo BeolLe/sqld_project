@@ -127,9 +127,9 @@ export default function Header({ onAuthClick }: HeaderProps) {
             <span className={`text-sm text-slate-400 ${previewEnabled ? 'hidden sm:inline' : ''}`}>인증 확인 중...</span>
           ) : isLoggedIn && user ? (
             <>
-              <span className={`text-sm text-slate-300 ${previewEnabled ? 'hidden 2xl:block' : 'hidden sm:block'}`}>
-                <span className="text-sqld-accent font-semibold">{user.nickname}</span>
-                <span className="ml-1"> 님 환영합니다!</span>
+              <span className="hidden sm:flex min-w-0 items-center text-sm text-slate-300">
+                <span className="max-w-24 truncate text-sqld-accent font-semibold" title={user.nickname}>{user.nickname}</span>
+                <span className={`ml-1 whitespace-nowrap ${previewEnabled ? 'hidden 2xl:inline' : ''}`}> 님 환영합니다!</span>
               </span>
               <Link
                 to="/mypage"
