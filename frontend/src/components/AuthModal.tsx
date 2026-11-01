@@ -7,6 +7,7 @@ import { ClickLog } from '../logging';
 import { apiFetch } from '../utils/api';
 import type { AuthMode } from '../types';
 import { TERMS_TEXT, PRIVACY_TEXT } from '../constants/legal';
+import { getPageId } from '../utils/pageId';
 
 type ModalStep = 'auth' | 'find-email' | 'find-email-result' | 'reset-password' | 'reset-password-verify' | 'reset-password-form' | 'reset-password-done';
 
@@ -107,7 +108,8 @@ export default function AuthModal({ mode, onClose, onModeChange }: AuthModalProp
   const location = useLocation();
   const click = useMemo(() => {
     const path = location.pathname;
-    const pid = path === '/' ? 'main' : path.startsWith('/exams') ? (path.includes('/result') ? 'exam_result' : path.includes('/taking') ? 'exam_taking' : 'exam_list') : path.startsWith('/sql-practice/') ? 'sql_solving' : path === '/sql-practice' ? 'sql_list' : path === '/learn' ? 'learn_index' : path.startsWith('/learn/') ? 'learn_unit' : path === '/endless' ? 'endless' : path === '/dashboard' ? 'dashboard' : path === '/feedback' ? 'feedback' : path === '/mypage' ? 'mypage' : 'main';
+    const resolved = getPageId(path);
+    const pid = resolved === 'unknown' ? 'main' : resolved;
     return new ClickLog({ page_id: pid, url: path });
   }, [location.pathname]);
 

@@ -1,7 +1,7 @@
 import { apiFetch } from '../utils/api';
-import type { LearnExamType } from '../data/learn/catalog';
+import type { ExamType } from '../constants/examTypes';
 
-export const educationPath = (path: string, examType: LearnExamType = 'sqld') => `${path}?exam_type=${examType}`;
+export const educationPath = (path: string, examType: ExamType = 'sqld') => `${path}?exam_type=${examType}`;
 
 /** `GET /api/education/lessons/by-code/:lessonCode` 응답. */
 export interface RemoteLesson {
@@ -32,11 +32,11 @@ export interface LessonProgress {
   resumeExpiresAt: string | null;
 }
 
-export function fetchLessonByCode(lessonCode: string, examType: LearnExamType = 'sqld'): Promise<RemoteLesson> {
+export function fetchLessonByCode(lessonCode: string, examType: ExamType = 'sqld'): Promise<RemoteLesson> {
   return apiFetch<RemoteLesson>(educationPath(`/education/lessons/by-code/${encodeURIComponent(lessonCode)}`, examType));
 }
 
-export async function fetchLessonProgress(lessonId: number, examType: LearnExamType = 'sqld'): Promise<LessonProgress | null> {
+export async function fetchLessonProgress(lessonId: number, examType: ExamType = 'sqld'): Promise<LessonProgress | null> {
   const { progress } = await apiFetch<{ progress: LessonProgress | null }>(
     educationPath(`/education/lessons/${lessonId}/progress`, examType),
   );
@@ -46,7 +46,7 @@ export async function fetchLessonProgress(lessonId: number, examType: LearnExamT
 export async function saveLessonProgress(
   lessonId: number,
   payload: { lessonVersionId: number; completed?: boolean },
-  examType: LearnExamType = 'sqld',
+  examType: ExamType = 'sqld',
 ): Promise<LessonProgress | null> {
   const { progress } = await apiFetch<{ progress: LessonProgress | null }>(
     educationPath(`/education/lessons/${lessonId}/progress`, examType),

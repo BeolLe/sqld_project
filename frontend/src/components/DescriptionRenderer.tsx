@@ -46,7 +46,7 @@ function parseCells(line: string): string[] {
 }
 
 interface Block {
-  type: 'text' | 'table' | 'sql' | 'preformatted' | 'inline-table';
+  type: 'text' | 'table' | 'sql' | 'preformatted' | 'inline-table' | 'code';
   lines: string[];
 }
 
@@ -121,6 +121,7 @@ function parseBlocks(description: string): Block[] {
   }
 
   let inFencedSql = false;
+  let inFencedText = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -134,15 +135,24 @@ function parseBlocks(description: string): Block[] {
       continue;
     }
 
+    // R 코드·출력 등 SQL 이 아닌 코드블록 (```r, ```text) — 고정폭 그대로 보여준다 (ADsP)
+    if (!inFencedSql && !inFencedText && /^```\s*(r|text)\s*$/i.test(trimmed)) {
+      flush();
+      inFencedText = true;
+      current = { type: 'code', lines: [] };
+      continue;
+    }
+
     // 마크다운 코드블록 종료 (```)
-    if (inFencedSql && /^```\s*$/.test(trimmed)) {
+    if ((inFencedSql || inFencedText) && /^```\s*$/.test(trimmed)) {
       inFencedSql = false;
+      inFencedText = false;
       flush();
       continue;
     }
 
-    // 마크다운 코드블록 내부 — 그대로 SQL 블록에 추가
-    if (inFencedSql) {
+    // 마크다운 코드블록 내부 — 그대로 블록에 추가
+    if (inFencedSql || inFencedText) {
       current!.lines.push(line);
       continue;
     }
@@ -330,6 +340,15 @@ function SqlBlock({ lines }: { lines: string[] }) {
   );
 }
 
+/** ```r · ```text 코드블록. 한 줄이어도 코드로 보여주고 공백을 그대로 유지한다. */
+function CodeBlock({ lines }: { lines: string[] }) {
+  return (
+    <pre className="my-2 bg-slate-50 text-slate-800 text-[13px] border border-slate-200 px-4 py-3 overflow-x-auto whitespace-pre font-mono leading-relaxed">
+      {lines.join('\n')}
+    </pre>
+  );
+}
+
 function PreformattedBlock({ lines }: { lines: string[] }) {
   const displayLines = lines.map((line) => line.replace(/^(\s*)--\s?/, '$1'));
 
@@ -386,6 +405,8 @@ export default function DescriptionRenderer({ text }: { text: string }) {
             return <SqlBlock key={i} lines={block.lines} />;
           case 'preformatted':
             return <PreformattedBlock key={i} lines={block.lines} />;
+          case 'code':
+            return <CodeBlock key={i} lines={block.lines} />;
           case 'text':
             return <TextBlock key={i} lines={block.lines} />;
         }

@@ -24,7 +24,9 @@ export type PageParamKey =
   | 'exam_id'
   | 'problem_id'
   | 'mode'
-  | 'subject';
+  | 'subject'
+  /** 'sqld' | 'adsp'. tracker 가 URL 에서 읽어 자동으로 붙인다. */
+  | 'exam_type';
 
 export type PageParams = Partial<Record<PageParamKey, unknown>>;
 

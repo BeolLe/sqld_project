@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { apiFetch } from '../utils/api';
 import { ClickLog } from '../logging';
+import { useExamType } from '../hooks/useExamType';
 import type { FeedbackType, ErrorSubtype } from '../types';
 
 const ERROR_SUBTYPES: { value: ErrorSubtype; label: string }[] = [
@@ -35,6 +36,9 @@ export default function ReportErrorModal({
   examProblems,
   onClose }: ReportErrorModalProps) {
   const isExam = type === 'exam_error';
+  // 회차 번호는 SQLD 와 ADsP 가 같으므로 ADsP 제보는 제목에 시험 이름을 붙여 구분한다.
+  const { examType } = useExamType();
+  const examLabel = examType === 'adsp' ? 'ADsP 모의고사' : '모의고사';
   const issueTargetLabel =
     type === 'sql_error'
       ? 'SQL 실습'
@@ -81,7 +85,7 @@ export default function ReportErrorModal({
     }
 
     const title = isExam
-      ? `모의고사 ${examId}회 ${problemNo}번 - ${ERROR_SUBTYPES.find((s) => s.value === subtype)?.label}`
+      ? `${examLabel} ${examId}회 ${problemNo}번 - ${ERROR_SUBTYPES.find((s) => s.value === subtype)?.label}`
       : `${problemTitle ?? issueTargetLabel} - ${ERROR_SUBTYPES.find((s) => s.value === subtype)?.label}`;
 
     try {
@@ -136,7 +140,7 @@ export default function ReportErrorModal({
             <h2 className="text-xl font-bold text-sqld-navy mb-1">문제 오류 제보</h2>
             {isExam && examId && (
               <div className="text-sm text-slate-500 mb-4 space-y-1">
-                <p>모의고사 {examId}회 {problemNo}번 문항</p>
+                <p>{examLabel} {examId}회 {problemNo}번 문항</p>
                 {resolvedProblemTitle && <p className="text-slate-600">"{resolvedProblemTitle}"</p>}
               </div>
             )}

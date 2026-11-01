@@ -2,8 +2,10 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { RotateCcw, ChevronRight, CheckCircle, XCircle, Shuffle, ChevronLeft, Flag, Sparkles } from 'lucide-react';
 import type { Problem, AIExplainRequest } from '../types';
 import DescriptionRenderer from './DescriptionRenderer';
-import { fetchEndlessStats, resetEndlessStats, submitEndlessAnswer } from '../api/endless';
+import { createRequestId, fetchEndlessStats, resetEndlessStats, shouldSendRequestId, submitEndlessAnswer } from '../api/endless';
+import { useExamType } from '../hooks/useExamType';
 import { useAuth } from '../contexts/AuthContext';
+import { useExamCapabilities } from '../hooks/useExamCapabilities';
 import ReportErrorModal from './ReportErrorModal';
 import AIStreamPanel from './AIStreamPanel';
 import { useAIStream } from '../hooks/useAIStream';
@@ -129,8 +131,13 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
   const [actionError, setActionError] = useState<string | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
 
-  const pageview = useMemo(() => new PageviewLog({ page_id: 'endless', url: '/endless' }), []);
-  const click = useMemo(() => new ClickLog({ page_id: 'endless', url: '/endless', pageParams: { step: 'playing' } }), []);
+  const { examType, examPath } = useExamType();
+  const { schemaState } = useExamCapabilities();
+  // 같은 답안의 재시도에는 같은 requestId 를 쓴다. 저장이 성공하면 비운다.
+  const pendingRequestRef = useRef<{ key: string; id: string } | null>(null);
+  const endlessUrl = examPath('/endless');
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'endless', url: endlessUrl }), [endlessUrl]);
+  const click = useMemo(() => new ClickLog({ page_id: 'endless', url: endlessUrl, pageParams: { step: 'playing' } }), [endlessUrl]);
   const pvSent = useRef(false);
 
   const problem = queue[currentIndex] ?? null;
@@ -143,7 +150,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
     setStatsLoading(true);
     setActionError(null);
 
-    fetchEndlessStats()
+    fetchEndlessStats(examType)
       .then((stats) => {
         if (cancelled) return;
         setTotalAnswered(stats.totalAnswered ?? 0);
@@ -170,7 +177,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
     return () => {
       cancelled = true;
     };
-  }, [updatePoints, pageview, problem]);
+  }, [examType, updatePoints, pageview, problem]);
 
   const handleSelect = useCallback(
     async (option: string) => {
@@ -179,12 +186,21 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
       setIsSubmitting(true);
 
       try {
+        let requestId: string | undefined;
+        if (shouldSendRequestId(examType, schemaState)) {
+          const key = `${examType}:${problem.id}:${option}`;
+          if (pendingRequestRef.current?.key !== key) pendingRequestRef.current = { key, id: createRequestId() };
+          requestId = pendingRequestRef.current.id;
+        }
         const stats = await submitEndlessAnswer({
+          examType,
+          requestId,
           problemId: problem.id,
           selectedAnswer: option,
           category: problem.category,
           difficulty: problem.difficulty,
         });
+        pendingRequestRef.current = null;
         setSelectedAnswer(option);
         setAnswerId(stats.answerId ?? null);
         setTotalAnswered(stats.totalAnswered ?? 0);
@@ -198,7 +214,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
         setIsSubmitting(false);
       }
     },
-    [isAnswered, isSubmitting, problem, updatePoints],
+    [isAnswered, isSubmitting, problem, updatePoints, examType, schemaState],
   );
 
   const handleNext = useCallback(() => {
@@ -221,7 +237,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
     setAnswerId(null);
 
     try {
-      const stats = await resetEndlessStats();
+      const stats = await resetEndlessStats(examType);
       setTotalAnswered(stats.totalAnswered ?? 0);
       setTotalCorrect(stats.totalCorrect ?? 0);
       if (typeof stats.totalPoints === 'number') {
@@ -232,7 +248,7 @@ export default function EndlessPracticePlayer({ problems, label, onBack }: Props
       setTotalAnswered(0);
       setTotalCorrect(0);
     }
-  }, [problems, updatePoints]);
+  }, [examType, problems, updatePoints]);
 
   if (!problem) {
     return (

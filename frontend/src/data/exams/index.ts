@@ -9,6 +9,7 @@ import { EXAM_7_PROBLEMS } from './exam7';
 import { EXAM_8_PROBLEMS } from './exam8';
 import { EXAM_9_PROBLEMS } from './exam9';
 import { EXAM_10_PROBLEMS } from './exam10';
+import type { ExamType } from '../../constants/examTypes';
 
 const EXAM_MAP: Record<string, Problem[]> = {
   '1': EXAM_1_PROBLEMS,
@@ -23,7 +24,9 @@ const EXAM_MAP: Record<string, Problem[]> = {
   '10': EXAM_10_PROBLEMS,
 };
 
-export function getExamProblems(examId: string): Problem[] {
+/** 시험 종류별 모의고사 문항. SQLD 1회와 ADsP 1회는 id 가 같으므로 examType 으로 구분한다. */
+export async function getExamProblems(examId: string, examType: ExamType): Promise<Problem[]> {
+  if (examType === 'adsp') return (await import('../adsp/exams')).getAdspExamProblems(examId);
   return EXAM_MAP[examId] ?? [];
 }
 

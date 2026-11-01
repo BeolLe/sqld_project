@@ -7,30 +7,33 @@ import { PageviewLog, ClickLog } from '../logging';
 import { fetchEndlessProblems } from '../api/endless';
 import type { Problem } from '../types';
 import EndlessPracticePlayer from '../components/EndlessPracticePlayer';
+import ContentPreparing from '../components/ContentPreparing';
+import { useExamType } from '../hooks/useExamType';
+import { useContentReady } from '../hooks/useExamCapabilities';
+import { getCategoriesForSubject as getSubjectCategories } from '../constants/examTypes';
 
 type Step = 'mode-select' | 'subject-select' | 'category-select' | 'playing';
 
-const SUBJECT_1_CATEGORIES = ['데이터모델링', '정규화'];
-
-const SUBJECT_MAP: Record<string, { label: string; description: string }> = {
-  '1': { label: '1과목', description: '데이터 모델링의 이해' },
-  '2': { label: '2과목', description: 'SQL 기본 및 활용' },
-};
-
-function getCategoriesForSubject(subject: string, allCategories: string[]): string[] {
-  if (subject === '1') {
-    return allCategories.filter((c) => SUBJECT_1_CATEGORIES.includes(c));
-  }
-  return allCategories.filter((c) => !SUBJECT_1_CATEGORIES.includes(c));
-}
 
 export default function EndlessPracticePage() {
   const { isLoggedIn, isInitializing } = useAuth();
   const { openAuthModal } = useAuthModal();
   const navigate = useNavigate();
+  const { examType, config, examPath } = useExamType();
+  const { ready: contentReady, checking: checkingReady } = useContentReady();
+  const endlessUrl = examPath('/endless');
+
+  // 과목 번호 → 표시명. 과목 구성은 시험마다 다르다 (SQLD 2과목, ADsP 3과목).
+  const SUBJECT_MAP = useMemo(
+    () => Object.fromEntries(config.subjects.map((s) => [s.no, { label: s.label, description: s.description }])) as Record<string, { label: string; description: string }>,
+    [config],
+  );
+  const getCategoriesForSubject = (subject: string, categories: string[]) => getSubjectCategories(config, subject, categories);
 
   const [allProblems, setAllProblems] = useState<Problem[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 콘텐츠가 공개되지 않은 시험은 조회하지 않는다. 그때의 로딩 표시는 아래 isLoading 이 정한다.
+  const [fetching, setFetching] = useState(true);
+  const loading = checkingReady || (contentReady && fetching);
   const [error, setError] = useState<string | null>(null);
 
   const [step, setStep] = useState<Step>('mode-select');
@@ -39,12 +42,13 @@ export default function EndlessPracticePage() {
 
   useEffect(() => {
     if (!isLoggedIn || isInitializing) return;
+    if (checkingReady || !contentReady) return;
 
     let cancelled = false;
-    setLoading(true);
+    setFetching(true);
     setError(null);
 
-    fetchEndlessProblems()
+    fetchEndlessProblems(examType)
       .then((results) => {
         if (!cancelled) setAllProblems(results);
       })
@@ -52,11 +56,11 @@ export default function EndlessPracticePage() {
         if (!cancelled) setError(err.message);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setFetching(false);
       });
 
     return () => { cancelled = true; };
-  }, [isLoggedIn, isInitializing]);
+  }, [isLoggedIn, isInitializing, examType, contentReady, checkingReady]);
 
   const allCategories = useMemo(
     () => [...new Set(allProblems.map((p) => p.category))].sort(),
@@ -121,8 +125,8 @@ export default function EndlessPracticePage() {
   };
 
   // ─── 로깅 ──────────────────────────────────────────────────────────────
-  const pageview = useMemo(() => new PageviewLog({ page_id: 'endless', url: '/endless' }), []);
-  const click = useMemo(() => new ClickLog({ page_id: 'endless', url: '/endless' }), []);
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'endless', url: endlessUrl }), [endlessUrl]);
+  const click = useMemo(() => new ClickLog({ page_id: 'endless', url: endlessUrl }), [endlessUrl]);
   const lastPvStep = useRef<string | null>(null);
 
   useEffect(() => {
@@ -137,6 +141,14 @@ export default function EndlessPracticePage() {
     if (error && lastPvStep.current !== 'load_error') {
       lastPvStep.current = 'load_error';
       pageview.send({ step: 'load_error' });
+      return;
+    }
+    if (checkingReady) return;
+    if (!contentReady) {
+      if (lastPvStep.current !== 'preparing') {
+        lastPvStep.current = 'preparing';
+        pageview.send({ step: 'preparing' });
+      }
       return;
     }
     if (loading) return;
@@ -157,7 +169,7 @@ export default function EndlessPracticePage() {
       pageview.send({ step: 'category_select', data: { subject: selectedSubject } });
     }
     // playing pageview is handled by EndlessPracticePlayer
-  }, [isInitializing, isLoggedIn, error, loading, step, selectedSubject, pageview]);
+  }, [isInitializing, isLoggedIn, error, loading, step, selectedSubject, pageview, contentReady, checkingReady]);
 
   // ─── 비로그인 시 인증 모달 (E-4 fix: 조기 반환 전으로 이동) ─────────────
   useEffect(() => {
@@ -179,9 +191,25 @@ export default function EndlessPracticePage() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <p className="text-slate-500 mb-4">로그인 후 이용 가능합니다.</p>
-          <button onClick={() => { click.send({ object_section_id: 'login_notice', object_section_idx: 1, object_type: 'link', object_idx: 0, object_id: 'home', object_url: '/', page_params: { step: 'login_required' } }); navigate('/'); }} className="text-primary-600 hover:underline">
+          <button onClick={() => { click.send({ object_section_id: 'login_notice', object_section_idx: 1, object_type: 'link', object_idx: 0, object_id: 'home', object_url: examPath('/'), page_params: { step: 'login_required' } }); navigate(examPath('/')); }} className="text-primary-600 hover:underline">
             홈으로 돌아가기
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!checkingReady && !contentReady) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="max-w-3xl mx-auto px-4 py-6">
+          <div className="flex items-center gap-3 mb-8">
+            <h1 className="text-lg font-bold text-sqld-navy flex items-center gap-2">
+              <Shuffle className="w-5 h-5 text-primary-500" />
+              무한풀이
+            </h1>
+          </div>
+          <ContentPreparing feature="무한풀이" cta={{ label: '개념 학습 둘러보기', path: '/learn' }} />
         </div>
       </div>
     );
@@ -201,7 +229,7 @@ export default function EndlessPracticePage() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <p className="text-red-500 mb-4">{error}</p>
-          <button onClick={() => { click.send({ object_section_id: 'error_notice', object_section_idx: 1, object_type: 'link', object_idx: 0, object_id: 'home', object_url: '/', page_params: { step: 'load_error' } }); navigate('/'); }} className="text-primary-600 hover:underline">
+          <button onClick={() => { click.send({ object_section_id: 'error_notice', object_section_idx: 1, object_type: 'link', object_idx: 0, object_id: 'home', object_url: examPath('/'), page_params: { step: 'load_error' } }); navigate(examPath('/')); }} className="text-primary-600 hover:underline">
             홈으로 돌아가기
           </button>
         </div>
@@ -242,8 +270,8 @@ export default function EndlessPracticePage() {
             onClick={() => {
               const stepKey = step === 'mode-select' ? 'mode_select' : step === 'subject-select' ? 'subject_select' : step === 'category-select' ? 'category_select' : 'playing';
               if (step === 'mode-select') {
-                click.send({ object_section_id: 'title_bar', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'home', object_url: '/', page_params: { step: stepKey } });
-                navigate('/');
+                click.send({ object_section_id: 'title_bar', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'home', object_url: examPath('/'), page_params: { step: stepKey } });
+                navigate(examPath('/'));
               } else {
                 click.send({ object_section_id: 'title_bar', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'back', page_params: { step: stepKey } });
                 handleBack();
@@ -299,8 +327,8 @@ export default function EndlessPracticePage() {
 
         {/* Step 2: 과목 선택 */}
         {step === 'subject-select' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {(['1', '2'] as const).map((key) => {
+          <div className={`grid grid-cols-1 gap-4 ${config.subjects.length >= 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+            {config.subjects.map((subject) => subject.no).map((key) => {
               const info = SUBJECT_MAP[key];
               const categories = getCategoriesForSubject(key, allCategories);
               const count = allProblems.filter((p) => categories.includes(p.category)).length;

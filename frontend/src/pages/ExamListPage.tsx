@@ -6,6 +6,9 @@ import { useAuthModal } from '../contexts/AuthModalContext';
 import { PageviewLog, ClickLog } from '../logging';
 import type { Difficulty } from '../types';
 import { fetchExamList, type ExamListItem } from '../api/content';
+import { useExamType } from '../hooks/useExamType';
+import { useContentReady } from '../hooks/useExamCapabilities';
+import ContentPreparing from '../components/ContentPreparing';
 
 const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   easy: '기본',
@@ -25,15 +28,28 @@ export default function ExamListPage() {
   const { openAuthModal } = useAuthModal();
   const [exams, setExams] = useState<ExamListItem[]>([]);
   const [error, setError] = useState('');
+  const { examType, config, examPath } = useExamType();
+  const { ready: contentReady, checking: checkingReady } = useContentReady();
+  const listUrl = examPath('/exams');
 
-  const pageview = useMemo(() => new PageviewLog({ page_id: 'exam_list', url: '/exams' }), []);
-  const click = useMemo(() => new ClickLog({ page_id: 'exam_list', url: '/exams' }), []);
+  const pageview = useMemo(() => new PageviewLog({ page_id: 'exam_list', url: listUrl }), [listUrl]);
+  const click = useMemo(() => new ClickLog({ page_id: 'exam_list', url: listUrl }), [listUrl]);
   const pvSent = useRef(false);
 
   useEffect(() => {
     let mounted = true;
 
-    fetchExamList()
+    if (checkingReady) return;
+
+    if (!contentReady) {
+      if (!pvSent.current) {
+        pvSent.current = true;
+        pageview.send({ step: 'preparing', data: { exam_count: 0 } });
+      }
+      return;
+    }
+
+    fetchExamList(examType)
       .then((data) => {
         if (!mounted) return;
         setExams(data);
@@ -54,16 +70,15 @@ export default function ExamListPage() {
     return () => {
       mounted = false;
     };
-  }, [pageview]);
+  }, [pageview, examType, contentReady, checkingReady]);
 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-4xl mx-auto px-4 py-10">
         <h1 className="text-2xl font-bold text-sqld-navy mb-1">모의고사</h1>
-        <p className="text-slate-500 text-sm mb-8">
-          실제 SQLD 시험 형식의 모의고사로 실력을 점검하세요. (1~3회 기본 / 4~6회 중급 / 7~10회
-          고급)
-        </p>
+        <p className="text-slate-500 text-sm mb-8">{config.examListDescription}</p>
+
+        {!checkingReady && !contentReady && <ContentPreparing feature="모의고사" cta={{ label: '개념 학습 둘러보기', path: '/learn' }} />}
 
         <div className="grid gap-4">
           {exams.map((exam) => (
@@ -73,14 +88,14 @@ export default function ExamListPage() {
               onClick={() => {
                 click.send({
                   object_section_id: 'exam_list', object_section_idx: 1, object_type: 'card', object_idx: exam.round - 1, object_id: 'exam',
-                  object_url: `/exams/${exam.id}/taking`,
+                  object_url: examPath(`/exams/${exam.id}/taking`),
                   data: { exam_id: exam.id, exam_round: exam.round, difficulty: exam.avgDifficulty, is_logged_in: !!user },
                 });
                 if (!user) {
                   openAuthModal('login');
                   return;
                 }
-                navigate(`/exams/${exam.id}/taking`);
+                navigate(examPath(`/exams/${exam.id}/taking`));
               }}
             >
               <div className="flex items-center gap-4">

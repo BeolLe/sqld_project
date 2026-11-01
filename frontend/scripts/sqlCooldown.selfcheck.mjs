@@ -22,6 +22,7 @@ const fixtures = {
   'react-router-dom': `export const useParams = () => ({id: harness.problemId}); export const useNavigate = () => () => {}; export const useSearchParams = () => [new URLSearchParams()];`,
   '../contexts/AuthContext': 'export const useAuth = () => ({user: {id: "user"}, updatePoints() {}});',
   '../logging': 'export class PageviewLog {send() {}} export class ClickLog {send() {}}',
+  '../hooks/useExamType': `export const useExamType = () => ({examType: 'sqld', examPath: path => '/sqld' + path});`,
   '../api/content': `export const fetchSQLPractice = async id => ({id, title: 'test', description: '', schemaSQL: '', sampleData: '', difficulty: 'easy', category: 'test', correctRate: 0});`,
   '../utils/api': 'export const apiRequest = (...args) => harness.request(...args);',
   '../utils/sqlParser': 'export const parseDDL = () => []; export const parseInserts = () => [];',

@@ -1,8 +1,8 @@
 import type { Problem, ExamScheduleResponse } from '../types';
 import { apiRequest, apiFetch } from '../utils/api';
-import { getExamProblems } from '../data/exams';
-
-const IS_MOCK = import.meta.env.VITE_AI_MOCK === '1';
+import { EXAM_CONFIG } from '../constants/examTypes';
+import type { ExamType } from '../constants/examTypes';
+import { withExamType } from '../utils/examPath';
 
 function getAuthHeaders() {
   return {
@@ -38,8 +38,14 @@ export interface ExamSessionResponse {
   durationSeconds: number;
 }
 
-export function fetchExamSession(examId: string): Promise<ExamSessionResponse> {
-  if (IS_MOCK) {
+/** 응시 저장 호출이 함께 보내는 식별자. 시험 종류와 서버가 내려준 응시 UUID. */
+export interface ExamScope {
+  examType: ExamType;
+  attemptUuid?: string;
+}
+
+export function fetchExamSession(examId: string, examType: ExamType): Promise<ExamSessionResponse> {
+  if (import.meta.env.VITE_AI_MOCK === '1') {
     return Promise.resolve({
       attemptId: 1,
       attemptUuid: 'mock-attempt-uuid',
@@ -51,20 +57,22 @@ export function fetchExamSession(examId: string): Promise<ExamSessionResponse> {
       durationSeconds: 5400,
     });
   }
-  return request<ExamSessionResponse>(`/exams/${examId}/session`);
+  return request<ExamSessionResponse>(withExamType(`/exams/${examId}/session`, examType));
 }
 
 export function saveExamAnswer(
   examId: string,
+  scope: ExamScope,
   payload: { problemId: string; selectedAnswer: string; currentPageNo?: number; remainingSeconds?: number }
 ) {
-  if (IS_MOCK) {
-    saveMockAnswer(examId, payload.problemId, payload.selectedAnswer);
+  if (import.meta.env.VITE_AI_MOCK === '1') {
+    saveMockAnswer(examId, scope.examType, payload.problemId, payload.selectedAnswer);
     return Promise.resolve({ ok: true });
   }
-  return request<{ ok: boolean }>(`/exams/${examId}/answers`, {
+  return request<{ ok: boolean }>(withExamType(`/exams/${examId}/answers`, scope.examType), {
     method: 'PUT',
     body: JSON.stringify({
+      attemptUuid: scope.attemptUuid,
       problem_id: payload.problemId,
       selected_answer: payload.selectedAnswer,
       current_page_no: payload.currentPageNo,
@@ -73,20 +81,22 @@ export function saveExamAnswer(
   });
 }
 
-export function saveExamMemo(examId: string, content: string) {
-  return request<{ ok: boolean }>(`/exams/${examId}/memo`, {
+export function saveExamMemo(examId: string, scope: ExamScope, content: string) {
+  return request<{ ok: boolean }>(withExamType(`/exams/${examId}/memo`, scope.examType), {
     method: 'PUT',
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ attemptUuid: scope.attemptUuid, content }),
   });
 }
 
 export function syncExamSession(
   examId: string,
+  scope: ExamScope,
   payload: { currentPageNo?: number; remainingSeconds?: number }
 ) {
-  return request<{ ok: boolean }>(`/exams/${examId}/session`, {
+  return request<{ ok: boolean }>(withExamType(`/exams/${examId}/session`, scope.examType), {
     method: 'PUT',
     body: JSON.stringify({
+      attemptUuid: scope.attemptUuid,
       current_page_no: payload.currentPageNo,
       remaining_seconds: payload.remainingSeconds,
     }),
@@ -95,15 +105,17 @@ export function syncExamSession(
 
 export function persistExamSessionSnapshot(
   examId: string,
+  scope: ExamScope,
   payload: { currentPageNo?: number; remainingSeconds?: number }
 ) {
-  return apiRequest(`/exams/${examId}/session`, {
+  return apiRequest(withExamType(`/exams/${examId}/session`, scope.examType), {
     method: 'PUT',
     keepalive: true,
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
+      attemptUuid: scope.attemptUuid,
       current_page_no: payload.currentPageNo,
       remaining_seconds: payload.remainingSeconds,
     }),
@@ -124,48 +136,62 @@ export interface ExamSubmitResponse {
 }
 
 // mock용 answers 저장소 (submitExam에서 읽기 위해 모듈 스코프에 보관)
+// SQLD 1회와 ADsP 1회는 id 가 같으므로 시험 종류까지 합쳐 키를 만든다.
 const mockAnswers: Record<string, Record<string, string>> = {};
+const mockKey = (examType: ExamType, examId: string) => `${examType}:${examId}`;
 
-export function saveMockAnswer(examId: string, problemId: string, answer: string) {
-  if (!mockAnswers[examId]) mockAnswers[examId] = {};
-  mockAnswers[examId][problemId] = answer;
+export function saveMockAnswer(examId: string, examType: ExamType, problemId: string, answer: string) {
+  const key = mockKey(examType, examId);
+  if (!mockAnswers[key]) mockAnswers[key] = {};
+  mockAnswers[key][problemId] = answer;
 }
 
-export function submitExam(
+export async function submitExam(
   examId: string,
+  scope: ExamScope,
   payload: { currentPageNo?: number; remainingSeconds?: number }
 ): Promise<ExamSubmitResponse> {
-  if (IS_MOCK) {
-    const problems = getExamProblems(examId);
-    const answers = mockAnswers[examId] ?? {};
+  if (import.meta.env.VITE_AI_MOCK === '1') {
+    // 목업 문항은 운영 번들에 들어가면 안 되므로 이 분기 안에서만 동적 import 한다.
+    const { getExamProblems } = await import('../data/exams');
+    const problems = await getExamProblems(examId, scope.examType);
+    const answers = mockAnswers[mockKey(scope.examType, examId)] ?? {};
     const correctCount = problems.filter((p) => answers[p.id] === p.answer).length;
     const score = Math.round((correctCount / problems.length) * 100);
     const PASS_SCORE = 60;
-    return Promise.resolve({
+    // 서버와 같은 규칙: 총점 60점 이상이어도 한 과목이라도 40% 미만이면 불합격
+    const config = EXAM_CONFIG[scope.examType];
+    const failedBySubjectCutoff = score >= PASS_SCORE && config.subjects.some(({ range: [from, to] }) => {
+      const subjectProblems = problems.slice(from - 1, to);
+      const correct = subjectProblems.filter((p) => answers[p.id] === p.answer).length;
+      return subjectProblems.length > 0 && correct / subjectProblems.length < 0.4;
+    });
+    return {
       attemptId: 1,
       score,
       answers,
       problems,
       correctCount,
-      passed: score >= PASS_SCORE,
-      failedBySubjectCutoff: false,
+      passed: score >= PASS_SCORE && !failedBySubjectCutoff,
+      failedBySubjectCutoff,
       scorePercent: score,
       awardedPoints: correctCount * 10,
       totalPoints: 320 + correctCount * 10,
-    });
+    };
   }
-  return request<ExamSubmitResponse>(`/exams/${examId}/submit`, {
+  return request<ExamSubmitResponse>(withExamType(`/exams/${examId}/submit`, scope.examType), {
     method: 'POST',
     body: JSON.stringify({
+      attemptUuid: scope.attemptUuid,
       current_page_no: payload.currentPageNo,
       remaining_seconds: payload.remainingSeconds,
     }),
   });
 }
 
-export function fetchExamResult(examId: string, attemptId?: number): Promise<ExamSubmitResponse> {
-  const query = attemptId == null ? '' : `?attempt_id=${encodeURIComponent(String(attemptId))}`;
-  return request<ExamSubmitResponse>(`/exams/${examId}/result${query}`);
+export function fetchExamResult(examId: string, examType: ExamType, attemptId?: number): Promise<ExamSubmitResponse> {
+  const attemptQuery = attemptId == null ? '' : `&attempt_id=${encodeURIComponent(String(attemptId))}`;
+  return request<ExamSubmitResponse>(`${withExamType(`/exams/${examId}/result`, examType)}${attemptQuery}`);
 }
 
 export function fetchExamSchedules(year?: number) {
