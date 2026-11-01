@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from asyncio import to_thread
 import ipaddress
 import re
 from time import monotonic
@@ -26,6 +27,7 @@ from app.db.logs import (
 )
 from app.db.postgres import check_postgres, close_postgres_pool, init_postgres_pool
 from app.services.ai import ai_service
+from app.services.sql_workspace_pool import start_pool_worker
 
 
 REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,100}$")
@@ -59,9 +61,15 @@ def should_log_request(path: str) -> bool:
 async def lifespan(_: FastAPI):
     init_oracle_pool()
     init_postgres_pool()
+    stop_pool_worker = pool_worker = None
     try:
+        stop_pool_worker, pool_worker = start_pool_worker()
         yield
     finally:
+        if stop_pool_worker is not None:
+            stop_pool_worker.set()
+            # Finish in-flight reset before closing DB pools.
+            await to_thread(pool_worker.join)
         await ai_service.close()
         close_oracle_pool()
         close_postgres_pool()

@@ -123,14 +123,21 @@ def validate_query_safety(query: str) -> None:
     )
 
     if any(
-        kind == "comment" and value.lstrip().startswith("/*+")
+        kind == "comment" and value.lstrip().startswith(("/*+", "--+"))
         for kind, value in segments
     ):
         raise WorkspaceValidationError(
             "Oracle optimizer hints are not allowed in SQL practice execution"
         )
 
-    if re.search(r"\b(?:MASTER_|PX_[0-9A-F]{8}_)[A-Z0-9_$#]*", uppercase_query):
+    code_query = " ".join(value.upper() for kind, value in segments if kind == "code")
+    # ponytail: reserve the PARALLEL token in DDL; clause-level exceptions need a SQL parser.
+    if re.match(r"\s*(?:CREATE|ALTER)\s+TABLE\b", code_query) and re.search(r"\bPARALLEL\b", code_query):
+        raise WorkspaceValidationError(
+            "PARALLEL is not allowed in practice DDL; use quoted identifiers for names"
+        )
+
+    if re.search(r"\b(?:MASTER_|PX_[0-9A-F]{8,32}_)[A-Z0-9_$#]*", uppercase_query):
         raise WorkspaceValidationError(
             "direct references to internal SQL practice tables are not allowed"
         )
@@ -194,10 +201,10 @@ def prepare_namespace(conn, workspace: WorkspaceContext) -> list[str]:
     existing_tables = sorted(fetch_namespace_tables(conn, workspace))
     execute_ddl_batch(
         conn,
-        [f"DROP TABLE {table_name} PURGE" for table_name in existing_tables]
+        [f"DROP TABLE {table_name} CASCADE CONSTRAINTS PURGE" for table_name in existing_tables]
         + [
-            f"CREATE TABLE {workspace.table_name(base_table)} AS "
-            f"SELECT * FROM MASTER_{base_table}"
+            f"CREATE TABLE {workspace.table_name(base_table)} NOPARALLEL AS "
+            f"SELECT /*+ NO_PARALLEL */ * FROM MASTER_{base_table}"
             for base_table in BASE_TABLES
         ],
     )
@@ -224,7 +231,7 @@ def cleanup_namespace_tables(conn, workspace: WorkspaceContext) -> list[str]:
 
     execute_ddl_batch(
         conn,
-        [f"DROP TABLE {table_name} PURGE" for table_name in existing_tables],
+        [f"DROP TABLE {table_name} CASCADE CONSTRAINTS PURGE" for table_name in existing_tables],
     )
     return existing_tables
 
@@ -233,8 +240,8 @@ def create_base_tables(conn, workspace: WorkspaceContext) -> list[str]:
     execute_ddl_batch(
         conn,
         [
-            f"CREATE TABLE {workspace.table_name(base_table)} AS "
-            f"SELECT * FROM MASTER_{base_table}"
+            f"CREATE TABLE {workspace.table_name(base_table)} NOPARALLEL AS "
+            f"SELECT /*+ NO_PARALLEL */ * FROM MASTER_{base_table}"
             for base_table in BASE_TABLES
         ],
     )
@@ -269,7 +276,7 @@ def cleanup_namespace_by_prefix(conn, namespace_prefix: str) -> list[str]:
 
     execute_ddl_batch(
         conn,
-        [f"DROP TABLE {table_name} PURGE" for table_name in existing_tables],
+        [f"DROP TABLE {table_name} CASCADE CONSTRAINTS PURGE" for table_name in existing_tables],
     )
     return existing_tables
 

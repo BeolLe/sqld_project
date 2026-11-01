@@ -31,6 +31,8 @@ class Settings:
         os.getenv("ORACLE_POOL_PING_INTERVAL_SECONDS", "60")
     )
     ORACLE_CALL_TIMEOUT_MS = int(os.getenv("ORACLE_CALL_TIMEOUT_MS", "7000"))
+    SQL_WORKSPACE_POOL_NAME = os.getenv("SQL_WORKSPACE_POOL_NAME", "sqld")
+    SQL_WORKSPACE_POOL_SIZE = int(os.getenv("SQL_WORKSPACE_POOL_SIZE", "2"))
 
     POSTGRES_HOST = os.getenv("POSTGRES_HOST", "")
     POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5432"))
