@@ -39,6 +39,7 @@ def initialize_pool() -> None:
                     state TEXT NOT NULL CHECK (state IN ('dirty', 'ready', 'leased')),
                     last_user_id TEXT,
                     last_practice_id TEXT,
+                    last_leased_at TIMESTAMPTZ,
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
                     PRIMARY KEY (pool_name, slot_id)
                 )
@@ -123,7 +124,7 @@ def lease_workspace(user_id: str, practice_id: str):
                 SELECT slot_id FROM runtime.sql_workspace_slots
                 WHERE pool_name = %s AND state = 'ready' AND slot_id < %s
                 ORDER BY (last_user_id = %s AND last_practice_id = %s) DESC NULLS LAST,
-                         slot_id
+                         last_leased_at DESC NULLS LAST, slot_id
             """, (pool_name(), settings.SQL_WORKSPACE_POOL_SIZE, user_id, practice_id))
             candidates = [row[0] for row in cur.fetchall()]
         for slot_id in candidates:
@@ -134,6 +135,7 @@ def lease_workspace(user_id: str, practice_id: str):
                     cur.execute("""
                         UPDATE runtime.sql_workspace_slots
                         SET state = 'leased', last_user_id = %s, last_practice_id = %s,
+                            last_leased_at = clock_timestamp(),
                             updated_at = clock_timestamp()
                         WHERE pool_name = %s AND slot_id = %s AND state = 'ready'
                         RETURNING namespace_token

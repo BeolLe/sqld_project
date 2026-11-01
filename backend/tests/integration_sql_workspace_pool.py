@@ -127,6 +127,20 @@ class WorkspacePoolIntegrationTests(unittest.TestCase):
             tokens = list(workers.map(run, ["one", "two"]))
         self.assertEqual(len(set(tokens)), 2)
 
+    def test_most_recent_environment_is_preferred_when_both_are_ready(self):
+        self.ready()
+        with pool.lease_workspace("user", "problem") as first:
+            pass
+        with pool.lease_workspace("user", "problem") as last:
+            pass
+        pool.release_workspace(first.namespace_token)
+        pool.release_workspace(last.namespace_token)
+        self.age()
+        pool.maintain_pool()
+        pool.maintain_pool()
+        with pool.lease_workspace("user", "problem") as chosen:
+            self.assertEqual(chosen.namespace_token, self.slots()[1][1])
+
     def test_worker_skips_live_execution_and_recovers_abandoned_lease(self):
         self.ready()
         with pool.lease_workspace("user", "problem") as workspace:
