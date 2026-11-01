@@ -3,7 +3,12 @@
  *
  *   node scripts/generate-adsp-seed.mjs            → ../docs/adsp_content_seed.sql
  *
- * 문항을 고치면 이 스크립트를 다시 돌려 프론트 데이터와 DB 시드를 맞춘다.
+ * 이 시드는 첫 적재 전용이다. 모든 INSERT 가 WHERE NOT EXISTS 라서, 이미 적재된 DB 에 다시 실행해도
+ * 고친 문항·보기·정답·해설은 반영되지 않는다(기존 행을 건너뛴다).
+ *  - 적재 후 문항을 고칠 때는 이 스크립트를 다시 돌리는 것으로 끝나지 않고, 별도 UPDATE 절차가 필요하다.
+ *  - 문항 id 가 위치 기반(모의고사 question_no, 무한풀이 adsp_endless_N)이라, 순서·개수는 적재 전에만 바꿀 수 있다.
+ *    적재 후에 바꾸면 응시·풀이 기록이 엉뚱한 문항을 가리킨다.
+ * 스크립트를 다시 돌리면 프론트 데이터(src/data/adsp)와 SQL 파일의 내용이 맞는지만 갱신된다.
  * 대상 테이블 컬럼은 analytics dbt 소스 모델(brz/exam_*, brz/endless_*) 기준이고,
  * 시험 구분 컬럼(exam_type, grading_policy, pass_threshold_percent)은 docs/EXAM_SCOPE_ROLLOUT.md 의 마이그레이션 이후 스키마를 전제한다.
  * 이 스크립트는 SQL 파일만 만든다. DB 에는 실행하지 않는다.
@@ -55,7 +60,7 @@ const lines = [];
 const out = (s = '') => lines.push(s);
 
 out('-- ADsP 모의고사·무한풀이 콘텐츠 시드');
-out('-- 생성: frontend/scripts/generate-adsp-seed.mjs (직접 수정하지 말고 스크립트를 다시 실행)');
+out('-- 생성: frontend/scripts/generate-adsp-seed.mjs (직접 수정하지 말 것. 첫 적재 전용이며, 적재 후 수정은 별도 UPDATE 절차)');
 out('--');
 out('-- 모의고사: exam.exams.exam_code = adsp_mock_N, 프론트·API 공개 id = N (exam_type=adsp 로 SQLD 와 구분)');
 out('--   exam_type = adsp, grading_policy = weighted, pass_threshold_percent = 60 (총점 합격 기준)');
@@ -63,7 +68,10 @@ out('--   문항 배점은 question_payload.points = 2 (가중 채점, 50문항 
 out(`--   ${ADSP_EXAM_LIST.length}회 × 50문항 (1과목 1~10 · 2과목 11~20 · 3과목 21~50), 과목별 과락 기준 40%`);
 out(`-- 무한풀이: endless.problems.source_problem_id = adsp_endless_N, ${ADSP_ENDLESS_PROBLEMS.length}문항, 카테고리 8개 (problem_categories.exam_type = adsp)`);
 out('--');
-out('-- 같은 키가 이미 있으면 건너뛰므로 여러 번 실행해도 중복되지 않는다.');
+out('-- 첫 적재 전용: 같은 키가 이미 있으면 건너뛰므로 여러 번 실행해도 중복되지 않는다.');
+out('--   그 대신 적재 후에 고친 문항·보기·정답·해설은 이 파일을 다시 실행해도 DB 에 반영되지 않는다.');
+out('--   적재 후 수정은 별도 UPDATE 절차로 한다. 문항 id 가 위치 기반(question_no, adsp_endless_N)이라');
+out('--   문항 순서·개수는 적재 전에만 바꿀 수 있다.');
 out('-- 실행 전 확인: 실제 DDL 에서 NOT NULL 컬럼(question_version, topic_category_id 등)과');
 out('--   correct_answer 타입(모의고사는 text, 무한풀이는 정수로 가정)을 확인한다.');
 out('--');

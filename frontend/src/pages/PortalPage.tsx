@@ -4,6 +4,7 @@ import { BarChart3, CheckCircle, ChevronRight, Database } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import CreatorCredentials from '../components/CreatorCredentials';
 import { useExamSchedules } from '../contexts/ExamScheduleContext';
+import { useExamCapabilities } from '../hooks/useExamCapabilities';
 import { EXAM_CONFIG, EXAM_TYPES } from '../constants/examTypes';
 import type { ExamType } from '../constants/examTypes';
 import { ALL_UNITS, ADSP_ALL_UNITS } from '../data/learn/curriculum';
@@ -16,8 +17,10 @@ const EXAM_ICONS: Record<ExamType, LucideIcon> = { sqld: Database, adsp: BarChar
 const UNIT_COUNT: Record<ExamType, number> = { sqld: ALL_UNITS.length, adsp: ADSP_ALL_UNITS.length };
 
 /** 시험별로 무엇을 할 수 있는지 한 줄 요약 */
-function menuSummary(type: ExamType): string {
+function menuSummary(type: ExamType, contentReady: boolean): string {
   const config = EXAM_CONFIG[type];
+  // 아직 공개되지 않은 시험은 모의고사·무한풀이를 약속하지 않고 개념 학습만 안내한다.
+  if (!contentReady) return `개념 학습 ${UNIT_COUNT[type]}항목`;
   const parts = ['모의고사', ...(config.hasSqlPractice ? ['SQL 실습'] : []), `개념 학습 ${UNIT_COUNT[type]}항목`, '무한풀이'];
   return parts.join(' · ');
 }
@@ -29,6 +32,7 @@ function menuSummary(type: ExamType): string {
 export default function PortalPage() {
   const navigate = useNavigate();
   const { schedules } = useExamSchedules();
+  const { available, checking, failed, refresh } = useExamCapabilities();
   const lastExam = useMemo(() => getLastExamType(), []);
   const pageview = useMemo(() => new PageviewLog({ page_id: 'portal', url: '/' }), []);
   const click = useMemo(() => new ClickLog({ page_id: 'portal', url: '/' }), []);
@@ -40,12 +44,14 @@ export default function PortalPage() {
     pageview.send({ data: { last_exam_type: lastExam } });
   }, [pageview, lastExam]);
 
-  function start(type: ExamType, index: number) {
+  function start(type: ExamType, index: number, learnOnly: boolean) {
+    // 미공개 시험은 시험 메인(모의고사·무한풀이 안내) 대신 개념 학습으로 바로 들어간다.
+    const target = learnOnly ? `/${type}/learn` : `/${type}`;
     click.send({
       object_section_id: 'exam_select', object_section_idx: 1, object_type: 'card', object_idx: index,
-      object_id: 'exam_start', object_url: `/${type}`, data: { to_exam_type: type, is_last_exam: type === lastExam },
+      object_id: 'exam_start', object_url: target, data: { to_exam_type: type, is_last_exam: type === lastExam, learn_only: learnOnly },
     });
-    navigate(`/${type}`);
+    navigate(target);
   }
 
   return (
@@ -70,6 +76,10 @@ export default function PortalPage() {
           const Icon = EXAM_ICONS[type];
           const next = getNextExamDate(filterSchedulesByExam(schedules, config.scheduleExamType));
           const dday = next?.examDate ? getDday(next.examDate) : null;
+          // 확인 중에도 공개를 약속하지 않는다. 조회가 끝내 실패하면 '준비 중'이 아니라 '확인 실패'로 구분한다.
+          const contentReady = available[type];
+          const showFailed = failed && type !== 'sqld';
+          const showPreparing = !contentReady && !showFailed;
           return (
             <div
               key={type}
@@ -82,6 +92,11 @@ export default function PortalPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h2 className="text-white font-bold text-xl">{config.name}</h2>
+                    {!contentReady && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-300 border border-slate-500/40">
+                        {showFailed ? '상태 확인 실패' : checking ? '확인 중' : '준비 중'}
+                      </span>
+                    )}
                     {type === lastExam && (
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
                         최근 학습
@@ -106,16 +121,27 @@ export default function PortalPage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                  {menuSummary(type)}
+                  {menuSummary(type, contentReady)}
                 </li>
               </ul>
               <button
                 type="button"
-                onClick={() => start(type, index)}
+                onClick={() => start(type, index, !contentReady)}
                 className={`mt-1 flex items-center justify-center gap-2 ${config.accent.button} text-white font-bold py-3.5 rounded-xl transition-colors`}
               >
-                {config.name} 시작하기 <ChevronRight className="w-5 h-5" />
+                {contentReady ? `${config.name} 시작하기` : `${config.name} 개념 학습 시작하기`} <ChevronRight className="w-5 h-5" />
               </button>
+              {showPreparing && !checking && (
+                <p className="text-xs text-slate-400 text-center">모의고사와 무한풀이는 준비 중입니다.</p>
+              )}
+              {showFailed && (
+                <p className="text-xs text-slate-400 text-center">
+                  모의고사 공개 상태를 확인하지 못했습니다.{' '}
+                  <button type="button" onClick={refresh} className="text-primary-400 hover:underline font-medium">
+                    다시 시도
+                  </button>
+                </p>
+              )}
             </div>
           );
         })}

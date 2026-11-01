@@ -2,9 +2,6 @@ import type { Difficulty, Problem } from '../types';
 import { apiFetch } from '../utils/api';
 import type { ExamType } from '../constants/examTypes';
 import { withExamType } from '../utils/examPath';
-import { EXAM_LIST, getExamProblems } from '../data/exams';
-import { ADSP_EXAM_LIST } from '../data/adsp/exams';
-import { ALL_PRACTICE_PROBLEMS, getPracticeProblemById } from '../data/practice';
 
 export interface ExamListItem {
   id: string;
@@ -15,27 +12,31 @@ export interface ExamListItem {
   timeLimit: number;
 }
 
-const IS_MOCK = import.meta.env.VITE_AI_MOCK === '1';
+// 목업 데이터(문항·정답·해설)는 운영 번들에 들어가면 안 되므로, 빌드 때 제거되는
+// `import.meta.env.VITE_AI_MOCK === '1'` 분기 안에서만 동적 import 한다.
 
-export function fetchExamList(examType: ExamType = 'sqld'): Promise<ExamListItem[]> {
-  if (IS_MOCK) {
-    return Promise.resolve(
-      (examType === 'adsp' ? ADSP_EXAM_LIST : EXAM_LIST).map((e) => ({
-        id: e.id,
-        round: e.round,
-        title: e.title,
-        problemCount: e.problemCount,
-        avgDifficulty: e.avgDifficulty,
-        timeLimit: e.timeLimit,
-      })),
-    );
+export async function fetchExamList(examType: ExamType = 'sqld'): Promise<ExamListItem[]> {
+  if (import.meta.env.VITE_AI_MOCK === '1') {
+    const list =
+      examType === 'adsp'
+        ? (await import('../data/adsp/exams')).ADSP_EXAM_LIST
+        : (await import('../data/exams')).EXAM_LIST;
+    return list.map((e) => ({
+      id: e.id,
+      round: e.round,
+      title: e.title,
+      problemCount: e.problemCount,
+      avgDifficulty: e.avgDifficulty,
+      timeLimit: e.timeLimit,
+    }));
   }
   return apiFetch<ExamListItem[]>(withExamType('/content/exams', examType));
 }
 
-export function fetchExamProblems(examId: string, examType: ExamType): Promise<Problem[]> {
-  if (IS_MOCK) {
-    return Promise.resolve(getExamProblems(examId, examType));
+export async function fetchExamProblems(examId: string, examType: ExamType): Promise<Problem[]> {
+  if (import.meta.env.VITE_AI_MOCK === '1') {
+    const { getExamProblems } = await import('../data/exams');
+    return getExamProblems(examId, examType);
   }
   return apiFetch<Problem[]>(withExamType(`/content/exams/${examId}`, examType));
 }
@@ -51,7 +52,7 @@ export interface ExamCapabilities {
 
 export function fetchExamCapabilities(): Promise<ExamCapabilities> {
   // 목업 모드는 프론트 데이터(data/adsp)로 동작하므로 ADsP 도 사용 가능이다.
-  if (IS_MOCK) {
+  if (import.meta.env.VITE_AI_MOCK === '1') {
     return Promise.resolve({ schemaState: 'ready', sqld: { available: true }, adsp: { available: true } });
   }
   return apiFetch<ExamCapabilities>('/content/exam-capabilities');
@@ -65,26 +66,26 @@ export interface SQLPracticeListItem {
   correctRate: number;
 }
 
-export function fetchSQLPracticeList(): Promise<SQLPracticeListItem[]> {
-  if (IS_MOCK) {
-    return Promise.resolve(
-      ALL_PRACTICE_PROBLEMS.map((p) => ({
-        id: p.id,
-        title: p.title,
-        category: p.category,
-        difficulty: p.difficulty,
-        correctRate: p.correctRate,
-      })),
-    );
+export async function fetchSQLPracticeList(): Promise<SQLPracticeListItem[]> {
+  if (import.meta.env.VITE_AI_MOCK === '1') {
+    const { ALL_PRACTICE_PROBLEMS } = await import('../data/practice');
+    return ALL_PRACTICE_PROBLEMS.map((p) => ({
+      id: p.id,
+      title: p.title,
+      category: p.category,
+      difficulty: p.difficulty,
+      correctRate: p.correctRate,
+    }));
   }
   return apiFetch<SQLPracticeListItem[]>('/content/sql-practices');
 }
 
-export function fetchSQLPractice(practiceId: string): Promise<Problem> {
-  if (IS_MOCK) {
+export async function fetchSQLPractice(practiceId: string): Promise<Problem> {
+  if (import.meta.env.VITE_AI_MOCK === '1') {
+    const { getPracticeProblemById } = await import('../data/practice');
     const problem = getPracticeProblemById(practiceId);
-    if (!problem) return Promise.reject(new Error('문제를 찾을 수 없습니다.'));
-    return Promise.resolve(problem);
+    if (!problem) throw new Error('문제를 찾을 수 없습니다.');
+    return problem;
   }
   return apiFetch<Problem>(`/content/sql-practices/${practiceId}`);
 }

@@ -7,6 +7,8 @@ import ReportErrorModal from '../components/ReportErrorModal';
 import { logEvent } from '../utils/eventLogger';
 import { PageviewLog, ClickLog } from '../logging';
 import { useExamType } from '../hooks/useExamType';
+import { useContentReady } from '../hooks/useExamCapabilities';
+import ContentPreparing from '../components/ContentPreparing';
 import { useAuth } from '../contexts/AuthContext';
 import DescriptionRenderer from '../components/DescriptionRenderer';
 import type { Problem } from '../types';
@@ -72,6 +74,8 @@ export default function ExamTakingPage() {
   const navigate = useNavigate();
   const { user, updatePoints } = useAuth();
   const { examType, config, examPath } = useExamType();
+  // 공개 여부 확인 전·미공개 시험에는 문제·세션 API 를 호출하지 않는다. (SQLD 는 기다리지 않는다)
+  const { ready: contentReady, checking: checkingReady } = useContentReady();
 
   const [problems, setProblems] = useState<Problem[]>([]);
   const [attemptId, setAttemptId] = useState<number | null>(null);
@@ -85,7 +89,7 @@ export default function ExamTakingPage() {
   const syncStateRef = useRef({ currentPageNo: 1, remainingSeconds: 0 });
 
   useEffect(() => {
-    if (!id || !user) return;
+    if (!id || !user || checkingReady || !contentReady) return;
 
     let mounted = true;
 
@@ -118,7 +122,7 @@ export default function ExamTakingPage() {
     return () => {
       mounted = false;
     };
-  }, [id, user, examType]);
+  }, [id, user, examType, checkingReady, contentReady]);
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [started] = useState(() => {
@@ -286,6 +290,24 @@ export default function ExamTakingPage() {
     if (remainingSeconds === null) return;
     syncStateRef.current.remainingSeconds = remainingSeconds;
   }, [remainingSeconds]);
+
+  if (checkingReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <p className="text-slate-500">문제를 불러오는 중입니다.</p>
+      </div>
+    );
+  }
+
+  if (!contentReady) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="max-w-3xl mx-auto px-4 py-10">
+          <ContentPreparing feature="모의고사" cta={{ label: '개념 학습 둘러보기', path: '/learn' }} />
+        </div>
+      </div>
+    );
+  }
 
   if (error) {
     return (

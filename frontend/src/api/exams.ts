@@ -1,11 +1,8 @@
 import type { Problem, ExamScheduleResponse } from '../types';
 import { apiRequest, apiFetch } from '../utils/api';
-import { getExamProblems } from '../data/exams';
 import { EXAM_CONFIG } from '../constants/examTypes';
 import type { ExamType } from '../constants/examTypes';
 import { withExamType } from '../utils/examPath';
-
-const IS_MOCK = import.meta.env.VITE_AI_MOCK === '1';
 
 function getAuthHeaders() {
   return {
@@ -48,7 +45,7 @@ export interface ExamScope {
 }
 
 export function fetchExamSession(examId: string, examType: ExamType): Promise<ExamSessionResponse> {
-  if (IS_MOCK) {
+  if (import.meta.env.VITE_AI_MOCK === '1') {
     return Promise.resolve({
       attemptId: 1,
       attemptUuid: 'mock-attempt-uuid',
@@ -68,7 +65,7 @@ export function saveExamAnswer(
   scope: ExamScope,
   payload: { problemId: string; selectedAnswer: string; currentPageNo?: number; remainingSeconds?: number }
 ) {
-  if (IS_MOCK) {
+  if (import.meta.env.VITE_AI_MOCK === '1') {
     saveMockAnswer(examId, scope.examType, payload.problemId, payload.selectedAnswer);
     return Promise.resolve({ ok: true });
   }
@@ -149,13 +146,15 @@ export function saveMockAnswer(examId: string, examType: ExamType, problemId: st
   mockAnswers[key][problemId] = answer;
 }
 
-export function submitExam(
+export async function submitExam(
   examId: string,
   scope: ExamScope,
   payload: { currentPageNo?: number; remainingSeconds?: number }
 ): Promise<ExamSubmitResponse> {
-  if (IS_MOCK) {
-    const problems = getExamProblems(examId, scope.examType);
+  if (import.meta.env.VITE_AI_MOCK === '1') {
+    // 목업 문항은 운영 번들에 들어가면 안 되므로 이 분기 안에서만 동적 import 한다.
+    const { getExamProblems } = await import('../data/exams');
+    const problems = await getExamProblems(examId, scope.examType);
     const answers = mockAnswers[mockKey(scope.examType, examId)] ?? {};
     const correctCount = problems.filter((p) => answers[p.id] === p.answer).length;
     const score = Math.round((correctCount / problems.length) * 100);
@@ -167,7 +166,7 @@ export function submitExam(
       const correct = subjectProblems.filter((p) => answers[p.id] === p.answer).length;
       return subjectProblems.length > 0 && correct / subjectProblems.length < 0.4;
     });
-    return Promise.resolve({
+    return {
       attemptId: 1,
       score,
       answers,
@@ -178,7 +177,7 @@ export function submitExam(
       scorePercent: score,
       awardedPoints: correctCount * 10,
       totalPoints: 320 + correctCount * 10,
-    });
+    };
   }
   return request<ExamSubmitResponse>(withExamType(`/exams/${examId}/submit`, scope.examType), {
     method: 'POST',

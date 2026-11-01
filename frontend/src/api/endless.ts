@@ -3,17 +3,18 @@ import type { Problem } from '../types';
 import type { ExamSchemaState } from './content';
 import type { ExamType } from '../constants/examTypes';
 import { withExamType } from '../utils/examPath';
-import { ALL_PRACTICE_PROBLEMS } from '../data/practice';
-import { EXAM_1_PROBLEMS } from '../data/exams/exam1';
-import { ADSP_ENDLESS_PROBLEMS } from '../data/adsp/endless';
 
-const IS_MOCK = import.meta.env.VITE_AI_MOCK === '1';
-
-// mock용 문제 풀 (실습 + exam1 첫 20문제 혼합)
-const MOCK_PROBLEMS: Problem[] = [
-  ...ALL_PRACTICE_PROBLEMS,
-  ...EXAM_1_PROBLEMS.slice(0, 20),
-];
+// mock용 문제 풀. 문항·정답·해설이 운영 번들에 들어가면 안 되므로
+// `import.meta.env.VITE_AI_MOCK === '1'` 분기 안에서만 동적 import 한다.
+// SQLD: 실습 + exam1 첫 20문제 혼합 / ADsP: 무한풀이 풀
+async function loadMockPool(examType: ExamType): Promise<Problem[]> {
+  if (examType === 'adsp') return (await import('../data/adsp/endless')).ADSP_ENDLESS_PROBLEMS;
+  const [{ ALL_PRACTICE_PROBLEMS }, { EXAM_1_PROBLEMS }] = await Promise.all([
+    import('../data/practice'),
+    import('../data/exams/exam1'),
+  ]);
+  return [...ALL_PRACTICE_PROBLEMS, ...EXAM_1_PROBLEMS.slice(0, 20)];
+}
 
 const mockStats = {
   totalAnswered: 0,
@@ -34,13 +35,13 @@ export interface EndlessStatsResponse {
   byDifficulty: Record<string, { answered: number; correct: number; rate: number }>;
 }
 
-export function fetchEndlessProblems(examType: ExamType = 'sqld'): Promise<Problem[]> {
-  if (IS_MOCK) return Promise.resolve(examType === 'adsp' ? ADSP_ENDLESS_PROBLEMS : MOCK_PROBLEMS);
+export async function fetchEndlessProblems(examType: ExamType = 'sqld'): Promise<Problem[]> {
+  if (import.meta.env.VITE_AI_MOCK === '1') return loadMockPool(examType);
   return apiFetch<Problem[]>(withExamType('/endless/problems', examType));
 }
 
 export function fetchEndlessStats(examType: ExamType = 'sqld'): Promise<EndlessStatsResponse> {
-  if (IS_MOCK) {
+  if (import.meta.env.VITE_AI_MOCK === '1') {
     return Promise.resolve({
       ...mockStats,
       correctRate: mockStats.totalAnswered > 0
@@ -52,7 +53,7 @@ export function fetchEndlessStats(examType: ExamType = 'sqld'): Promise<EndlessS
 }
 
 export function resetEndlessStats(examType: ExamType = 'sqld'): Promise<EndlessStatsResponse> {
-  if (IS_MOCK) {
+  if (import.meta.env.VITE_AI_MOCK === '1') {
     mockStats.totalAnswered = 0;
     mockStats.totalCorrect = 0;
     mockStats.byCategory = {};
@@ -81,7 +82,7 @@ export function shouldSendRequestId(examType: ExamType, schemaState: ExamSchemaS
   return examType === 'adsp' || schemaState === 'ready';
 }
 
-export function submitEndlessAnswer(payload: {
+export async function submitEndlessAnswer(payload: {
   examType: ExamType;
   problemId: string;
   selectedAnswer: string;
@@ -90,8 +91,8 @@ export function submitEndlessAnswer(payload: {
   /** 같은 답안의 재시도에는 같은 값. shouldSendRequestId 가 false 인 환경에서는 보내지 않는다. */
   requestId?: string;
 }): Promise<EndlessStatsResponse> {
-  if (IS_MOCK) {
-    const problem = [...MOCK_PROBLEMS, ...ADSP_ENDLESS_PROBLEMS].find((p) => p.id === payload.problemId);
+  if (import.meta.env.VITE_AI_MOCK === '1') {
+    const problem = (await loadMockPool(payload.examType)).find((p) => p.id === payload.problemId);
     const isCorrect = problem?.answer === payload.selectedAnswer;
 
     mockStats.totalAnswered += 1;
@@ -111,13 +112,13 @@ export function submitEndlessAnswer(payload: {
     d.rate = Math.round((d.correct / d.answered) * 100);
     mockStats.byDifficulty[diff] = d;
 
-    return Promise.resolve({
+    return {
       ...mockStats,
       correctRate: Math.round((mockStats.totalCorrect / mockStats.totalAnswered) * 100),
       isCorrect,
       awardedPoints: isCorrect ? 10 : 0,
       totalPoints: 320 + mockStats.totalCorrect * 10,
-    });
+    };
   }
   return apiFetch<EndlessStatsResponse>(withExamType('/endless/answer', payload.examType), {
     method: 'POST',

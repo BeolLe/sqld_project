@@ -23,6 +23,7 @@ import { useExamSchedules } from '../contexts/ExamScheduleContext';
 import { PageviewLog, ClickLog } from '../logging';
 import { useExamType } from '../hooks/useExamType';
 import { useContentReady } from '../hooks/useExamCapabilities';
+import ContentPreparing from '../components/ContentPreparing';
 import { withExamType } from '../utils/examPath';
 import { getLearnSubjectStats } from '../utils/learnProgress';
 
@@ -258,7 +259,7 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const { schedules: allExamSchedules } = useExamSchedules();
   const { examType, config, examPath } = useExamType();
-  const { ready: contentReady, checking: checkingReady } = useContentReady();
+  const { ready: contentReady, checking: checkingReady, failed: capabilitiesFailed } = useContentReady();
   // 콘텐츠가 공개되지 않은 시험은 조회하지 않으므로 로딩이 아니다. (시험이 바뀌면 화면이 새로 마운트된다)
   const [fetching, setFetching] = useState(true);
   const loading = checkingReady || (contentReady && fetching);
@@ -375,6 +376,17 @@ export default function DashboardPage() {
               <div key={i} className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 h-72 animate-pulse" />
             ))}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 공개 여부 조회가 끝내 실패하면 '기록 없음'으로 보이지 않게 확인 실패 화면과 다시 시도 버튼을 보여 준다.
+  if (capabilitiesFailed) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="max-w-3xl mx-auto px-4 py-8">
+          <ContentPreparing feature="학습현황" cta={{ label: '개념 학습 둘러보기', path: '/learn' }} />
         </div>
       </div>
     );

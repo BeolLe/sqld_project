@@ -19,6 +19,15 @@ export function splitExamPath(pathname: string): { examType: ExamType | null; re
   return { examType: null, rest: pathname };
 }
 
+/**
+ * 모의고사 응시(`/:examType/exams/:id/taking`)와 SQL 풀이(`/:examType/sql-practice/:id`, 통합 전 `/sql-practice/:id` 포함) 화면인지.
+ * 시험·풀이 도중 모달이 끼어들면 안 되는 화면을 가른다.
+ */
+export function isSolvingPath(pathname: string): boolean {
+  const { rest } = splitExamPath(pathname);
+  return /^\/exams\/[^/]+\/taking\/?$/.test(rest) || /^\/sql-practice\/[^/]+\/?$/.test(rest);
+}
+
 export function getLastExamType(): ExamType {
   try {
     const saved = window.localStorage.getItem(LAST_EXAM_KEY);

@@ -7,7 +7,10 @@
 --   5회 × 50문항 (1과목 1~10 · 2과목 11~20 · 3과목 21~50), 과목별 과락 기준 40%
 -- 무한풀이: endless.problems.source_problem_id = adsp_endless_N, 78문항, 카테고리 8개 (problem_categories.exam_type = adsp)
 --
--- 같은 키가 이미 있으면 건너뛰므로 여러 번 실행해도 중복되지 않는다.
+-- 첫 적재 전용: 같은 키가 이미 있으면 건너뛰므로 여러 번 실행해도 중복되지 않는다.
+--   그 대신 적재 후에 고친 문항·보기·정답·해설은 이 파일을 다시 실행해도 DB 에 반영되지 않는다.
+--   적재 후 수정은 별도 UPDATE 절차로 한다. 문항 id 가 위치 기반(question_no, adsp_endless_N)이라
+--   문항 순서·개수는 적재 전에만 바꿀 수 있다.
 -- 실행 전 확인: 실제 DDL 에서 NOT NULL 컬럼(question_version, topic_category_id 등)과
 --   correct_answer 타입(모의고사는 text, 무한풀이는 정수로 가정)을 확인한다.
 --

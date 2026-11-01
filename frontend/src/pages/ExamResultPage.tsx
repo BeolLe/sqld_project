@@ -9,6 +9,8 @@ import { useAIUsage } from '../contexts/AIUsageContext';
 import { logEvent } from '../utils/eventLogger';
 import { PageviewLog, ClickLog } from '../logging';
 import { useExamType } from '../hooks/useExamType';
+import { useContentReady } from '../hooks/useExamCapabilities';
+import ContentPreparing from '../components/ContentPreparing';
 import { fetchExamResult } from '../api/exams';
 
 interface ResultState {
@@ -116,6 +118,8 @@ export default function ExamResultPage() {
   const [reportTarget, setReportTarget] = useState<Problem | null>(null);
 
   const { examType, examPath } = useExamType();
+  // 공개 여부 확인 전·미공개 시험에는 결과 API 를 호출하지 않는다. (SQLD 는 기다리지 않는다)
+  const { ready: contentReady, checking: checkingReady } = useContentReady();
   const resultUrl = examPath(`/exams/${id}/result`);
   const pageview = useMemo(() => new PageviewLog({ page_id: 'exam_result', url: resultUrl }), [resultUrl]);
   const click = useMemo(() => new ClickLog({ page_id: 'exam_result', url: resultUrl, pageParams: { exam_id: id } }), [resultUrl, id]);
@@ -128,7 +132,7 @@ export default function ExamResultPage() {
   }, [loading, result, pageview, id]);
 
   useEffect(() => {
-    if (navigationState || !id) return;
+    if (navigationState || !id || checkingReady || !contentReady) return;
 
     let mounted = true;
     setLoading(true);
@@ -149,7 +153,25 @@ export default function ExamResultPage() {
     return () => {
       mounted = false;
     };
-  }, [id, examType, navigationState, requestedAttemptId]);
+  }, [id, examType, navigationState, requestedAttemptId, checkingReady, contentReady]);
+
+  if (checkingReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <p className="text-slate-700 font-semibold">시험 결과를 불러오는 중입니다.</p>
+      </div>
+    );
+  }
+
+  if (!contentReady) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="max-w-3xl mx-auto px-4 py-10">
+          <ContentPreparing feature="모의고사" cta={{ label: '개념 학습 둘러보기', path: '/learn' }} />
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

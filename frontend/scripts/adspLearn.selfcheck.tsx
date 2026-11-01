@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { countBlanks, findUnit, getCurriculum } from '../src/data/learn/curriculum';
@@ -12,6 +13,13 @@ import { fetchExamResult, fetchExamSession, saveExamAnswer, saveExamMemo, submit
 import { fetchExamProblems } from '../src/api/content';
 import { shouldSendRequestId, submitEndlessAnswer } from '../src/api/endless';
 import { getExamProblems } from '../src/data/exams';
+import { ExamCapabilitiesContext, FALLBACK_AVAILABLE } from '../src/hooks/useExamCapabilities';
+import type { ExamCapabilitiesState } from '../src/hooks/useExamCapabilities';
+import ContentPreparing from '../src/components/ContentPreparing';
+import PortalPage from '../src/pages/PortalPage';
+import ExamTakingPage from '../src/pages/ExamTakingPage';
+import ExamResultPage from '../src/pages/ExamResultPage';
+import { isSolvingPath } from '../src/utils/examPath';
 
 async function main() {
   const auth = { user: { nickname: 'test' }, isLoggedIn: true, isInitializing: false };
@@ -147,6 +155,7 @@ async function main() {
   assert.equal(getLearnSubjectStats('adsp')[0].solvedCount, 1);
   assert.equal(getLearnSubjectStats('adsp')[0].correctCount, 1);
   const calls: { url: string; init?: RequestInit }[] = [];
+  const fetchCalls: string[] = [];
   globalThis.fetch = async (url, init) => {
     calls.push({ url: String(url), init });
     return new Response(JSON.stringify({ progress: null }), { status: 200 });
@@ -163,9 +172,9 @@ async function main() {
     new Response(JSON.stringify({ detail: 'lesson not found' }), { status: 404 });
   await assert.rejects(() => fetchLessonByCode('missing', 'adsp'), /lesson not found/);
   // 시험 계약: 같은 회차 번호('1')라도 SQLD 와 ADsP 는 exam_type 으로 구분된다.
-  assert.notEqual(getExamProblems('1', 'sqld')[0].id, getExamProblems('1', 'adsp')[0].id);
-  assert.equal(getExamProblems('1', 'adsp').length, 50);
-  assert.equal(getExamProblems('adsp-1', 'adsp').length, 0);
+  assert.notEqual((await getExamProblems('1', 'sqld'))[0].id, (await getExamProblems('1', 'adsp'))[0].id);
+  assert.equal((await getExamProblems('1', 'adsp')).length, 50);
+  assert.equal((await getExamProblems('adsp-1', 'adsp')).length, 0);
   calls.length = 0;
   const record = (url: string, init?: RequestInit) => calls.push({ url, init });
   globalThis.fetch = async (url, init) => {
@@ -203,6 +212,101 @@ async function main() {
   assert(!('requestId' in JSON.parse(String(calls[0].init?.body))));
   assert(calls[1].url.endsWith('/endless/answer?exam_type=adsp'));
   assert.equal(JSON.parse(String(calls[1].init?.body)).requestId, uuid);
+
+  // ─── 공개 경계·응시 게이트·capabilities 실패 구분 (PR #44 검증 지적 회귀 방지) ───
+  const caps = (patch: Partial<ExamCapabilitiesState>): ExamCapabilitiesState => ({
+    checking: false,
+    schemaState: null,
+    available: FALLBACK_AVAILABLE,
+    failed: false,
+    refresh: () => undefined,
+    ...patch,
+  });
+  const withCaps = (state: ExamCapabilitiesState, path: string, route: string, element: ReactElement) =>
+    renderToStaticMarkup(
+      <ExamCapabilitiesContext.Provider value={state}>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path={route} element={element} />
+          </Routes>
+        </MemoryRouter>
+      </ExamCapabilitiesContext.Provider>
+    );
+  globalThis.fetch = async (url) => {
+    fetchCalls.push(String(url));
+    return new Response('{}', { status: 200 });
+  };
+  const takingRoute = '/:examType/exams/:id/taking';
+  const resultRoute = '/:examType/exams/:id/result';
+  // 1) 응시·결과 게이트: 확인 중에는 로딩, 미공개에서는 '준비 중'. 문제·세션·결과 API 는 호출하지 않는다.
+  for (const [path, route, el] of [
+    ['/adsp/exams/1/taking', takingRoute, <ExamTakingPage />],
+    ['/adsp/exams/1/result', resultRoute, <ExamResultPage />],
+  ] as const) {
+    const checkingHtml = withCaps(caps({ checking: true }), path, route, el);
+    assert(checkingHtml.includes('불러오는 중'));
+    assert(!checkingHtml.includes('준비하고 있습니다'));
+    const preparingHtml = withCaps(caps({}), path, route, el);
+    assert(preparingHtml.includes('ADsP 모의고사를 준비하고 있습니다'));
+    const failedHtml = withCaps(caps({ failed: true }), path, route, el);
+    assert(failedHtml.includes('상태를 확인하지 못했습니다'));
+    assert(failedHtml.includes('다시 시도'));
+    assert(!failedHtml.includes('준비하고 있습니다'));
+    // SQLD 는 capabilities 를 기다리지 않는다: 확인 중이어도 준비 중·확인 실패 화면이 아니다.
+    const sqldHtml = withCaps(caps({ checking: true, failed: true }), path.replace('/adsp/', '/sqld/'), route, el);
+    assert(!sqldHtml.includes('준비하고 있습니다') && !sqldHtml.includes('상태를 확인하지 못했습니다'));
+  }
+  assert.equal(fetchCalls.length, 0);
+  const takingSource = fs.readFileSync('src/pages/ExamTakingPage.tsx', 'utf8');
+  const resultSource = fs.readFileSync('src/pages/ExamResultPage.tsx', 'utf8');
+  assert(takingSource.includes('!id || !user || checkingReady || !contentReady'));
+  assert(resultSource.includes('navigationState || !id || checkingReady || !contentReady'));
+
+  // 5) 준비 중과 확인 실패는 다른 화면이다. 실패 화면에는 다시 시도 버튼이 있다.
+  const preparing = withCaps(caps({}), '/adsp/exams', '/:examType/exams', <ContentPreparing feature="모의고사" />);
+  assert(preparing.includes('준비하고 있습니다') && !preparing.includes('다시 시도'));
+  const failedView = withCaps(caps({ failed: true }), '/adsp/exams', '/:examType/exams', <ContentPreparing feature="모의고사" />);
+  assert(failedView.includes('상태를 확인하지 못했습니다') && failedView.includes('다시 시도'));
+  assert(!failedView.includes('준비하고 있습니다'));
+  const providerSource = fs.readFileSync('src/contexts/ExamCapabilitiesContext.tsx', 'utf8');
+  assert(providerSource.includes('RETRY_DELAYS_MS = [1000, 3000, 3000]'));
+  assert(providerSource.includes('setFailed(true)') && providerSource.includes('refresh'));
+  const dashboardSource = fs.readFileSync('src/pages/DashboardPage.tsx', 'utf8');
+  assert(dashboardSource.includes('if (capabilitiesFailed)'));
+  // 실패 시 기본값: SQLD 사용 가능, ADsP 차단
+  assert.deepEqual(FALLBACK_AVAILABLE, { sqld: true, adsp: false });
+
+  // 3) 공개 경계: ADsP 미공개면 포털 카드는 모의고사·무한풀이를 약속하지 않고 개념 학습으로만 들어간다.
+  const portal = (state: ExamCapabilitiesState) => withCaps(state, '/', '/', <PortalPage />);
+  const closed = portal(caps({ available: { sqld: true, adsp: false } }));
+  assert(closed.includes('준비 중'));
+  assert(closed.includes('ADsP 개념 학습 시작하기'));
+  assert(closed.includes('개념 학습 29항목'));
+  assert(!closed.includes('모의고사 · 개념 학습 29항목'));
+  assert(closed.includes('SQLD 시작하기'));
+  assert(portal(caps({ failed: true })).includes('다시 시도'));
+  const opened = portal(caps({ available: { sqld: true, adsp: true } }));
+  assert(opened.includes('ADsP 시작하기') && opened.includes('모의고사 · 개념 학습 29항목 · 무한풀이'));
+  const appSource = fs.readFileSync('src/App.tsx', 'utf8');
+  assert(appSource.includes('available.adsp && !isSolvingPath(pathname) && <ExamInterestModal />'));
+  const sitemap = fs.readFileSync('public/sitemap.xml', 'utf8');
+  assert(!/\/adsp\/(exams|endless|dashboard|sql-practice)/.test(sitemap));
+  assert(sitemap.includes('/adsp/learn'));
+
+  // 4) 모달: 응시와 SQL 풀이 화면에서는 띄우지 않는다.
+  for (const path of ['/sqld/exams/1/taking', '/adsp/exams/3/taking', '/sqld/sql-practice/5', '/sql-practice/5', '/exams/1/taking']) {
+    assert(isSolvingPath(path), path);
+  }
+  for (const path of ['/', '/sqld', '/adsp/exams', '/adsp/exams/1', '/adsp/exams/1/result', '/sqld/sql-practice', '/adsp/learn', '/mypage']) {
+    assert(!isSolvingPath(path), path);
+  }
+
+  // 2) 번들 분리: 목업 데이터는 VITE_AI_MOCK 분기 안의 동적 import 로만 불러온다.
+  for (const file of ['src/api/content.ts', 'src/api/exams.ts', 'src/api/endless.ts', 'src/data/exams/index.ts']) {
+    const source = fs.readFileSync(file, 'utf8');
+    assert(!/^import [^\n]*from '[^']*data\/(adsp|exams|practice)[^']*';/m.test(source), file + ': 목업 데이터 정적 import');
+    assert(!/^import [^\n]*from '\.\.\/adsp\/exams';/m.test(source), file + ': 목업 데이터 정적 import');
+  }
   const app = fs.readFileSync('src/App.tsx', 'utf8');
   assert(app.includes('<Route path="/:examType" element={<ExamTypeGuard />}>'));
   assert(app.includes('<Route path="learn/:unitId" element={<LearnUnitPage />} />'));

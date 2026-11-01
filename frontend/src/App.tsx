@@ -1,8 +1,9 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ExamScheduleProvider } from './contexts/ExamScheduleContext';
 import { ExamCapabilitiesProvider } from './contexts/ExamCapabilitiesContext';
+import { useExamCapabilities } from './hooks/useExamCapabilities';
 import { AIUsageProvider } from './contexts/AIUsageContext';
 import AuthModalContext from './contexts/AuthModalContext';
 import Header from './components/Header';
@@ -12,6 +13,7 @@ import ExamInterestModal from './components/ExamInterestModal';
 import { ExamHomeRedirect, ExamTypeGuard, LegacySqldRedirect, SqlPracticeOnly } from './components/ExamTypeRoute';
 import type { ActivePopupCampaign } from './components/ActivePopupRenderer';
 import { apiFetch } from './utils/api';
+import { isSolvingPath } from './utils/examPath';
 import MainPage from './pages/MainPage';
 import PortalPage from './pages/PortalPage';
 import DashboardPage from './pages/DashboardPage';
@@ -50,6 +52,8 @@ function getKstDateKey() {
 
 function AppShell() {
   const { user } = useAuth();
+  const { pathname } = useLocation();
+  const { available } = useExamCapabilities();
   const searchParams = new URLSearchParams(window.location.search);
   const hasPendingSocialSignup =
     !!window.sessionStorage.getItem('pendingSocialSignup') ||
@@ -237,8 +241,9 @@ function AppShell() {
         <ActivePopupRenderer campaign={activeCampaign} onClose={closeEventPopup} />
       )}
 
-      {/* 관심 시험 선택: 로그인 후 한 번. 다른 모달이 떠 있으면 기다린다. */}
-      {user && !authModal.open && !showEventPopup && <ExamInterestModal />}
+      {/* 관심 시험 선택: 로그인 후 한 번. 다른 모달이 떠 있거나 시험·SQL 풀이 중이면 기다린다.
+          ADsP 가 공개되기 전(확인 중·준비 중·확인 실패)에는 ADsP 를 고르게 하지 않으므로 띄우지 않는다. */}
+      {user && !authModal.open && !showEventPopup && available.adsp && !isSolvingPath(pathname) && <ExamInterestModal />}
     </>
     </AuthModalContext.Provider>
   );
