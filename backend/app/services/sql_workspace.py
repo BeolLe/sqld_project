@@ -137,7 +137,7 @@ def validate_query_safety(query: str) -> None:
             "PARALLEL is not allowed in practice DDL; use quoted identifiers for names"
         )
 
-    if re.search(r"\b(?:MASTER_|PX_[0-9A-F]{8}_)[A-Z0-9_$#]*", uppercase_query):
+    if re.search(r"\b(?:MASTER_|PX_[0-9A-F]{8,32}_)[A-Z0-9_$#]*", uppercase_query):
         raise WorkspaceValidationError(
             "direct references to internal SQL practice tables are not allowed"
         )
@@ -201,7 +201,7 @@ def prepare_namespace(conn, workspace: WorkspaceContext) -> list[str]:
     existing_tables = sorted(fetch_namespace_tables(conn, workspace))
     execute_ddl_batch(
         conn,
-        [f"DROP TABLE {table_name} PURGE" for table_name in existing_tables]
+        [f"DROP TABLE {table_name} CASCADE CONSTRAINTS PURGE" for table_name in existing_tables]
         + [
             f"CREATE TABLE {workspace.table_name(base_table)} NOPARALLEL AS "
             f"SELECT /*+ NO_PARALLEL */ * FROM MASTER_{base_table}"
@@ -231,7 +231,7 @@ def cleanup_namespace_tables(conn, workspace: WorkspaceContext) -> list[str]:
 
     execute_ddl_batch(
         conn,
-        [f"DROP TABLE {table_name} PURGE" for table_name in existing_tables],
+        [f"DROP TABLE {table_name} CASCADE CONSTRAINTS PURGE" for table_name in existing_tables],
     )
     return existing_tables
 
@@ -276,7 +276,7 @@ def cleanup_namespace_by_prefix(conn, namespace_prefix: str) -> list[str]:
 
     execute_ddl_batch(
         conn,
-        [f"DROP TABLE {table_name} PURGE" for table_name in existing_tables],
+        [f"DROP TABLE {table_name} CASCADE CONSTRAINTS PURGE" for table_name in existing_tables],
     )
     return existing_tables
 

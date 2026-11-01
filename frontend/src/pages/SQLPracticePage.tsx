@@ -63,7 +63,9 @@ async function executeSQL(query: string, practiceId: string, action: 'execute' |
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(payload?.detail || 'SQL 실행 중 오류가 발생했습니다.');
+    throw Object.assign(new Error(payload?.detail || 'SQL 실행 중 오류가 발생했습니다.'), {
+      retryAfterSeconds: Number(response.headers.get('Retry-After')) || 0,
+    });
   }
 
   return (await response.json()) as SQLResult;
@@ -207,6 +209,43 @@ export default function SQLPracticePage() {
   const [exitTarget, setExitTarget] = useState<string | null>(null);
   const [executeError, setExecuteError] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
+  const executionGuard = useRef({ pending: false, deadlines: new Map<string, number>() });
+  const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
+  const [clock, setClock] = useState(Date.now);
+  const cooldownKey = `${user?.id ?? ''}:${id ?? ''}`;
+  const cooldownUntil = cooldowns[cooldownKey] ?? 0;
+  const cooldownSeconds = Math.max(0, Math.ceil((cooldownUntil - clock) / 1000));
+
+  useEffect(() => {
+    setClock(Date.now());
+    if (cooldownUntil <= Date.now()) return;
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      setClock(now);
+      if (now >= cooldownUntil) window.clearInterval(timer);
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [cooldownUntil]);
+
+  const setCooldown = useCallback((seconds: number) => {
+    const deadline = Date.now() + seconds * 1000;
+    executionGuard.current.deadlines.set(cooldownKey, deadline);
+    setCooldowns((previous) => ({ ...previous, [cooldownKey]: deadline }));
+    setClock(Date.now());
+  }, [cooldownKey]);
+
+  const beginExecution = useCallback(() => {
+    if (executionGuard.current.pending || Date.now() < (executionGuard.current.deadlines.get(cooldownKey) ?? 0)) return false;
+    executionGuard.current.pending = true;
+    setCooldown(3);
+    return true;
+  }, [cooldownKey, setCooldown]);
+
+  const applyRetryAfter = useCallback((error: unknown) => {
+    if (error instanceof Error && 'retryAfterSeconds' in error && typeof error.retryAfterSeconds === 'number' && error.retryAfterSeconds > 0) {
+      setCooldown(error.retryAfterSeconds);
+    }
+  }, [setCooldown]);
 
   // 리사이즈 state + refs — ESLint react-hooks/refs 호환을 위해 분리
   const [hRatio, setHRatio] = useState(0.42);
@@ -230,7 +269,7 @@ export default function SQLPracticePage() {
   }, [problem, pageview, id]);
 
   const handleExecute = useCallback(async () => {
-    if (!problem || !query.trim()) return;
+    if (!problem || !query.trim() || !beginExecution()) return;
     setLoading(true);
     setExecuteError('');
     logEvent('sql_query_executed', { problemId: id, query }, user?.id);
@@ -238,14 +277,16 @@ export default function SQLPracticePage() {
       const nextResult = await executeSQL(query, problem.id, 'execute');
       setResult(nextResult);
     } catch (caughtError) {
+      applyRetryAfter(caughtError);
       setResult(null);
       setExecuteError(
         caughtError instanceof Error ? caughtError.message : 'SQL 실행 중 오류가 발생했습니다.'
       );
     } finally {
+      executionGuard.current.pending = false;
       setLoading(false);
     }
-  }, [query, id, problem, user?.id]);
+  }, [query, id, problem, user?.id, beginExecution, applyRetryAfter]);
 
   const isMac = useMemo(() => /Mac|iPhone|iPad/.test(navigator.platform), []);
 
@@ -280,7 +321,7 @@ export default function SQLPracticePage() {
   );
 
   const handleSubmit = useCallback(async () => {
-    if (!problem || !query.trim()) return;
+    if (!problem || !query.trim() || !beginExecution()) return;
     setExecuteError('');
     setLoading(true);
 
@@ -314,15 +355,17 @@ export default function SQLPracticePage() {
       setSubmitResult(isCorrect ? 'correct' : 'wrong');
       setSubmitSeq((n) => n + 1);
     } catch (caughtError) {
+      applyRetryAfter(caughtError);
       setResult(null);
       setSubmitResult(null);
       setExecuteError(
         caughtError instanceof Error ? caughtError.message : 'SQL 실행 중 오류가 발생했습니다.'
       );
     } finally {
+      executionGuard.current.pending = false;
       setLoading(false);
     }
-  }, [query, problem, id, user?.id]);
+  }, [query, problem, id, user?.id, beginExecution, applyRetryAfter, updatePoints]);
 
   if (!problem) {
     return (
@@ -621,11 +664,13 @@ export default function SQLPracticePage() {
           >
             {/* 에디터 헤더 */}
             <div className="shrink-0 flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700">
-              <span className="text-xs text-slate-400 font-mono">SQL Editor</span>
+              <span className="text-xs text-slate-400 font-mono" role="status" aria-live="polite">
+                {cooldownSeconds > 0 ? `${cooldownSeconds}초 후 실행·제출 가능` : 'SQL Editor'}
+              </span>
               <div className="flex gap-2">
                 <button
                   onClick={() => { click.send({ object_section_id: 'editor', object_section_idx: 1, object_type: 'button', object_idx: 0, object_id: 'run', data: { trigger: 'button' } }); handleExecute(); }}
-                  disabled={loading}
+                  disabled={loading || cooldownSeconds > 0}
                   className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-md transition-colors"
                 >
                   <Play className="w-3 h-3" />
@@ -633,7 +678,7 @@ export default function SQLPracticePage() {
                 </button>
                 <button
                   onClick={() => { click.send({ object_section_id: 'editor', object_section_idx: 1, object_type: 'button', object_idx: 1, object_id: 'submit', data: { trigger: 'button' } }); handleSubmit(); }}
-                  disabled={loading}
+                  disabled={loading || cooldownSeconds > 0}
                   className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-md transition-colors"
                 >
                   <Send className="w-3 h-3" />

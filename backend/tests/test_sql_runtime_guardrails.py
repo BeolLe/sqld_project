@@ -88,6 +88,7 @@ class SQLRuntimeGuardrailTests(unittest.TestCase):
             'SELECT * FROM "MASTER_EMP"',
             "SELECT * FROM PX_DEADBEEF_EMP",
             'SELECT * FROM "PX_DEADBEEF_EMP"',
+            'SELECT * FROM PX_0123456789AB_EMP',
         ):
             with self.subTest(query=query):
                 with self.assertRaises(WorkspaceValidationError):
@@ -329,6 +330,7 @@ class SQLExecutionFailureTests(unittest.TestCase):
             "compare_result_sets", "resolve_workspace_scope", "rewrite_query_for_namespace",
             "send_slack_message", "insert_sql_alert_once", "enforce_namespace_limits",
             "prepare_namespace", "cleanup_namespace_tables",
+            "enforce_cooldown", "lease_workspace", "release_workspace",
         )
         self.mocks = self.stack.enter_context(patch.multiple(sql_router, **{name: DEFAULT for name in names}))
         self.conn = MagicMock()
@@ -342,6 +344,7 @@ class SQLExecutionFailureTests(unittest.TestCase):
         self.mocks["insert_sql_request"].return_value = 10
         self.mocks["get_oracle_connection"].return_value = self.conn
         self.mocks["namespace_advisory_lock"].side_effect = lambda *_: nullcontext()
+        self.mocks["lease_workspace"].side_effect = lambda *_: nullcontext(SimpleNamespace(namespace_token="0123456789AB"))
         self.mocks["resolve_workspace_scope"].return_value = (SimpleNamespace(), "test-session", "test-user", "test-user")
         self.mocks["rewrite_query_for_namespace"].side_effect = lambda **kwargs: kwargs["query"]
         self.mocks["fetch_expected_result"].return_value = {
@@ -395,12 +398,11 @@ class SQLExecutionFailureTests(unittest.TestCase):
         self.mocks["sync_namespace_lifecycle"].assert_not_called()
         pool.drop.assert_called_once_with(self.conn)
 
-    def test_workspace_timeout_is_reported_before_user_sql_runs(self):
-        self.mocks["sync_namespace_lifecycle"].side_effect = oracle.oracledb.DatabaseError("DPY-4024: timeout")
-        self.assert_infrastructure_failure(self.call(), "workspace_prepare")
+    def test_workspace_lease_failure_is_reported_before_user_sql_runs(self):
+        self.mocks["lease_workspace"].side_effect = oracle.oracledb.DatabaseError("DPY-4024: timeout")
+        self.assert_infrastructure_failure(self.call(), "workspace_lock")
         self.cur.execute.assert_not_called()
-        self.conn.rollback.assert_called_once()
-        self.conn.__exit__.assert_called_once()
+        self.mocks["get_oracle_connection"].assert_not_called()
 
     def test_execute_timeout_is_not_an_incorrect_answer(self):
         self.cur.execute.side_effect = oracle.oracledb.DatabaseError("DPY-4024: timeout")
@@ -446,7 +448,7 @@ class SQLExecutionFailureTests(unittest.TestCase):
         self.assert_infrastructure_failure(result, "oracle_execute")
         self.assertEqual(result["errorCode"], "DPY-4024")
 
-    def test_anonymous_cleanup_failure_preserves_original_timeout(self):
+    def test_missing_optional_identity_does_not_drop_tables_before_response(self):
         self.mocks["extract_user_id"].return_value = None
         self.mocks["resolve_workspace_scope"].return_value = (SimpleNamespace(), None, None, "request-scope")
         self.cur.execute.side_effect = oracle.oracledb.DatabaseError("DPY-4024: timeout")
@@ -454,7 +456,8 @@ class SQLExecutionFailureTests(unittest.TestCase):
         result = self.call(anonymous=True)
         self.assert_infrastructure_failure(result, "oracle_execute")
         self.assertEqual(result["errorCode"], "DPY-4024")
-        self.mocks["cleanup_namespace_tables"].assert_called_once()
+        self.mocks["cleanup_namespace_tables"].assert_not_called()
+        self.assertEqual(self.background.tasks[0].func, self.mocks["release_workspace"])
         self.conn.__exit__.assert_called_once()
 
     def test_connection_and_lock_release_failures_preserve_original_timeout(self):
@@ -462,8 +465,9 @@ class SQLExecutionFailureTests(unittest.TestCase):
         self.conn.__exit__.side_effect = oracle.oracledb.DatabaseError("DPY-1001: not connected")
         lock = MagicMock()
         lock.__exit__.side_effect = RuntimeError("lock release failed")
-        self.mocks["namespace_advisory_lock"].side_effect = None
-        self.mocks["namespace_advisory_lock"].return_value = lock
+        lock.__enter__.return_value = SimpleNamespace(namespace_token="0123456789AB")
+        self.mocks["lease_workspace"].side_effect = None
+        self.mocks["lease_workspace"].return_value = lock
         result = self.call()
         self.assert_infrastructure_failure(result, "oracle_execute")
         self.assertEqual(result["errorCode"], "DPY-4024")
@@ -471,7 +475,7 @@ class SQLExecutionFailureTests(unittest.TestCase):
         lock.__exit__.assert_called_once()
 
     def test_lock_failure_does_not_acquire_oracle_connection(self):
-        self.mocks["namespace_advisory_lock"].side_effect = RuntimeError("private connection details: pool exhausted")
+        self.mocks["lease_workspace"].side_effect = RuntimeError("private connection details: pool exhausted")
         result = self.call()
         self.assert_infrastructure_failure(result, "workspace_lock", "infrastructure_error")
         self.assertIsNone(result["errorCode"])
@@ -514,9 +518,26 @@ class SQLExecutionFailureTests(unittest.TestCase):
         self.assertIn("ORA-00904", result["error"])
         self.assertFalse(self.mocks["insert_learning_event"].call_args.kwargs["is_correct"])
 
-    def test_preparation_identifier_error_is_not_user_sql_error(self):
-        self.mocks["sync_namespace_lifecycle"].side_effect = oracle.oracledb.DatabaseError("ORA-00904: invalid identifier")
-        self.assert_infrastructure_failure(self.call(), "workspace_prepare", "infrastructure_error")
+    def test_lease_database_error_is_not_user_sql_error(self):
+        self.mocks["lease_workspace"].side_effect = oracle.oracledb.DatabaseError("ORA-00904: invalid identifier")
+        self.assert_infrastructure_failure(self.call(), "workspace_lock", "infrastructure_error")
+
+    def test_cooldown_blocks_execute_and_submit_before_oracle(self):
+        self.mocks["enforce_cooldown"].side_effect = HTTPException(429, "wait", headers={"Retry-After": "3"})
+        for action in ("execute", "submit"):
+            with self.assertRaises(HTTPException) as caught:
+                self.call(action=action)
+            self.assertEqual(caught.exception.status_code, 429)
+        self.mocks["get_oracle_connection"].assert_not_called()
+        self.mocks["lease_workspace"].assert_not_called()
+
+    def test_ready_environment_has_no_request_time_ddl(self):
+        self.call(action="execute")
+        self.mocks["sync_namespace_lifecycle"].assert_not_called()
+        self.mocks["prepare_namespace"].assert_not_called()
+        self.mocks["cleanup_namespace_tables"].assert_not_called()
+        self.mocks["release_workspace"].assert_not_called()
+        self.assertEqual(self.background.tasks[0].func, self.mocks["release_workspace"])
 
     def test_successful_submission_retains_grading_and_points(self):
         result = self.call()

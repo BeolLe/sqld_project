@@ -2,7 +2,7 @@ name: Build isolated production SQL fix
 
 on:
   push:
-    branches: [hotfix/sql-runtime-prod-20261029]
+    branches: [feat/sql-workspace-pool]
 
 permissions:
   contents: read
@@ -11,7 +11,27 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: sqlpool_test
+          POSTGRES_PASSWORD: disposable-ci-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 20
+      oracle:
+        image: gvenzl/oracle-free:23-slim-faststart
+        env:
+          ORACLE_PASSWORD: DisposableAdmin123
+          APP_USER: sqlpool_test
+          APP_USER_PASSWORD: DisposableTest123
+        ports: ['1521:1521']
+        options: >-
+          --health-cmd healthcheck.sh --health-interval 10s
+          --health-timeout 5s --health-retries 40
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
@@ -24,12 +44,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker pull ghcr.io/beolle/sqld-backend:sha-fab54d0
-          docker pull ghcr.io/beolle/sqld-frontend:sha-a91261a
-          test "$(docker image inspect ghcr.io/beolle/sqld-backend:sha-fab54d0 --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = fab54d0570cee09e59bcdc5c33b61721ce431765
-          test "$(docker image inspect ghcr.io/beolle/sqld-frontend:sha-a91261a --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = a91261a5945d669519814c95d624a3e5c855387d
-          printf 'PROD_BACKEND_BASE=%s\n' "$(docker image inspect ghcr.io/beolle/sqld-backend:sha-fab54d0 --format '{{index .RepoDigests 0}}')" >> "$GITHUB_ENV"
-          printf 'PROD_FRONTEND_BASE=%s\n' "$(docker image inspect ghcr.io/beolle/sqld-frontend:sha-a91261a --format '{{index .RepoDigests 0}}')" >> "$GITHUB_ENV"
+          backend=ghcr.io/beolle/sqld-backend@sha256:802ab26540b9e48d2205b57d0507f9f5587081ddc1f8738613022607ad3a3848
+          frontend=ghcr.io/beolle/sqld-frontend@sha256:e4960036c4f9d98171ccb710aff642b900389fceceb09b1a4f5cf0c5cd1bdd11
+          docker pull "$backend"
+          docker pull "$frontend"
+          printf 'PROD_BACKEND_BASE=%s\n' "$backend" >> "$GITHUB_ENV"
+          printf 'PROD_FRONTEND_BASE=%s\n' "$frontend" >> "$GITHUB_ENV"
           printf 'PROD_FIX_TAG=prod-sqlfix-%s-%s-%s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
 
       - name: Build backend on the pinned production runtime
@@ -57,7 +77,17 @@ jobs:
           sys.exit(not result.wasSuccessful())
           PY
 
-      - name: Build frontend from production source with the SQL error message fix
+      - name: Verify concurrency and reset with disposable PostgreSQL and Oracle
+        run: |
+          docker run --rm --network host \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/backend/tests,dst=/pool-tests,readonly" \
+            -e 'SQL_POOL_TEST_DSN=host=127.0.0.1 dbname=sqlpool_test user=postgres password=disposable-ci-only' \
+            -e SQL_POOL_TEST_ORACLE=1 \
+            --entrypoint /app/.venv/bin/python \
+            "ghcr.io/beolle/sqld-backend:$PROD_FIX_TAG" \
+            -B -m unittest discover -s /pool-tests -p 'integration_*workspace_pool.py' -v
+
+      - name: Verify cooldown and build production frontend
         run: |
           docker build -f ops/sql-hotfix/frontend.Dockerfile \
             --build-arg "BASE_IMAGE=$PROD_FRONTEND_BASE" \

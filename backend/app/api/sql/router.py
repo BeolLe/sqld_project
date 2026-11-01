@@ -33,6 +33,7 @@ from app.db.sql_namespaces import (
 )
 from app.core.security import decode_access_token
 from app.services.sql_grading import compare_result_sets
+from app.services.sql_workspace_pool import enforce_cooldown, lease_workspace, release_workspace
 from app.services.amplitude import send_amplitude_event
 from app.services.slack import send_slack_message
 from app.services.sql_workspace import (
@@ -674,11 +675,13 @@ def execute_sql(
 ):
     request_id = ensure_request_id(request.headers.get("x-request-id"))
     session_id = (request.headers.get("x-session-id") or "")[:100] or None
-    user_id = extract_user_id(request)
+    user_id = str(current_user["user_id"])
     action = req.action if req.action in {"execute", "submit"} else "execute"
-    has_persistent_scope = bool(session_id or user_id)
 
     try:
+        req.practice_id = req.practice_id.strip()
+        if not req.practice_id:
+            raise HTTPException(status_code=400, detail="practice_id is required")
         query = validate_query(req.query)
         statement_type = classify_statement(query)
         validate_statement_shape(query, statement_type)
@@ -708,6 +711,7 @@ def execute_sql(
         )
         raise
 
+    enforce_cooldown(str(current_user["user_id"]), req.practice_id)
     started_at = time.perf_counter()
     timing_marks: dict[str, int] = {}
     sql_request_id = insert_sql_request(
@@ -733,11 +737,7 @@ def execute_sql(
             (time.perf_counter() - started_at) * 1000
         )
 
-    workspace, session_id, user_id, scope_key = resolve_workspace_scope(
-        request=request,
-        practice_id=req.practice_id,
-        request_id=request_id,
-    )
+    scope_key = user_id
     timing_marks["scopeResolvedMs"] = round((time.perf_counter() - started_at) * 1000)
 
     conn = None
@@ -745,8 +745,9 @@ def execute_sql(
     handled_failure = False
     with ExitStack() as stack:
         try:
-            if has_persistent_scope:
-                stack.enter_context(namespace_advisory_lock(scope_key))
+            workspace = stack.enter_context(lease_workspace(str(current_user["user_id"]), req.practice_id))
+            # Register first: cleanup release must not depend on later notification tasks.
+            background_tasks.add_task(release_workspace, workspace.namespace_token)
             timing_marks["workspaceLockAcquiredMs"] = round(
                 (time.perf_counter() - started_at) * 1000
             )
@@ -756,17 +757,7 @@ def execute_sql(
                 (time.perf_counter() - started_at) * 1000
             )
             failure_stage = "workspace_prepare"
-            if has_persistent_scope:
-                sync_namespace_lifecycle(
-                    conn=conn,
-                    workspace=workspace,
-                    scope_key=scope_key,
-                    practice_id=req.practice_id,
-                    user_id=user_id,
-                    session_id=session_id,
-                )
-            else:
-                prepare_namespace(conn, workspace)
+            # Only the maintenance worker prepares environments. Every lease is pristine.
             timing_marks["workspacePreparedMs"] = round(
                 (time.perf_counter() - started_at) * 1000
             )
@@ -821,9 +812,6 @@ def execute_sql(
 
                 # Later grading/storage failures must retain their existing error behavior.
                 failure_stage = None
-                if has_persistent_scope and scope_key:
-                    touch_namespace(scope_key)
-
                 elapsed_ms = round((time.perf_counter() - started_at) * 1000)
                 columns = [desc[0] for desc in cur.description] if cur.description else []
                 serialized_rows = [
@@ -1033,7 +1021,10 @@ def execute_sql(
                 background_tasks.add_task(cleanup_stale_namespaces)
                 return response
         except Exception as exc:
-            if failure_stage is None or isinstance(exc, HTTPException):
+            if isinstance(exc, HTTPException):
+                update_sql_request_status(request_id, "failed")
+                raise
+            if failure_stage is None:
                 raise
             handled_failure = True
             timing_marks["failureMs"] = round((time.perf_counter() - started_at) * 1000)
@@ -1133,17 +1124,9 @@ def execute_sql(
             }
 
         finally:
-            try:
-                if conn is not None and workspace is not None and not has_persistent_scope:
-                    cleanup_namespace_tables(conn, workspace)
-            except Exception:
-                if not handled_failure:
-                    raise
-                logger.exception("failed to clean up workspace after SQL failure")
-            finally:
-                if handled_failure:
-                    # Drain every exit callback without replacing the recorded SQL failure.
-                    try:
-                        stack.close()
-                    except Exception:
-                        logger.exception("failed to release resources after SQL failure")
+            if handled_failure:
+                # Drain every exit callback without replacing the recorded SQL failure.
+                try:
+                    stack.close()
+                except Exception:
+                    logger.exception("failed to release resources after SQL failure")
