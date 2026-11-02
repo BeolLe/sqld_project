@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import type { Blank } from '../../data/learn/types';
 import { ClickLog } from '../../logging';
 import { useExamType } from '../../hooks/useExamType';
+import { isBlankAnswerCorrect } from '../../utils/learnBlankGrading';
 
 interface Props {
   blank: Blank;
@@ -12,11 +13,6 @@ interface Props {
 }
 
 type Result = 'idle' | 'correct' | 'wrong';
-
-/** 표기 흔들림 흡수 — 대소문자·연속 공백·앞뒤 공백 무시 */
-function normalize(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, ' ');
-}
 
 export default function LearnBlank({ blank, blockId, onGrade }: Props) {
   const [value, setValue] = useState('');
@@ -30,15 +26,13 @@ export default function LearnBlank({ blank, blockId, onGrade }: Props) {
   );
 
   const grade = () => {
-    const input = normalize(value);
+    const input = value.trim();
     if (input === '') {
       setResult('idle');
       onGrade(blank.id, false);
       return;
     }
-    const correct =
-      input === normalize(blank.answer) ||
-      blank.accepts.some((accept) => normalize(accept) === input);
+    const correct = isBlankAnswerCorrect(blank, value);
     setResult(correct ? 'correct' : 'wrong');
     onGrade(blank.id, correct);
   };

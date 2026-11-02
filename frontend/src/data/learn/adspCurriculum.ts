@@ -16,7 +16,11 @@ function withBody(unit: LearnUnit, title: string): UnitSeed {
     title,
     estimatedMin: unit.estimatedMin,
     priority1: unit.priority1,
-    blocks: unit.blocks,
+    blocks: unit.blocks.map((block) => ({
+      ...block,
+      // 현재 ADsP 빈칸은 모두 개념 용어다. SQLD/SQL 코드 빈칸에는 적용하지 않는다.
+      blanks: block.blanks.map((blank) => ({ ...blank, matchMode: 'term' as const })),
+    })),
   };
 }
 

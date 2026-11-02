@@ -15,6 +15,8 @@ export interface Blank {
   answer: string;
   /** 정답으로 인정할 입력. 소문자·공백 정규화 후 비교한다. */
   accepts: string[];
+  /** 용어 빈칸만 띄어쓰기를 무시한다. 생략 시 SQL/기존 빈칸의 단어 경계를 보존한다. */
+  matchMode?: 'term';
 }
 
 /**
