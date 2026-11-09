@@ -320,6 +320,82 @@ Response 200:
 > MVP 단계에서 관리자 인증은 별도 role 컬럼 또는 특정 user_id 화이트리스트로 처리.
 > 백오피스 UI가 없으면 DB 직접 UPDATE 또는 간단한 admin API로 대체 가능.
 
+### 7-5. GET /api/admin/feedback/{ticket_id}/replies (관리자 전용)
+
+현재 답변과 관리자 답변 이력을 조회합니다. `ticket_id`는 UUID입니다.
+
+| Query | 타입 | 필수 | 설명 |
+|-------|------|------|------|
+| `size` | integer | 아니요 | 조회 건수, 기본 20, 최소 1, 최대 100 |
+| `before` | integer | 아니요 | 이전 응답의 `next_cursor`. 해당 기록보다 오래된 이력을 조회합니다. |
+
+```json
+{
+  "current_reply": {
+    "reply_id": "102",
+    "admin_user_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "admin_nickname": "관리자 B",
+    "admin_reply": "수정 반영했습니다.",
+    "replied_at": "2026-11-08T14:30:00+09:00"
+  },
+  "items": [
+    {
+      "reply_id": "102",
+      "admin_user_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "admin_nickname": "관리자 B",
+      "admin_reply": "수정 반영했습니다.",
+      "replied_at": "2026-11-08T14:30:00+09:00",
+      "content_available": true
+    },
+    {
+      "reply_id": "101",
+      "admin_user_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "admin_nickname": "관리자 A",
+      "admin_reply": null,
+      "replied_at": "2026-11-07T10:00:00+09:00",
+      "content_available": false
+    }
+  ],
+  "next_cursor": null
+}
+```
+
+- 이력은 기록 ID 내림차순입니다. `items`에는 현재 답변 기록도 포함될 수 있습니다.
+- `reply_id`와 `next_cursor`는 큰 정수의 정밀도 손실을 피하기 위해 문자열로 반환합니다. `next_cursor: null`이면 마지막 페이지입니다.
+- 현재 답변이 없으면 `current_reply`는 `null`입니다. 작성자를 확인할 기록이 없으면 관리자 정보와 `reply_id`는 `null`입니다.
+- `content_available: false`는 과거 답변 내용이 남아 있지 않다는 뜻입니다. `true`이면서 내용이 비어 있으면 답변을 삭제한 기록입니다.
+- 변경 전 기존 기록에는 답변 유무만 저장되어 있습니다. 현재 답변 또는 이후에 보존한 수정 전 내용과 시각이 일치하는 경우에만 내용을 복원합니다.
+- 새 답변은 작성 당시 관리자 닉네임을 보존합니다. 이전 기록은 현재 계정 닉네임을 사용하며, 탈퇴 등으로 확인할 수 없으면 `null`입니다.
+- 일반 사용자용 피드백 API에는 관리자 정보와 수정 이력을 추가하지 않습니다.
+- 오류: 인증 실패 `401`, 관리자 권한 없음 `403`, 문의 없음 `404`, 잘못된 UUID·조회 조건 `422`.
+
+### 7-6. PATCH /api/admin/feedback/{ticket_id}/reply (관리자 전용)
+
+답변을 작성하거나 수정합니다. 요청 앞뒤 공백을 제거하며 빈 답변은 `400`으로 거절합니다.
+
+```json
+{
+  "admin_reply": "수정 반영했습니다."
+}
+```
+
+성공 응답 `200`:
+
+```json
+{
+  "ticket_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  "admin_reply": "수정 반영했습니다.",
+  "replied_at": "2026-11-08T14:30:00+09:00",
+  "status": "reviewing",
+  "message": "답변이 저장되었습니다."
+}
+```
+
+- `pending` 상태는 `reviewing`으로 변경하며, 그 외 상태는 유지합니다.
+- 기존 `PUT`과 이 `PATCH` 모두 답변 변경 전후 내용·답변 시각·담당 관리자를 `logs.audit_events`에 기록합니다. 이력 저장에 실패하면 답변 변경도 취소합니다.
+- `PATCH /api/admin/feedback/{ticket_id}/status`를 통한 상태 변경은 답변 작성자로 표시하지 않습니다.
+- 새 테이블이나 데이터 이관은 필요하지 않습니다. 기존 `logs.audit_events`와 해당 테이블의 조회·삽입 권한을 사용합니다.
+
 ---
 
 ## 8. 이벤트 로그
@@ -386,3 +462,11 @@ Response 200:
 - [ ] "내 피드백" 목록에서 제보 상태(접수/확인 중/처리 완료) 확인 가능
 - [ ] 운영자 답변이 등록되면 사용자가 조회 가능
 - [ ] 비로그인 상태에서 피드백 기능 접근 불가 (로그인 유도)
+
+## 13. 변경 내역 (2026-11-08)
+
+- 관리자 문의 상세 화면에 답변한 관리자, 답변 시각, 답변 내용을 추가했습니다.
+- 현재 답변과 이전 답변 이력을 구분해 표시하고, 시각을 한국시간으로 표시하도록 변경했습니다.
+- 기존 기록으로 확인할 수 없는 관리자와 과거 답변 내용은 정보가 없음을 표시하도록 변경했습니다.
+- 답변 수정 전후 내용과 작성 당시 관리자 닉네임을 감사 기록에 저장하도록 변경했습니다.
+- 답변 저장 후 서버가 반환한 내용·시각·상태를 반영하고, 답변 이력을 다시 조회하도록 변경했습니다.

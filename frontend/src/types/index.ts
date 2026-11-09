@@ -206,6 +206,28 @@ export interface AdminFeedbackListResponse {
   items: FeedbackTicket[];
 }
 
+export interface AdminFeedbackReply {
+  reply_id: string | null;
+  admin_user_id: string | null;
+  admin_nickname: string | null;
+  admin_reply: string | null;
+  replied_at: string | null;
+}
+
+export interface AdminFeedbackRepliesResponse {
+  current_reply: AdminFeedbackReply | null;
+  items: (AdminFeedbackReply & { reply_id: string; content_available: boolean })[];
+  next_cursor: string | null;
+}
+
+export interface AdminFeedbackReplyUpdateResponse {
+  ticket_id: string;
+  admin_reply: string;
+  replied_at: string;
+  status: FeedbackStatus;
+  message: string;
+}
+
 export interface AdminUserItem {
   user_id: string;
   email: string;

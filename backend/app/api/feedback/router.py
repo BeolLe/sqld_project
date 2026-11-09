@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -56,6 +58,21 @@ def serialize_ticket(row: tuple) -> dict:
         "admin_reply": row[9],
         "replied_at": row[10].isoformat() if row[10] else None,
         "created_at": row[11].isoformat() if row[11] else None,
+    }
+
+
+def lock_feedback_reply(cur, ticket_id: str) -> dict:
+    # Lock before reading so concurrent admins preserve the reply they replace.
+    cur.execute(
+        "SELECT admin_reply, replied_at FROM feedback.tickets WHERE ticket_id = %s FOR UPDATE",
+        (ticket_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다.")
+    return {
+        "admin_reply": row[0],
+        "replied_at": row[1].isoformat() if row[1] else None,
     }
 
 
@@ -321,6 +338,7 @@ def update_feedback_admin(
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
+                before_reply = lock_feedback_reply(cur, ticket_id)
                 cur.execute(
                     """
                     UPDATE feedback.tickets
@@ -328,16 +346,15 @@ def update_feedback_admin(
                         status = %s,
                         admin_reply = %s,
                         replied_at = CASE
-                            WHEN %s IS NOT NULL AND btrim(%s) <> '' THEN now()
+                            WHEN btrim(%s::text) <> '' THEN now()
                             ELSE replied_at
                         END,
                         updated_at = now()
                     WHERE ticket_id = %s
-                    RETURNING ticket_id, status
+                    RETURNING ticket_id, status, admin_reply, replied_at
                     """,
                     (
                         req.status,
-                        req.admin_reply,
                         req.admin_reply,
                         req.admin_reply,
                         ticket_id,
@@ -356,10 +373,14 @@ def update_feedback_admin(
                 target_type="feedback.ticket",
                 target_id=str(row[0]),
                 request_id=request_id,
+                before_data=before_reply,
                 after_data={
                     "status": row[1],
                     "admin_reply_set": bool(req.admin_reply and req.admin_reply.strip()),
+                    "admin_reply": row[2],
+                    "replied_at": row[3].isoformat() if row[3] else None,
                 },
+                metadata={"actor_nickname": current_user.get("nickname")},
             )
     except HTTPException:
         raise
@@ -462,6 +483,102 @@ def list_admin_feedback(
     }
 
 
+@router.get("/admin/feedback/{ticket_id}/replies")
+def list_feedback_replies(
+    ticket_id: UUID,
+    before: int | None = Query(None, gt=0, le=9223372036854775807),
+    size: int = Query(20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_admin(current_user)
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT t.admin_reply, t.replied_at, a.actor_user_id,
+                       COALESCE(a.metadata->>'actor_nickname', u.nickname), a.audit_event_id
+                FROM feedback.tickets t
+                LEFT JOIN LATERAL (
+                    SELECT e.* FROM logs.audit_events e
+                    WHERE e.target_type = 'feedback.ticket' AND e.target_id = t.ticket_id::text
+                      AND e.action IN ('FEEDBACK_UPDATED', 'FEEDBACK_REPLY_UPDATED')
+                      AND e.occurred_at = t.replied_at
+                      AND e.after_data->>'admin_reply_set' = 'true'
+                      AND (NOT (e.after_data ? 'admin_reply') OR e.after_data->>'admin_reply' = t.admin_reply)
+                    ORDER BY e.audit_event_id DESC LIMIT 1
+                ) a ON TRUE
+                LEFT JOIN auth.users u ON u.user_id = a.actor_user_id
+                WHERE t.ticket_id = %s
+                FOR SHARE OF t
+                """,
+                (ticket_id,),
+            )
+            ticket = cur.fetchone()
+            if not ticket:
+                raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다.")
+
+            cur.execute(
+                """
+                WITH replies AS (
+                    SELECT e.*, u.nickname,
+                           LEAD(e.before_data) OVER (ORDER BY e.audit_event_id) AS next_before
+                    FROM logs.audit_events e
+                    LEFT JOIN auth.users u ON u.user_id = e.actor_user_id
+                    WHERE e.target_type = 'feedback.ticket' AND e.target_id = %s
+                      AND e.action IN ('FEEDBACK_UPDATED', 'FEEDBACK_REPLY_UPDATED')
+                )
+                SELECT audit_event_id, actor_user_id,
+                       COALESCE(metadata->>'actor_nickname', nickname), occurred_at,
+                       after_data, next_before
+                FROM replies
+                WHERE (after_data->>'admin_reply_set' = 'true'
+                       OR COALESCE(btrim(before_data->>'admin_reply'), '') <> '')
+                  AND (%s::bigint IS NULL OR audit_event_id < %s)
+                ORDER BY audit_event_id DESC
+                LIMIT %s
+                """,
+                (str(ticket_id), before, before, size + 1),
+            )
+            rows = cur.fetchall()
+
+    current_reply = None
+    if ticket[0] and ticket[0].strip():
+        current_reply = {
+            "admin_reply": ticket[0],
+            "replied_at": ticket[1].isoformat() if ticket[1] else None,
+            "admin_user_id": str(ticket[2]) if ticket[2] else None,
+            "admin_nickname": ticket[3],
+            "reply_id": str(ticket[4]) if ticket[4] else None,
+        }
+
+    items = []
+    for event_id, actor_id, nickname, occurred_at, after, next_before in rows[:size]:
+        after = after or {}
+        reply = after.get("admin_reply")
+        content_available = "admin_reply" in after
+        # Legacy audit rows have only a boolean. Recover text only from a matching snapshot.
+        if not content_available and next_before and next_before.get("replied_at"):
+            if datetime.fromisoformat(next_before["replied_at"]) == occurred_at:
+                reply = next_before.get("admin_reply")
+                content_available = "admin_reply" in next_before
+        if not content_available and current_reply and current_reply["reply_id"] == str(event_id):
+            reply = ticket[0]
+            content_available = True
+        items.append({
+            "reply_id": str(event_id),
+            "admin_user_id": str(actor_id) if actor_id else None,
+            "admin_nickname": nickname,
+            "replied_at": occurred_at.isoformat(),
+            "admin_reply": reply,
+            "content_available": content_available,
+        })
+    return {
+        "current_reply": current_reply,
+        "items": items,
+        "next_cursor": str(rows[size - 1][0]) if len(rows) > size else None,
+    }
+
+
 @router.patch("/admin/feedback/{ticket_id}/status")
 def update_feedback_status(
     ticket_id: str,
@@ -542,6 +659,7 @@ def update_feedback_reply(
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
+                before_reply = lock_feedback_reply(cur, ticket_id)
                 cur.execute(
                     """
                     UPDATE feedback.tickets
@@ -570,7 +688,14 @@ def update_feedback_reply(
                 target_type="feedback.ticket",
                 target_id=str(row[0]),
                 request_id=request_id,
-                after_data={"status": row[3], "admin_reply_set": True},
+                before_data=before_reply,
+                after_data={
+                    "status": row[3],
+                    "admin_reply_set": True,
+                    "admin_reply": row[1],
+                    "replied_at": row[2].isoformat() if row[2] else None,
+                },
+                metadata={"actor_nickname": current_user.get("nickname")},
             )
     except HTTPException:
         raise

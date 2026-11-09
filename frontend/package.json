@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "check:admin-feedback": "node scripts/adminFeedback.selfcheck.mjs",
     "check:sql-cooldown": "node scripts/sqlCooldown.selfcheck.mjs",
     "dev": "vite",
     "build": "tsc && vite build",

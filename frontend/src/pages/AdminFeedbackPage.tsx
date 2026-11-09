@@ -7,6 +7,9 @@ import type {
   FeedbackStatus,
   AdminFeedbackTab,
   AdminFeedbackListResponse,
+  AdminFeedbackReply,
+  AdminFeedbackRepliesResponse,
+  AdminFeedbackReplyUpdateResponse,
 } from '../types';
 
 const TAB_CONFIG: { key: AdminFeedbackTab; label: string }[] = [
@@ -41,6 +44,96 @@ function getStatusInfo(status: FeedbackStatus) {
 }
 
 const PAGE_SIZE = 20;
+
+function replyAuthor(reply: AdminFeedbackReply): string {
+  return reply.admin_nickname || (reply.admin_user_id ? `관리자 (${reply.admin_user_id})` : '관리자 정보 없음');
+}
+
+function replyTime(iso: string | null): string {
+  return iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false }) : '시각 정보 없음';
+}
+
+function FeedbackReplyHistory({ ticketId }: { ticketId: string }) {
+  const [history, setHistory] = useState<AdminFeedbackRepliesResponse | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    apiFetch<AdminFeedbackRepliesResponse>(
+      `/admin/feedback/${ticketId}/replies?size=20${cursor ? `&before=${cursor}` : ''}`,
+      { signal: controller.signal },
+    ).then((res) => {
+      if (!controller.signal.aborted) {
+        setHistory((prev) => cursor && prev ? { ...res, items: [...prev.items, ...res.items] } : res);
+      }
+    }).catch(() => {
+      if (!controller.signal.aborted) setError(true);
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoading(false);
+    });
+    return () => controller.abort();
+  }, [ticketId, cursor, attempt]);
+
+  const current = history?.current_reply;
+  const previous = history?.items.filter((reply) => reply.reply_id !== current?.reply_id) ?? [];
+
+  return (
+    <section aria-label="답변 내역" className="space-y-3">
+      <h3 className="text-sm font-semibold text-slate-800">현재 답변</h3>
+      {history && (current ? (
+        <div className="rounded-lg border border-primary-100 bg-primary-50 px-4 py-3 space-y-2">
+          <p className="text-xs text-slate-600">
+            <span className="font-semibold" title={current.admin_user_id ?? undefined}>{replyAuthor(current)}</span>
+            {' · '}{replyTime(current.replied_at)} (한국시간)
+          </p>
+          <p className="text-sm text-slate-800 whitespace-pre-wrap break-words">{current.admin_reply}</p>
+        </div>
+      ) : <p className="text-sm text-slate-500">등록된 답변이 없습니다.</p>)}
+
+      {previous.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-slate-700">이전 답변 이력 · 최신순</h4>
+          {previous.map((reply) => (
+            <div key={reply.reply_id} className="rounded-lg border border-slate-200 px-4 py-3 space-y-2">
+              <p className="text-xs text-slate-500">
+                <span className="font-semibold" title={reply.admin_user_id ?? undefined}>{replyAuthor(reply)}</span>
+                {' · '}{replyTime(reply.replied_at)} (한국시간)
+              </p>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap break-words">
+                {!reply.content_available
+                  ? '이전 답변 내용은 기록되지 않았습니다.'
+                  : reply.admin_reply?.trim() ? reply.admin_reply : '답변을 삭제했습니다.'}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+      {loading && <p role="status" className="text-xs text-slate-500">답변 내역을 불러오는 중입니다.</p>}
+      {error && (
+        <div role="alert" className="text-sm text-red-600">
+          답변 내역을 불러오지 못했습니다.
+          <button type="button" onClick={() => {
+            setLoading(true);
+            setError(false);
+            setAttempt((value) => value + 1);
+          }} className="ml-2 underline">다시 시도</button>
+        </div>
+      )}
+      {history?.next_cursor && !error && (
+        <button type="button" disabled={loading} onClick={() => {
+          setLoading(true);
+          setCursor(history.next_cursor);
+        }}
+          className="text-sm text-primary-700 underline disabled:opacity-40">
+          이전 답변 더 보기
+        </button>
+      )}
+    </section>
+  );
+}
 
 export default function AdminFeedbackPage() {
   const [tab, setTab] = useState<AdminFeedbackTab>('all');
@@ -115,18 +208,18 @@ export default function AdminFeedbackPage() {
     setReplyLoading(ticketId);
     setReplyMessage((prev) => ({ ...prev, [ticketId]: undefined! }));
     try {
-      await apiFetch(`/admin/feedback/${ticketId}/reply`, {
+      const saved = await apiFetch<AdminFeedbackReplyUpdateResponse>(`/admin/feedback/${ticketId}/reply`, {
         method: 'PATCH',
         body: JSON.stringify({ admin_reply: text }),
       });
       setTickets((prev) =>
         prev.map((t) =>
           t.ticket_id === ticketId
-            ? { ...t, admin_reply: text, replied_at: new Date().toISOString() }
+            ? { ...t, admin_reply: saved.admin_reply, replied_at: saved.replied_at, status: saved.status }
             : t
         )
       );
-      setReplyText((prev) => ({ ...prev, [ticketId]: '' }));
+      setReplyText((prev) => ({ ...prev, [ticketId]: saved.admin_reply }));
       setReplyMessage((prev) => ({
         ...prev,
         [ticketId]: { type: 'success', text: '답변이 저장되었습니다.' },
@@ -270,12 +363,15 @@ export default function AdminFeedbackPage() {
                       )}
                     </div>
 
+                    <FeedbackReplyHistory key={`${ticket.ticket_id}:${ticket.replied_at ?? ''}`} ticketId={ticket.ticket_id} />
+
                     {/* 답변 작성/수정 */}
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-slate-700">
+                      <label htmlFor={`reply-${ticket.ticket_id}`} className="text-sm font-medium text-slate-700">
                         {ticket.admin_reply ? '답변 수정' : '답변 작성'}
                       </label>
                       <textarea
+                        id={`reply-${ticket.ticket_id}`}
                         value={replyText[ticket.ticket_id] ?? ticket.admin_reply ?? ''}
                         onChange={(e) =>
                           setReplyText((prev) => ({ ...prev, [ticket.ticket_id]: e.target.value }))
@@ -307,11 +403,6 @@ export default function AdminFeedbackPage() {
                           </span>
                         )}
                       </div>
-                      {ticket.replied_at && (
-                        <p className="text-xs text-slate-400">
-                          마지막 답변: {formatDate(ticket.replied_at)}
-                        </p>
-                      )}
                     </div>
                   </div>
                 )}
