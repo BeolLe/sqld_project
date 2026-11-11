@@ -4,7 +4,10 @@ import hashlib
 import json
 from datetime import date, datetime
 from decimal import Decimal
+from itertools import groupby
 from typing import Any
+
+from app.services.sql_ordering import result_order_keys
 
 
 def normalize_scalar(value: Any) -> Any:
@@ -82,6 +85,7 @@ def compare_result_sets(
     expected_columns: list[str] | None,
     expected_rows: list[dict[str, Any]] | None,
     comparison_mode: str = "unordered",
+    source_query: str | None = None,
 ) -> tuple[bool, dict[str, Any]]:
     normalized_user_columns = normalize_columns(user_columns)
     normalized_expected_columns = normalize_columns(expected_columns)
@@ -107,6 +111,12 @@ def compare_result_sets(
             "comparisonMode": comparison_mode,
         }
 
+    order_keys = None
+    if comparison_mode == "ordered" and source_query:
+        order_keys = result_order_keys(source_query, tuple(normalized_expected_columns))
+        if order_keys == ():
+            comparison_mode = "unordered"
+
     canonical_user_rows = canonicalize_rows(
         normalized_user_rows,
         columns=normalized_expected_columns,
@@ -119,10 +129,25 @@ def compare_result_sets(
     )
 
     is_correct = canonical_user_rows == canonical_expected_rows
+    if not is_correct and order_keys:
+        # Compare the sequence of complete sort keys and each tied multiset.
+        # Keeping the reference group sequence preserves ASC/DESC and NULL order.
+        def groups(rows, serialized):
+            return [
+                (key, sorted(item[1] for item in group))
+                for key, group in groupby(
+                    zip(rows, serialized),
+                    key=lambda item: tuple(item[0].get(column) for column in order_keys),
+                )
+            ]
+        is_correct = groups(normalized_user_rows, canonical_user_rows) == groups(
+            normalized_expected_rows, canonical_expected_rows
+        )
 
     return is_correct, {
         "reason": "matched" if is_correct else "row_value_mismatch",
         "comparisonMode": comparison_mode,
+        "orderKeys": list(order_keys) if order_keys is not None else None,
         "userHash": build_result_hash(
             normalized_user_columns,
             normalized_user_rows,

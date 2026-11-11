@@ -1,0 +1,67 @@
+name: Build isolated production grading fix
+
+on:
+  push:
+    branches: [fix/prod-sql-grading-ties]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE_IMAGE: ghcr.io/beolle/sqld-backend@sha256:802ab26540b9e48d2205b57d0507f9f5587081ddc1f8738613022607ad3a3848
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build only on the pinned production runtime
+        run: |
+          echo "FIX_IMAGE=ghcr.io/beolle/sqld-backend:prod-grading-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          docker pull "$BASE_IMAGE"
+          docker build -f ops/sql-grading-hotfix/Dockerfile \
+            --build-arg "BASE_IMAGE=$BASE_IMAGE" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            -t "ghcr.io/beolle/sqld-backend:prod-grading-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" .
+      - name: Prove no unrelated application changes
+        run: |
+          docker create --name grading-before "$BASE_IMAGE"
+          docker create --name grading-after "$FIX_IMAGE"
+          docker cp grading-before:/app/app /tmp/grading-before
+          docker cp grading-after:/app/app /tmp/grading-after
+          python3 ops/sql-grading-hotfix/verify_image_delta.py /tmp/grading-before /tmp/grading-after
+          docker rm grading-before grading-after
+      - name: Run regression tests without network or production secrets
+        run: |
+          docker run --rm --network none -i \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/backend/tests,dst=/hotfix-tests,readonly" \
+            --entrypoint /app/.venv/bin/python "$FIX_IMAGE" -B - <<'PY'
+          import logging, sys, unittest
+          logging.disable(logging.CRITICAL)
+          def guard(event, args):
+              if event in {'socket.connect', 'socket.getaddrinfo', 'socket.sendto'}:
+                  raise AssertionError('network prohibited: ' + event)
+          sys.addaudithook(guard)
+          result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.discover('/hotfix-tests'))
+          sys.exit(not result.wasSuccessful())
+          PY
+      - name: Publish immutable production grading reference
+        run: |
+          docker push "$FIX_IMAGE"
+          docker image inspect "$FIX_IMAGE" --format '{{index .RepoDigests 0}}' > backend-digest.txt
+          printf '%s\n' "$GITHUB_SHA" > source-commit.txt
+          printf '%s\n' "$BASE_IMAGE" > base-image.txt
+          cat backend-digest.txt >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-grading-fix
+          path: |
+            backend-digest.txt
+            source-commit.txt
+            base-image.txt

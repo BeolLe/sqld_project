@@ -863,6 +863,7 @@ def execute_sql(
                             expected_columns=expected_result["result_columns"],
                             expected_rows=expected_result["result_rows"],
                             comparison_mode=expected_result["comparison_mode"],
+                            source_query=expected_result["source_query"],
                         )
                     else:
                         grading = {
